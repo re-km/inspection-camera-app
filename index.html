@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>【横向き専用】高画質点検カメラ</title>
+    <title>Inspection_camera_app</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
     <script async src="https://docs.opencv.org/4.9.0/opencv.js" id="opencv-js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/piexifjs/1.0.6/piexif.js"></script>
     <style>
         html, body, #app-container { height: 100%; width: 100%; margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
-        .section { height: 100vh; display: flex; flex-direction: column; }
-        #capture-btn { width: 64px; height: 64px; border-radius: 50%; border: 5px solid white; background-color: rgba(255, 255, 255, 0.3); transition: background-color 0.2s; }
-        #capture-btn:active { background-color: rgba(255, 255, 255, 0.6); }
+        .section { height: 100vh; display: flex; flex-direction: column; transition: width 0.3s ease-in-out; }
+        #capture-btn { width: 64px; height: 64px; border-radius: 50%; border: 5px solid white; background-color: rgba(255, 255, 255, 0.3); transition: background-color 0.2s, transform 0.1s; }
+        #capture-btn:active { background-color: rgba(255, 255, 255, 0.6); transform: scale(0.95); }
         .ping-animation { animation: ping 0.5s cubic-bezier(0, 0, 0.2, 1); }
         @keyframes ping { 75%, 100% { transform: scale(1.2); opacity: 0; } }
         #photo-gallery, #album-grid { scrollbar-width: none; -ms-overflow-style: none; }
@@ -55,7 +55,10 @@
         <div id="camera-section" class="section w-1/2 p-2 bg-gray-900">
             <div id="camera-frame" class="relative flex-grow bg-black rounded-lg mb-2">
                 <video id="camera-stream" autoplay playsinline></video>
-                <div id="match-indicator" class="hidden absolute top-2 right-2 bg-green-500 text-white font-bold text-sm px-3 py-1 rounded-full shadow-lg z-20"></div>
+                 <div class="absolute top-2 right-2 flex items-center gap-2 z-20">
+                    <button id="pdf-reselect-btn" class="hidden bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-1 px-3 rounded-lg text-xs">PDF再選択</button>
+                    <div id="match-indicator" class="hidden bg-green-500 text-white font-bold text-sm px-3 py-1 rounded-full shadow-lg"></div>
+                </div>
                 <div class="absolute top-2 left-2 bg-black bg-opacity-50 p-1 rounded-md text-xs z-20">
                     <div><span id="gps-status-dot" class="status-dot bg-red-500"></span> GPS</div>
                     <div><span id="compass-status-dot" class="status-dot bg-red-500"></span> 方位</div>
@@ -85,12 +88,33 @@
 
     <!-- 全画面アルバムモーダル -->
     <div id="album-modal" class="hidden fixed inset-0 bg-gray-900 z-50 flex flex-col p-4">
-        <!-- ... (HTMLは変更なし) ... -->
+        <div class="flex-shrink-0 flex justify-between items-center mb-4">
+            <h2 class="text-2xl font-bold">アルバム</h2>
+            <button id="close-album-btn" class="text-3xl font-bold text-white">&times;</button>
+        </div>
+        <div id="album-grid" class="flex-grow overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+            <!-- 写真がここに追加される -->
+        </div>
     </div>
     
     <!-- Geminiモーダル -->
     <div id="gemini-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[60] p-4">
-        <!-- ... (HTMLは変更なし) ... -->
+        <div class="bg-gray-800 rounded-lg p-6 w-11/12 max-w-3xl text-white shadow-2xl max-h-[90vh] flex flex-col">
+            <h3 id="modal-title" class="text-2xl font-bold mb-4 flex items-center flex-shrink-0"></h3>
+            <div class="overflow-y-auto pr-4">
+                <div id="gemini-modal-content" class="min-h-[100px]"></div>
+                <div id="report-generation-area" class="mt-6 hidden">
+                    <h4 class="text-xl font-semibold border-t border-gray-600 pt-4">報告書（案）</h4>
+                    <div id="report-content" class="mt-2 p-4 bg-gray-900 rounded-lg min-h-[150px] whitespace-pre-wrap"></div>
+                    <div class="text-right mt-2">
+                         <button id="copy-report-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">文章をコピー</button>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 text-right flex-shrink-0">
+                <button id="close-modal-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg">閉じる</button>
+            </div>
+        </div>
     </div>
 
     <!-- 非表示キャンバス -->
@@ -108,9 +132,9 @@
     const MATCH_THRESHOLD = 0.7;
     let cv = null;
     const sensorData = { latitude: null, longitude: null, heading: null };
-    let photoCount = 0; // 写真枚数カウンター
+    let photoCount = 0;
 
-    // --- 関数定義 (ここから) ---
+    // --- 関数定義 ---
 
     // PDF関連
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
@@ -177,13 +201,12 @@
         }
     }
     async function takePicture() {
-        // 撮影ボタンのアニメーションでフィードバック
         const btn = elements['capture-btn'];
         btn.classList.add('ping-animation');
         setTimeout(() => btn.classList.remove('ping-animation'), 500);
 
         const video = elements['camera-stream'];
-        if (!video.srcObject) return; // カメラが起動していない場合は何もしない
+        if (!video.srcObject) return;
 
         const canvas = elements['capture-canvas'];
         canvas.width = video.videoWidth; canvas.height = video.videoHeight;
@@ -209,7 +232,6 @@
         
         addToGallery(finalImageDataUrl);
 
-        // 写真枚数カウンターを更新
         photoCount++;
         const badge = elements['photo-count-badge'];
         badge.textContent = `${photoCount}枚`;
@@ -359,7 +381,6 @@
             const selRect = { x: Math.min(p1.x, p2.x), y: Math.min(p1.y, p2.y), width: Math.abs(p1.x - p2.x), height: Math.abs(p1.y - p2.y) };
             if (selRect.width < 10 || selRect.height < 10) { resetSelection(); return; }
             cropAndSetTarget(selRect);
-            toggleCompareMode();
         }
     }
     function cropAndSetTarget(rect) {
@@ -372,6 +393,13 @@
         targetImageDataUrl = tempCanvas.toDataURL('image/png');
         elements['target-image'].src = targetImageDataUrl;
         elements['target-image-container'].style.display = 'flex';
+        
+        elements['pdf-section'].classList.add('hidden');
+        elements['camera-section'].classList.remove('w-1/2');
+        elements['camera-section'].classList.add('w-full');
+        elements['pdf-reselect-btn'].classList.remove('hidden');
+
+        toggleCompareMode();
     }
     function resetSelection() {
         elements['selection-marker'].classList.add('hidden');
@@ -399,7 +427,16 @@
         instructionEl.classList.remove('hidden');
     }
 
-    // --- イベントリスナーの登録 ---
+    function revertToSplitView() {
+        elements['pdf-section'].classList.remove('hidden');
+        elements['camera-section'].classList.add('w-1/2');
+        elements['camera-section'].classList.remove('w-full');
+        elements['pdf-reselect-btn'].classList.add('hidden');
+        elements['target-image-container'].style.display = 'none';
+        targetImageDataUrl = null;
+    }
+
+    // --- イベントリスナーと初期化 ---
     function initEventListeners() {
         elements['capture-btn'].addEventListener('click', takePicture);
         elements['ai-assistant-btn'].addEventListener('click', () => { if (targetImageDataUrl) getAiShootingAssistant(targetImageDataUrl); });
@@ -427,6 +464,7 @@
         elements['toggle-compare-btn'].addEventListener('click', toggleCompareMode);
         elements['pdf-viewer'].addEventListener('touchstart', handlePdfTap, { passive: false });
         elements['pdf-viewer'].addEventListener('click', handlePdfTap);
+        elements['pdf-reselect-btn'].addEventListener('click', revertToSplitView);
         if(elements['close-modal-btn']) elements['close-modal-btn'].addEventListener('click', () => elements['gemini-modal'].classList.add('hidden'));
         if(elements['copy-report-btn']) elements['copy-report-btn'].addEventListener('click', () => {
             const textToCopy = elements['report-content'].textContent;
@@ -440,9 +478,8 @@
         });
     }
 
-    // --- 初期化処理の実行 ---
     document.addEventListener('DOMContentLoaded', () => {
-        const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'selection-box', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'opencv-js', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge'];
+        const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'selection-box', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'opencv-js', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn'];
         ids.forEach(id => { if(document.getElementById(id)) elements[id] = document.getElementById(id); });
         
         initEventListeners();
