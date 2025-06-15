@@ -441,24 +441,37 @@
         cropAndSetTarget(rect) {
             const pdfCanvas = this.elements['pdf-viewer'].querySelector('canvas');
             if (!pdfCanvas) return;
+            
+            // 画像を切り取り
             const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = rect.width; tempCanvas.height = rect.height;
+            tempCanvas.width = rect.width; 
+            tempCanvas.height = rect.height;
             tempCanvas.getContext('2d').drawImage(pdfCanvas, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height);
             this.targetImageDataUrl = tempCanvas.toDataURL('image/png');
             this.elements['target-image'].src = this.targetImageDataUrl;
-            this.elements['target-image-container'].style.display = 'flex';
             
-            // 修正: resetSelectionを先に呼び出してから画面変更
+            // 選択状態をリセット
             this.resetSelection();
+            
+            // 比較モードを終了してUIを更新
             this.isCompareMode = false;
             this.elements['toggle-compare-btn'].textContent = '🖼️ 比較';
             this.elements['toggle-compare-btn'].classList.replace('bg-red-600', 'bg-teal-600');
             this.elements['pdf-viewer'].style.cursor = 'default';
             
+            // レイアウトを変更（カメラ画面を最大化）
             this.elements['pdf-section'].classList.add('hidden');
             this.elements['camera-section'].classList.remove('w-1/2');
             this.elements['camera-section'].classList.add('w-full');
+            
+            // ターゲット画像コンテナを表示
+            this.elements['target-image-container'].classList.remove('hidden');
             this.elements['pdf-reselect-btn'].classList.remove('hidden');
+            
+            // 比較機能を有効化
+            this.isCompareMode = true;
+            
+            console.log('カメラ画面を最大化し、比較機能を有効化しました');
         },
         resetSelection() {
             this.elements['selection-marker'].classList.add('hidden');
@@ -486,12 +499,24 @@
             instructionEl.classList.remove('hidden');
         },
         revertToSplitView() {
+            // レイアウトを分割表示に戻す
             this.elements['pdf-section'].classList.remove('hidden');
             this.elements['camera-section'].classList.add('w-1/2');
             this.elements['camera-section'].classList.remove('w-full');
+            
+            // ターゲット画像関連のUIを非表示
             this.elements['pdf-reselect-btn'].classList.add('hidden');
-            this.elements['target-image-container'].style.display = 'none';
+            this.elements['target-image-container'].classList.add('hidden');
+            
+            // 比較機能を無効化
+            this.isCompareMode = false;
             this.targetImageDataUrl = null;
+            
+            // カメラフレームのエフェクトをリセット
+            this.elements['camera-frame'].style.boxShadow = 'none';
+            this.elements['match-indicator'].classList.add('hidden');
+            
+            console.log('分割表示に戻しました');
         },
 
         // --- イベントリスナーと初期化 ---
