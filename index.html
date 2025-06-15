@@ -85,6 +85,20 @@
         </div>
     </div>
 
+    <!-- APIキー設定モーダル -->
+    <div id="api-key-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[70] p-4">
+        <div class="bg-gray-800 rounded-lg p-6 w-11/12 max-w-md text-white shadow-2xl">
+            <h3 class="text-xl font-bold mb-4">🔑 API設定</h3>
+            <p class="text-sm text-gray-300 mb-4">Gemini AIを使用するためのAPIキーを入力してください。</p>
+            <input type="password" id="api-key-input" placeholder="Gemini API Key" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white mb-4">
+            <div class="flex gap-2">
+                <button id="save-api-key-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">保存</button>
+                <button id="skip-api-key-btn" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">スキップ</button>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">※スキップした場合、AI機能は利用できません</p>
+        </div>
+    </div>
+
     <!-- 全画面アルバムモーダル -->
     <div id="album-modal" class="hidden fixed inset-0 bg-gray-900 z-50 flex flex-col p-4">
         <div class="flex-shrink-0 flex justify-between items-center mb-4">
@@ -125,6 +139,31 @@
         targetImageDataUrl: null, frameCount: 0, MATCH_THRESHOLD: 0.7, cv: null,
         sensorData: { latitude: null, longitude: null, heading: null },
         photoCount: 0,
+        apiKey: '',
+
+        // API設定関連
+        initApiKeyModal() {
+            const savedApiKey = localStorage.getItem('gemini_api_key');
+            if (savedApiKey) {
+                this.apiKey = savedApiKey;
+                this.elements['api-key-modal'].classList.add('hidden');
+            }
+        },
+        saveApiKey() {
+            const keyInput = this.elements['api-key-input'];
+            const key = keyInput.value.trim();
+            if (key) {
+                this.apiKey = key;
+                localStorage.setItem('gemini_api_key', key);
+                this.elements['api-key-modal'].classList.add('hidden');
+                alert('APIキーを保存しました。');
+            } else {
+                alert('有効なAPIキーを入力してください。');
+            }
+        },
+        skipApiKey() {
+            this.elements['api-key-modal'].classList.add('hidden');
+        },
 
         // PDF関連
         renderPage(num) {
@@ -256,29 +295,55 @@
 
         // AI関連
         async callGeminiApi(prompt, imageDataUrl = null) {
-            const apiKey = "";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            if (!this.apiKey) {
+                throw new Error('APIキーが設定されていません。設定画面でAPIキーを入力してください。');
+            }
+            
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.apiKey}`;
             const parts = [{ text: prompt }];
             if (imageDataUrl) {
                 const base64ImageData = imageDataUrl.split(',')[1];
                 parts.push({ inlineData: { mimeType: "image/jpeg", data: base64ImageData } });
             }
             const payload = { contents: [{ role: "user", parts: parts }] };
-            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            if (!response.ok) {
-                const errorBody = await response.json();
-                console.error("API Error:", errorBody);
-                throw new Error(`APIエラー: ${response.status} ${errorBody.error?.message || response.statusText}`);
-            }
-            const result = await response.json();
-            if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
-                return result.candidates[0].content.parts[0].text;
-            } else {
-                console.error("Unexpected API Response:", result);
-                throw new Error("AIからの有効な応答がありませんでした。");
+            
+            try {
+                const response = await fetch(apiUrl, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify(payload) 
+                });
+                
+                if (!response.ok) {
+                    const errorBody = await response.json();
+                    console.error("API Error:", errorBody);
+                    if (response.status === 400 && errorBody.error?.message?.includes('API_KEY_INVALID')) {
+                        throw new Error('APIキーが無効です。正しいAPIキーを設定してください。');
+                    }
+                    throw new Error(`APIエラー: ${response.status} ${errorBody.error?.message || response.statusText}`);
+                }
+                
+                const result = await response.json();
+                if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+                    return result.candidates[0].content.parts[0].text;
+                } else {
+                    console.error("Unexpected API Response:", result);
+                    throw new Error("AIからの有効な応答がありませんでした。");
+                }
+            } catch (error) {
+                if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    throw new Error('ネットワークエラーが発生しました。インターネット接続を確認してください。');
+                }
+                throw error;
             }
         },
         async analyzeImageWithGemini(dataUrl) {
+            if (!this.apiKey) {
+                alert('AI機能を使用するにはAPIキーの設定が必要です。');
+                this.elements['api-key-modal'].classList.remove('hidden');
+                return;
+            }
+            
             this.elements['modal-title'].innerHTML = `<span class="text-2xl mr-2">✨</span> AIによる損傷分析`;
             this.elements['gemini-modal'].classList.remove('hidden');
             this.elements['report-generation-area'].classList.add('hidden'); 
@@ -294,7 +359,7 @@
                 this.elements['gemini-modal-content'].appendChild(generateBtn);
             } catch (error) {
                 console.error("Gemini API Error:", error);
-                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">分析中にエラーが発生しました。コンソールで詳細を確認してください。</p><p class="text-xs text-gray-400 mt-2">${error.message}</p>`;
+                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">分析中にエラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${error.message}</p><button onclick="App.elements['api-key-modal'].classList.remove('hidden')" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
             }
         },
         async generateReportFromAnalysis(analysisText) {
@@ -306,10 +371,16 @@
                 this.elements['report-content'].textContent = reportText;
             } catch (error) {
                 console.error("Report Generation Error:", error);
-                this.elements['report-content'].innerHTML = `<p class="text-red-400">報告書の作成中にエラーが発生しました。</p>`;
+                this.elements['report-content'].innerHTML = `<p class="text-red-400">報告書の作成中にエラーが発生しました：${error.message}</p>`;
             }
         },
         async getAiShootingAssistant(dataUrl) {
+            if (!this.apiKey) {
+                alert('AI機能を使用するにはAPIキーの設定が必要です。');
+                this.elements['api-key-modal'].classList.remove('hidden');
+                return;
+            }
+            
             this.elements['modal-title'].innerHTML = `<span class="text-2xl mr-2">✨</span> AI撮影アシスタント`;
             this.elements['gemini-modal'].classList.remove('hidden');
             this.elements['report-generation-area'].classList.add('hidden');
@@ -320,7 +391,7 @@
                 this.elements['gemini-modal-content'].innerHTML = `<div class="prose prose-invert max-w-none">${assistantText.replace(/\n/g, '<br>')}</div>`;
             } catch (error) {
                 console.error("AI Assistant Error:", error);
-                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">AIアシスタントの呼び出し中にエラーが発生しました。</p>`;
+                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">AIアシスタントの呼び出し中にエラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${error.message}</p><button onclick="App.elements['api-key-modal'].classList.remove('hidden')" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
             }
         },
 
@@ -377,12 +448,17 @@
             this.elements['target-image'].src = this.targetImageDataUrl;
             this.elements['target-image-container'].style.display = 'flex';
             
+            // 修正: resetSelectionを先に呼び出してから画面変更
+            this.resetSelection();
+            this.isCompareMode = false;
+            this.elements['toggle-compare-btn'].textContent = '🖼️ 比較';
+            this.elements['toggle-compare-btn'].classList.replace('bg-red-600', 'bg-teal-600');
+            this.elements['pdf-viewer'].style.cursor = 'default';
+            
             this.elements['pdf-section'].classList.add('hidden');
             this.elements['camera-section'].classList.remove('w-1/2');
             this.elements['camera-section'].classList.add('w-full');
             this.elements['pdf-reselect-btn'].classList.remove('hidden');
-
-            this.toggleCompareMode();
         },
         resetSelection() {
             this.elements['selection-marker'].classList.add('hidden');
@@ -424,6 +500,8 @@
             this.elements['ai-assistant-btn'].addEventListener('click', () => { if (this.targetImageDataUrl) this.getAiShootingAssistant(this.targetImageDataUrl); });
             this.elements['open-album-btn'].addEventListener('click', () => { this.elements['album-modal'].classList.remove('hidden'); });
             this.elements['close-album-btn'].addEventListener('click', () => { this.elements['album-modal'].classList.add('hidden'); });
+            this.elements['save-api-key-btn'].addEventListener('click', () => this.saveApiKey());
+            this.elements['skip-api-key-btn'].addEventListener('click', () => this.skipApiKey());
             this.elements['pdf-upload'].addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (!file || file.type !== 'application/pdf') return;
@@ -460,12 +538,13 @@
             });
         },
         init() {
-            const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'selection-box', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'opencv-js', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn'];
+            const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'selection-box', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'opencv-js', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'skip-api-key-btn'];
             ids.forEach(id => { if(document.getElementById(id)) this.elements[id] = document.getElementById(id); });
             
             this.initEventListeners();
             this.initCamera();
             this.initSensors();
+            this.initApiKeyModal();
             
             const readyCheck = setInterval(() => {
                 if (window.cv && window.cv.imread) {
