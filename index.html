@@ -227,6 +227,11 @@
                 <button id="skip-api-key-btn" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">スキップ</button>
             </div>
             <p class="text-xs text-gray-400 mt-2">※スキップした場合、AI機能は利用できません</p>
+            
+            <!-- APIキー再設定用ボタン（後で表示） -->
+            <button id="reconfigure-api-key-btn" class="hidden w-full mt-3 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg">
+                🔧 APIキーを再設定
+            </button>
         </div>
     </div>
 
@@ -377,10 +382,14 @@
             }, 10000);
         },
 
-        // API設定関連 - localStorageを使用しない版
+        // API設定関連 - 改善版（初回のみ表示）
         initApiKeyModal() {
-            // APIキー設定モーダルを表示
-            this.elements['api-key-modal'].classList.remove('hidden');
+            // APIキーが未設定の場合のみモーダルを表示
+            if (!this.apiKey) {
+                this.elements['api-key-modal'].classList.remove('hidden');
+            } else {
+                this.elements['api-key-modal'].classList.add('hidden');
+            }
         },
         saveApiKey() {
             const keyInput = this.elements['api-key-input'];
@@ -389,13 +398,26 @@
                 this.apiKey = key; // メモリ上でのみ保存
                 this.elements['api-key-modal'].classList.add('hidden');
                 this.showSuccessMessage('APIキーを設定しました。（このセッション中のみ有効）');
+                
+                // 再設定ボタンを表示（次回のため）
+                this.elements['reconfigure-api-key-btn'].classList.remove('hidden');
+                this.elements['skip-api-key-btn'].classList.add('hidden');
             } else {
                 alert('有効なAPIキーを入力してください。');
             }
         },
         skipApiKey() {
             this.elements['api-key-modal'].classList.add('hidden');
-            this.showInfoMessage('AI機能は利用できません。APIキーを設定すると利用可能になります。');
+            this.showInfoMessage('AI機能は利用できません。後でAPIキーを設定できます。');
+            
+            // 再設定ボタンを表示（後で設定できるように）
+            this.elements['reconfigure-api-key-btn'].classList.remove('hidden');
+        },
+        
+        // APIキー再設定機能
+        reconfigureApiKey() {
+            this.elements['api-key-input'].value = ''; // 入力欄をクリア
+            this.elements['api-key-modal'].classList.remove('hidden');
         },
 
         showSuccessMessage(message) {
@@ -749,7 +771,7 @@
         async analyzeImageWithGemini(dataUrl) {
             if (!this.apiKey) {
                 this.showPermissionAlert('API設定', 'AI機能を使用するにはAPIキーの設定が必要です。');
-                this.elements['api-key-modal'].classList.remove('hidden');
+                this.reconfigureApiKey(); // 設定画面を開く
                 return;
             }
             
@@ -770,7 +792,7 @@
             } catch (error) {
                 console.error("Gemini API Error:", error);
                 let errorMessage = error.message;
-                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">分析中にエラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${errorMessage}</p><button onclick="App.elements['api-key-modal'].classList.remove('hidden')" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
+                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">分析中にエラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${errorMessage}</p><button onclick="App.reconfigureApiKey()" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
             }
         },
 
@@ -783,7 +805,7 @@
                 this.elements['report-content'].textContent = reportText;
             } catch (error) {
                 console.error("Report Generation Error:", error);
-                this.elements['report-content'].innerHTML = `<p class="text-red-400">報告書の作成中にエラーが発生しました：${error.message}</p>`;
+                this.elements['report-content'].innerHTML = `<p class="text-red-400">報告書の作成中にエラーが発生しました：${error.message}</p><button onclick="App.reconfigureApiKey()" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
             }
         },
 
@@ -804,7 +826,7 @@
                 this.elements['gemini-modal-content'].innerHTML = `<div class="prose prose-invert max-w-none">${assistantText.replace(/\n/g, '<br>')}</div>`;
             } catch (error) {
                 console.error("AI Assistant Error:", error);
-                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">AIアシスタントの呼び出し中にエラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${error.message}</p>`;
+                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">AIアシスタントの呼び出し中にエラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${error.message}</p><button onclick="App.reconfigureApiKey()" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
             }
         },
 
@@ -989,10 +1011,15 @@
             this.selectionState = 'completed';
             this.isCompareMode = true;
             
-            // カメラを全画面表示に変更
+            // 比較ボタンの状態を更新（カメラ表示前に実行）
+            this.elements['toggle-compare-btn'].textContent = '🖼️ 比較終了';
+            this.elements['toggle-compare-btn'].classList.remove('bg-red-600', 'bg-teal-600');
+            this.elements['toggle-compare-btn'].classList.add('bg-purple-600');
+            
+            // 確実にカメラを全画面表示
             this.showFullscreenCamera();
             
-            console.log('cropAndSetTarget完了 - カメラ全画面表示開始');
+            console.log('cropAndSetTarget完了 - カメラ全画面表示実行');
         },
 
         // 修正されたカメラ全画面表示機能
@@ -1003,28 +1030,41 @@
             const pdfSection = this.elements['pdf-section'];
             const cameraSection = this.elements['camera-section'];
             
-            // CSSクラスを使用してレイアウト変更
+            // 段階的なレイアウト変更で確実に適用
+            console.log('PDFセクション非表示化...');
             pdfSection.classList.add('pdf-hidden');
+            
+            console.log('カメラセクション全画面化...');
             cameraSection.classList.add('camera-fullscreen');
             
+            // レイアウト再計算を強制
+            pdfSection.offsetHeight;
+            cameraSection.offsetWidth;
+            
             // コントロールパネルを表示
+            console.log('コントロールパネル表示...');
             this.elements['control-panel'].classList.remove('hidden');
             
             // ターゲット画像コンテナを表示
+            console.log('ターゲット画像表示...');
             this.elements['target-image-container'].classList.remove('hidden');
-            
-            // 比較ボタンの状態を更新
-            this.elements['toggle-compare-btn'].textContent = '🖼️ 比較終了';
-            this.elements['toggle-compare-btn'].classList.remove('bg-red-600');
-            this.elements['toggle-compare-btn'].classList.add('bg-purple-600');
             
             // 撮影枚数を更新
             this.elements['compare-photo-count'].textContent = `${this.photoCount}枚`;
             
-            // ピンチズーム初期化
+            // 少し遅れてピンチズーム初期化（DOM更新後）
             setTimeout(() => {
                 this.initPinchZoom();
+                console.log('ピンチズーム初期化完了');
             }, 100);
+            
+            // 最終確認ログ
+            setTimeout(() => {
+                console.log('レイアウト確認:');
+                console.log('- PDFセクション hidden:', pdfSection.classList.contains('pdf-hidden'));
+                console.log('- カメラセクション fullscreen:', cameraSection.classList.contains('camera-fullscreen'));
+                console.log('- コントロールパネル visible:', !this.elements['control-panel'].classList.contains('hidden'));
+            }, 200);
             
             console.log('showFullscreenCamera完了');
         },
@@ -1181,6 +1221,7 @@
             this.elements['close-album-btn'].addEventListener('click', () => { this.elements['album-modal'].classList.add('hidden'); });
             this.elements['save-api-key-btn'].addEventListener('click', () => this.saveApiKey());
             this.elements['skip-api-key-btn'].addEventListener('click', () => this.skipApiKey());
+            this.elements['reconfigure-api-key-btn'].addEventListener('click', () => this.reconfigureApiKey());
             
             // PDF関連
             this.elements['pdf-upload'].addEventListener('change', (e) => {
@@ -1273,7 +1314,7 @@
                 }
                 
                 // 要素の取得
-                const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'skip-api-key-btn', 'control-panel', 'close-compare-btn', 'show-album-btn', 'zoom-slider', 'zoom-level-display', 'compare-photo-count', 'compare-capture-btn', 'comparison-match-rate'];
+                const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'skip-api-key-btn', 'reconfigure-api-key-btn', 'control-panel', 'close-compare-btn', 'show-album-btn', 'zoom-slider', 'zoom-level-display', 'compare-photo-count', 'compare-capture-btn', 'comparison-match-rate'];
                 
                 ids.forEach(id => { 
                     const element = document.getElementById(id);
