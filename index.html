@@ -419,11 +419,12 @@
 
         // 2回タップでの範囲選択機能
         handlePdfTap(event) {
-            if (!this.isCompareMode) return;
+            if (!this.isCompareMode || this.selectionState === 'completed') return;
             event.preventDefault();
             const rect = this.elements['pdf-viewer'].getBoundingClientRect();
             const x = (event.touches ? event.touches[0].clientX : event.clientX) - rect.left;
             const y = (event.touches ? event.touches[0].clientY : event.clientY) - rect.top;
+            
             if (this.selectionState === 'waiting_for_p1') {
                 this.p1 = { x, y };
                 this.elements['selection-marker'].style.left = `${x}px`;
@@ -433,8 +434,16 @@
                 this.selectionState = 'waiting_for_p2';
             } else if (this.selectionState === 'waiting_for_p2') {
                 const p2 = { x, y };
-                const selRect = { x: Math.min(this.p1.x, p2.x), y: Math.min(this.p1.y, p2.y), width: Math.abs(this.p1.x - p2.x), height: Math.abs(this.p1.y - p2.y) };
-                if (selRect.width < 10 || selRect.height < 10) { this.resetSelection(); return; }
+                const selRect = { 
+                    x: Math.min(this.p1.x, p2.x), 
+                    y: Math.min(this.p1.y, p2.y), 
+                    width: Math.abs(this.p1.x - p2.x), 
+                    height: Math.abs(this.p1.y - p2.y) 
+                };
+                if (selRect.width < 10 || selRect.height < 10) { 
+                    this.resetSelection(); 
+                    return; 
+                }
                 this.cropAndSetTarget(selRect);
             }
         },
@@ -450,14 +459,9 @@
             this.targetImageDataUrl = tempCanvas.toDataURL('image/png');
             this.elements['target-image'].src = this.targetImageDataUrl;
             
-            // 選択状態をリセット
-            this.resetSelection();
-            
-            // 比較モードを終了してUIを更新
-            this.isCompareMode = false;
-            this.elements['toggle-compare-btn'].textContent = '🖼️ 比較';
-            this.elements['toggle-compare-btn'].classList.replace('bg-red-600', 'bg-teal-600');
-            this.elements['pdf-viewer'].style.cursor = 'default';
+            // 選択UI要素を非表示（状態はリセットしない）
+            this.elements['selection-marker'].classList.add('hidden');
+            this.elements['selection-instruction'].classList.add('hidden');
             
             // レイアウトを変更（カメラ画面を最大化）
             this.elements['pdf-section'].classList.add('hidden');
@@ -468,8 +472,9 @@
             this.elements['target-image-container'].classList.remove('hidden');
             this.elements['pdf-reselect-btn'].classList.remove('hidden');
             
-            // 比較機能を有効化
+            // 比較機能を有効化（状態変更なし、単純に有効化）
             this.isCompareMode = true;
+            this.selectionState = 'completed';
             
             console.log('カメラ画面を最大化し、比較機能を有効化しました');
         },
@@ -479,6 +484,9 @@
             this.selectionState = 'idle';
         },
         toggleCompareMode() {
+            // すでに比較完了状態の場合は何もしない
+            if (this.selectionState === 'completed') return;
+            
             this.isCompareMode = !this.isCompareMode;
             if (this.isCompareMode) {
                 this.selectionState = 'waiting_for_p1';
@@ -511,10 +519,21 @@
             // 比較機能を無効化
             this.isCompareMode = false;
             this.targetImageDataUrl = null;
+            this.selectionState = 'idle';
+            
+            // 比較ボタンの状態をリセット
+            this.elements['toggle-compare-btn'].textContent = '🖼️ 比較';
+            this.elements['toggle-compare-btn'].classList.remove('bg-red-600');
+            this.elements['toggle-compare-btn'].classList.add('bg-teal-600');
+            this.elements['pdf-viewer'].style.cursor = 'default';
             
             // カメラフレームのエフェクトをリセット
             this.elements['camera-frame'].style.boxShadow = 'none';
             this.elements['match-indicator'].classList.add('hidden');
+            
+            // 選択UI要素を非表示
+            this.elements['selection-marker'].classList.add('hidden');
+            this.elements['selection-instruction'].classList.add('hidden');
             
             console.log('分割表示に戻しました');
         },
