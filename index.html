@@ -9,10 +9,35 @@
     <script async src="https://docs.opencv.org/4.9.0/opencv.js" id="opencv-js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/piexifjs/1.0.6/piexif.js"></script>
     <style>
-        html, body, #app-container { height: 100%; width: 100%; margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
-        .section { height: 100vh; display: flex; flex-direction: column; position: absolute; top: 0; transition: all 0.3s ease-in-out; }
-        #pdf-section { left: 0; width: 50%; }
-        #camera-section { right: 0; width: 50%; }
+        html, body, #app-container { 
+            height: 100%; 
+            width: 100%; 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: 'Inter', sans-serif; 
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        .section { 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            position: absolute; 
+            top: 0; 
+            transition: all 0.3s ease-in-out;
+            -webkit-transition: all 0.3s ease-in-out;
+        }
+        #pdf-section { 
+            left: 0; 
+            width: 50%; 
+            z-index: 1;
+        }
+        #camera-section { 
+            left: 50%; 
+            width: 50%; 
+            z-index: 1;
+        }
         #capture-btn { width: 64px; height: 64px; border-radius: 50%; border: 5px solid white; background-color: rgba(255, 255, 255, 0.3); transition: background-color 0.2s, transform 0.1s; }
         #capture-btn:active { background-color: rgba(255, 255, 255, 0.6); transform: scale(0.95); }
         .ping-animation { animation: ping 0.5s cubic-bezier(0, 0, 0.2, 1); }
@@ -24,10 +49,6 @@
         #camera-frame { transition: box-shadow 0.3s ease-in-out; }
         .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
         #camera-stream { width: 100%; height: 100%; object-fit: contain; }
-        
-        /* 追加: レスポンシブ制御用 */
-        .camera-fullscreen { left: 0 !important; width: 100% !important; }
-        .pdf-hidden { left: -100% !important; }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
@@ -494,23 +515,47 @@
             this.elements['toggle-compare-btn'].classList.add('bg-purple-600');
             this.elements['pdf-viewer'].style.cursor = 'default';
             
-            // iPhoneで確実に動作するCSSクラスベースのレイアウト変更
-            this.elements['pdf-section'].classList.add('pdf-hidden');
-            this.elements['camera-section'].classList.add('camera-fullscreen');
-            
             // ターゲット画像コンテナを表示
-            this.elements['target-image-container'].classList.remove('hidden');
-            this.elements['pdf-reselect-btn'].classList.remove('hidden');
+            this.elements['target-image-container'].style.display = 'flex';
+            this.elements['pdf-reselect-btn'].style.display = 'block';
             
-            // iOS Safari対応: 強制再描画
-            this.elements['pdf-section'].style.transform = 'translateZ(0)';
-            this.elements['camera-section'].style.transform = 'translateZ(0)';
+            // 段階的レイアウト変更 (iPhone Safari対応)
+            const pdfSection = this.elements['pdf-section'];
+            const cameraSection = this.elements['camera-section'];
             
-            // 念のための追加確認
+            // Step 1: カメラセクションのz-indexを上げる
+            cameraSection.style.zIndex = '10';
+            
+            // Step 2: 初期位置調整
             setTimeout(() => {
-                this.elements['pdf-section'].classList.add('pdf-hidden');
-                this.elements['camera-section'].classList.add('camera-fullscreen');
-            }, 50);
+                // PDFセクションを左に移動開始
+                pdfSection.style.transform = 'translateX(-100%)';
+                pdfSection.style.webkitTransform = 'translateX(-100%)';
+                
+                // カメラセクションを左端に移動
+                cameraSection.style.left = '0';
+                cameraSection.style.width = '100%';
+            }, 10);
+            
+            // Step 3: 完全な非表示化
+            setTimeout(() => {
+                pdfSection.style.visibility = 'hidden';
+                pdfSection.style.opacity = '0';
+                
+                // 確実にカメラを全幅に
+                cameraSection.style.position = 'absolute';
+                cameraSection.style.top = '0';
+                cameraSection.style.left = '0';
+                cameraSection.style.width = '100%';
+                cameraSection.style.height = '100vh';
+            }, 100);
+            
+            // Step 4: 最終確認
+            setTimeout(() => {
+                pdfSection.style.display = 'none';
+                cameraSection.style.transform = 'translateZ(0)';
+                cameraSection.style.webkitTransform = 'translateZ(0)';
+            }, 400);
         },
         resetSelection() {
             this.elements['selection-marker'].classList.add('hidden');
@@ -549,13 +594,34 @@
             instructionEl.classList.remove('hidden');
         },
         revertToSplitView() {
-            // CSSクラスベースでレイアウトを分割表示に戻す
-            this.elements['pdf-section'].classList.remove('pdf-hidden');
-            this.elements['camera-section'].classList.remove('camera-fullscreen');
+            const pdfSection = this.elements['pdf-section'];
+            const cameraSection = this.elements['camera-section'];
+            
+            // 直接スタイル操作で分割表示に戻す
+            // PDFセクションを復活
+            pdfSection.style.display = 'flex';
+            pdfSection.style.visibility = 'visible';
+            pdfSection.style.opacity = '1';
+            pdfSection.style.transform = 'translateX(0)';
+            pdfSection.style.position = 'absolute';
+            pdfSection.style.top = '0';
+            pdfSection.style.left = '0';
+            pdfSection.style.width = '50%';
+            pdfSection.style.height = '100vh';
+            pdfSection.style.zIndex = '1';
+            
+            // カメラセクションを半幅に戻す
+            cameraSection.style.position = 'absolute';
+            cameraSection.style.top = '0';
+            cameraSection.style.left = '50%';
+            cameraSection.style.width = '50%';
+            cameraSection.style.height = '100vh';
+            cameraSection.style.zIndex = '1';
+            cameraSection.style.transform = 'none';
             
             // ターゲット画像関連のUIを非表示
-            this.elements['pdf-reselect-btn'].classList.add('hidden');
-            this.elements['target-image-container'].classList.add('hidden');
+            this.elements['pdf-reselect-btn'].style.display = 'none';
+            this.elements['target-image-container'].style.display = 'none';
             
             // 比較機能を無効化
             this.isCompareMode = false;
@@ -576,15 +642,18 @@
             this.elements['selection-marker'].classList.add('hidden');
             this.elements['selection-instruction'].classList.add('hidden');
             
-            // iOS Safari対応: transform をリセット
-            this.elements['pdf-section'].style.transform = '';
-            this.elements['camera-section'].style.transform = '';
+            // 強制再描画
+            pdfSection.offsetHeight;
+            cameraSection.offsetHeight;
             
-            // 念のための追加確認
+            // 確実化のため少し遅れて再実行
             setTimeout(() => {
-                this.elements['pdf-section'].classList.remove('pdf-hidden');
-                this.elements['camera-section'].classList.remove('camera-fullscreen');
-            }, 50);
+                pdfSection.style.display = 'flex';
+                pdfSection.style.width = '50%';
+                pdfSection.style.left = '0';
+                cameraSection.style.width = '50%';
+                cameraSection.style.left = '50%';
+            }, 100);
         },
 
         // --- イベントリスナーと初期化 ---
