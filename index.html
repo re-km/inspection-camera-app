@@ -10,7 +10,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/piexifjs/1.0.6/piexif.js"></script>
     <style>
         html, body, #app-container { height: 100%; width: 100%; margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
-        .section { height: 100vh; display: flex; flex-direction: column; transition: width 0.3s ease-in-out; }
+        .section { height: 100vh; display: flex; flex-direction: column; position: absolute; top: 0; transition: all 0.3s ease-in-out; }
+        #pdf-section { left: 0; width: 50%; }
+        #camera-section { right: 0; width: 50%; }
         #capture-btn { width: 64px; height: 64px; border-radius: 50%; border: 5px solid white; background-color: rgba(255, 255, 255, 0.3); transition: background-color 0.2s, transform 0.1s; }
         #capture-btn:active { background-color: rgba(255, 255, 255, 0.6); transform: scale(0.95); }
         .ping-animation { animation: ping 0.5s cubic-bezier(0, 0, 0.2, 1); }
@@ -22,13 +24,17 @@
         #camera-frame { transition: box-shadow 0.3s ease-in-out; }
         .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
         #camera-stream { width: 100%; height: 100%; object-fit: contain; }
+        
+        /* 追加: レスポンシブ制御用 */
+        .camera-fullscreen { left: 0 !important; width: 100% !important; }
+        .pdf-hidden { left: -100% !important; }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
 
-    <div id="app-container" class="flex flex-row h-full">
+    <div id="app-container" class="relative h-full">
         <!-- 左セクション: PDFビューア -->
-        <div id="pdf-section" class="section w-1/2 p-2 bg-gray-800">
+        <div id="pdf-section" class="section p-2 bg-gray-800">
             <div class="flex-shrink-0">
                  <div class="flex flex-wrap gap-2 mb-2">
                     <label for="pdf-upload" class="flex-grow text-center cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm">PDF選択</label>
@@ -51,7 +57,7 @@
         </div>
 
         <!-- 右セクション: カメラと撮影結果 -->
-        <div id="camera-section" class="section w-1/2 p-2 bg-gray-900">
+        <div id="camera-section" class="section p-2 bg-gray-900">
             <div id="camera-frame" class="relative flex-grow bg-black rounded-lg mb-2">
                 <video id="camera-stream" autoplay playsinline></video>
                  <div class="absolute top-2 right-2 flex items-center gap-2 z-20">
@@ -488,28 +494,23 @@
             this.elements['toggle-compare-btn'].classList.add('bg-purple-600');
             this.elements['pdf-viewer'].style.cursor = 'default';
             
-            // iOSで確実に動作するレイアウト変更
-            // PDFセクションを完全に非表示
-            this.elements['pdf-section'].style.display = 'none';
-            
-            // カメラセクションを全幅に変更
-            this.elements['camera-section'].style.width = '100%';
-            this.elements['camera-section'].style.flex = '1';
+            // iPhoneで確実に動作するCSSクラスベースのレイアウト変更
+            this.elements['pdf-section'].classList.add('pdf-hidden');
+            this.elements['camera-section'].classList.add('camera-fullscreen');
             
             // ターゲット画像コンテナを表示
-            this.elements['target-image-container'].style.display = 'flex';
-            this.elements['pdf-reselect-btn'].style.display = 'block';
+            this.elements['target-image-container'].classList.remove('hidden');
+            this.elements['pdf-reselect-btn'].classList.remove('hidden');
             
-            // 強制的にレイアウト再計算をトリガー
-            this.elements['camera-section'].offsetHeight;
-            this.elements['pdf-section'].offsetHeight;
+            // iOS Safari対応: 強制再描画
+            this.elements['pdf-section'].style.transform = 'translateZ(0)';
+            this.elements['camera-section'].style.transform = 'translateZ(0)';
             
-            // 追加の確実化措置
+            // 念のための追加確認
             setTimeout(() => {
-                this.elements['pdf-section'].style.display = 'none';
-                this.elements['camera-section'].style.width = '100%';
-                this.elements['target-image-container'].style.display = 'flex';
-            }, 10);
+                this.elements['pdf-section'].classList.add('pdf-hidden');
+                this.elements['camera-section'].classList.add('camera-fullscreen');
+            }, 50);
         },
         resetSelection() {
             this.elements['selection-marker'].classList.add('hidden');
@@ -548,17 +549,13 @@
             instructionEl.classList.remove('hidden');
         },
         revertToSplitView() {
-            // iOSで確実に動作するレイアウト変更
-            // PDFセクションを表示
-            this.elements['pdf-section'].style.display = 'flex';
-            
-            // カメラセクションを半幅に戻す
-            this.elements['camera-section'].style.width = '50%';
-            this.elements['camera-section'].style.flex = '';
+            // CSSクラスベースでレイアウトを分割表示に戻す
+            this.elements['pdf-section'].classList.remove('pdf-hidden');
+            this.elements['camera-section'].classList.remove('camera-fullscreen');
             
             // ターゲット画像関連のUIを非表示
-            this.elements['pdf-reselect-btn'].style.display = 'none';
-            this.elements['target-image-container'].style.display = 'none';
+            this.elements['pdf-reselect-btn'].classList.add('hidden');
+            this.elements['target-image-container'].classList.add('hidden');
             
             // 比較機能を無効化
             this.isCompareMode = false;
@@ -579,15 +576,15 @@
             this.elements['selection-marker'].classList.add('hidden');
             this.elements['selection-instruction'].classList.add('hidden');
             
-            // 強制的にレイアウト再計算をトリガー
-            this.elements['camera-section'].offsetHeight;
-            this.elements['pdf-section'].offsetHeight;
+            // iOS Safari対応: transform をリセット
+            this.elements['pdf-section'].style.transform = '';
+            this.elements['camera-section'].style.transform = '';
             
-            // 追加の確実化措置
+            // 念のための追加確認
             setTimeout(() => {
-                this.elements['pdf-section'].style.display = 'flex';
-                this.elements['camera-section'].style.width = '50%';
-            }, 10);
+                this.elements['pdf-section'].classList.remove('pdf-hidden');
+                this.elements['camera-section'].classList.remove('camera-fullscreen');
+            }, 50);
         },
 
         // --- イベントリスナーと初期化 ---
