@@ -126,6 +126,37 @@
         </div>
     </div>
 
+    <!-- カメラ全画面モーダル -->
+    <div id="camera-modal" class="hidden fixed inset-0 bg-gray-900 z-[80] flex flex-col">
+        <div class="flex-grow relative bg-black">
+            <video id="modal-camera-stream" autoplay playsinline class="w-full h-full object-contain"></video>
+            <div class="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-4 z-20">
+                <img id="modal-target-image" class="h-16 border-2 border-teal-500 rounded-md">
+                <div id="modal-match-indicator" class="hidden bg-green-500 text-white font-bold text-sm px-3 py-1 rounded-full shadow-lg"></div>
+            </div>
+            <div class="absolute top-4 right-4 flex flex-col gap-2 z-20">
+                <button id="close-camera-modal-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">✖ 戻る</button>
+                <button id="modal-ai-assistant-btn" class="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-2 px-4 rounded-lg">✨ 撮影補助</button>
+            </div>
+            <div class="absolute top-4 left-4 bg-black bg-opacity-50 p-2 rounded-md text-xs z-20">
+                <div><span id="modal-gps-status-dot" class="status-dot bg-red-500"></span> GPS</div>
+                <div><span id="modal-compass-status-dot" class="status-dot bg-red-500"></span> 方位</div>
+            </div>
+            <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
+                <button id="modal-capture-btn" class="w-20 h-20 border-8 border-white bg-white bg-opacity-30 rounded-full hover:bg-opacity-60 transition-all" title="撮影"></button>
+            </div>
+        </div>
+        <div class="flex-shrink-0 bg-gray-800 p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-lg font-bold text-white">比較撮影モード</h3>
+                <span id="modal-photo-count" class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full">0枚</span>
+            </div>
+            <div id="modal-photo-gallery" class="flex space-x-2 overflow-x-auto bg-gray-700 rounded-lg p-2 h-20">
+                <div id="modal-gallery-placeholder" class="w-full h-full flex items-center justify-center text-gray-500 text-sm">撮影写真がここに表示されます</div>
+            </div>
+        </div>
+    </div>
+
     <!-- 全画面アルバムモーダル -->
     <div id="album-modal" class="hidden fixed inset-0 bg-gray-900 z-50 flex flex-col p-4">
         <div class="flex-shrink-0 flex justify-between items-center mb-4">
@@ -256,11 +287,14 @@
             }
         },
         async takePicture() {
-            const btn = this.elements['capture-btn'];
-            btn.classList.add('ping-animation');
-            setTimeout(() => btn.classList.remove('ping-animation'), 500);
+            // モーダル表示中かどうかで使用する要素を選択
+            const isModalOpen = !this.elements['camera-modal'].classList.contains('hidden');
+            const captureBtn = isModalOpen ? this.elements['modal-capture-btn'] : this.elements['capture-btn'];
+            const video = isModalOpen ? this.elements['modal-camera-stream'] : this.elements['camera-stream'];
+            
+            captureBtn.classList.add('ping-animation');
+            setTimeout(() => captureBtn.classList.remove('ping-animation'), 500);
 
-            const video = this.elements['camera-stream'];
             if (!video.srcObject) return;
 
             const canvas = this.elements['capture-canvas'];
@@ -286,10 +320,17 @@
             }
             
             this.addToGallery(finalImageDataUrl);
+            
+            // モーダル表示中の場合はモーダルギャラリーにも追加
+            if (isModalOpen) {
+                this.addToModalGallery(finalImageDataUrl);
+            }
 
             this.photoCount++;
             const badge = this.elements['photo-count-badge'];
+            const modalCount = this.elements['modal-photo-count'];
             badge.textContent = `${this.photoCount}枚`;
+            modalCount.textContent = `${this.photoCount}枚`;
             badge.classList.remove('hidden');
         },
         addToGallery(dataUrl) {
@@ -422,16 +463,86 @@
             }
         },
 
+        // モーダルカメラ関連
+        showCameraModal() {
+            // ターゲット画像をモーダルに設定
+            this.elements['modal-target-image'].src = this.targetImageDataUrl;
+            
+            // 現在のカメラストリームをモーダルに移動
+            const currentStream = this.elements['camera-stream'].srcObject;
+            this.elements['modal-camera-stream'].srcObject = currentStream;
+            
+            // GPS・方位センサーの状態をコピー
+            this.elements['modal-gps-status-dot'].className = this.elements['gps-status-dot'].className;
+            this.elements['modal-compass-status-dot'].className = this.elements['compass-status-dot'].className;
+            
+            // 撮影枚数をコピー
+            this.elements['modal-photo-count'].textContent = `${this.photoCount}枚`;
+            
+            // モーダルを表示
+            this.elements['camera-modal'].classList.remove('hidden');
+            
+            // モーダル内のギャラリーをクリア
+            this.elements['modal-photo-gallery'].innerHTML = '<div id="modal-gallery-placeholder" class="w-full h-full flex items-center justify-center text-gray-500 text-sm">撮影写真がここに表示されます</div>';
+            
+            // 既存の写真をモーダルギャラリーにコピー
+            const existingPhotos = this.elements['photo-gallery'].querySelectorAll('img');
+            existingPhotos.forEach(img => {
+                this.addToModalGallery(img.src);
+            });
+        },
+        
+        hideCameraModal() {
+            // カメラストリームを元に戻す
+            const modalStream = this.elements['modal-camera-stream'].srcObject;
+            this.elements['camera-stream'].srcObject = modalStream;
+            
+            // モーダルを非表示
+            this.elements['camera-modal'].classList.add('hidden');
+        },
+        
+        addToModalGallery(dataUrl) {
+            // プレースホルダーを削除
+            const placeholder = this.elements['modal-photo-gallery'].querySelector('#modal-gallery-placeholder');
+            if (placeholder) {
+                placeholder.remove();
+            }
+            
+            const previewWrapper = document.createElement('div');
+            previewWrapper.className = 'relative w-16 h-full flex-shrink-0';
+            const previewImg = document.createElement('img');
+            previewImg.src = dataUrl;
+            previewImg.className = 'w-full h-full object-cover rounded-md';
+            previewWrapper.appendChild(previewImg);
+            this.elements['modal-photo-gallery'].appendChild(previewWrapper);
+            
+            // 右端にスクロール
+            this.elements['modal-photo-gallery'].scrollLeft = this.elements['modal-photo-gallery'].scrollWidth;
+        },
+
         // 画像比較関連
         comparisonLoop() {
+            // 通常カメラまたはモーダルカメラで比較実行
+            const cameraElement = this.elements['camera-modal'].classList.contains('hidden') 
+                ? this.elements['camera-stream'] 
+                : this.elements['modal-camera-stream'];
+            
+            const matchIndicator = this.elements['camera-modal'].classList.contains('hidden')
+                ? this.elements['match-indicator']
+                : this.elements['modal-match-indicator'];
+            
+            const cameraFrame = this.elements['camera-modal'].classList.contains('hidden')
+                ? this.elements['camera-frame']
+                : this.elements['modal-camera-stream'];
+            
             // 比較モードが有効で、ターゲット画像が設定されており、カメラが準備できている場合のみ比較実行
             if (this.cv && this.isCompareMode && this.targetImageDataUrl && 
-                this.elements['camera-stream'].readyState === 4 && 
+                cameraElement.readyState === 4 && 
                 this.selectionState === 'completed') {
                 this.frameCount++;
                 if (this.frameCount % 3 === 0) {
                      try {
-                        let src = this.cv.imread(this.elements['camera-stream']); 
+                        let src = this.cv.imread(cameraElement); 
                         let templ = this.cv.imread(this.elements['target-image']);
                         let result = new this.cv.Mat(); 
                         let mask = new this.cv.Mat();
@@ -439,22 +550,23 @@
                         let resultData = this.cv.minMaxLoc(result, mask); 
                         let maxVal = resultData.maxVal;
                         if (maxVal > this.MATCH_THRESHOLD) {
-                            this.elements['camera-frame'].style.boxShadow = `0 0 20px 5px rgba(25, 255, 25, 0.8)`;
-                            this.elements['match-indicator'].textContent = `一致率: ${Math.round(maxVal * 100)}%`;
-                            this.elements['match-indicator'].classList.remove('hidden');
+                            cameraFrame.style.boxShadow = `0 0 20px 5px rgba(25, 255, 25, 0.8)`;
+                            matchIndicator.textContent = `一致率: ${Math.round(maxVal * 100)}%`;
+                            matchIndicator.classList.remove('hidden');
                         } else { 
-                            this.elements['camera-frame'].style.boxShadow = 'none'; 
-                            this.elements['match-indicator'].classList.add('hidden'); 
+                            cameraFrame.style.boxShadow = 'none'; 
+                            matchIndicator.classList.add('hidden'); 
                         }
                         src.delete(); templ.delete(); result.delete(); mask.delete();
                     } catch (err) { 
-                        this.elements['camera-frame'].style.boxShadow = 'none'; 
-                        this.elements['match-indicator'].classList.add('hidden'); 
+                        cameraFrame.style.boxShadow = 'none'; 
+                        matchIndicator.classList.add('hidden'); 
                     }
                 }
             } else { 
                 this.elements['camera-frame'].style.boxShadow = 'none'; 
-                this.elements['match-indicator'].classList.add('hidden'); 
+                this.elements['match-indicator'].classList.add('hidden');
+                this.elements['modal-match-indicator'].classList.add('hidden');
             }
             requestAnimationFrame(() => this.comparisonLoop());
         },
@@ -515,47 +627,8 @@
             this.elements['toggle-compare-btn'].classList.add('bg-purple-600');
             this.elements['pdf-viewer'].style.cursor = 'default';
             
-            // ターゲット画像コンテナを表示
-            this.elements['target-image-container'].style.display = 'flex';
-            this.elements['pdf-reselect-btn'].style.display = 'block';
-            
-            // 段階的レイアウト変更 (iPhone Safari対応)
-            const pdfSection = this.elements['pdf-section'];
-            const cameraSection = this.elements['camera-section'];
-            
-            // Step 1: カメラセクションのz-indexを上げる
-            cameraSection.style.zIndex = '10';
-            
-            // Step 2: 初期位置調整
-            setTimeout(() => {
-                // PDFセクションを左に移動開始
-                pdfSection.style.transform = 'translateX(-100%)';
-                pdfSection.style.webkitTransform = 'translateX(-100%)';
-                
-                // カメラセクションを左端に移動
-                cameraSection.style.left = '0';
-                cameraSection.style.width = '100%';
-            }, 10);
-            
-            // Step 3: 完全な非表示化
-            setTimeout(() => {
-                pdfSection.style.visibility = 'hidden';
-                pdfSection.style.opacity = '0';
-                
-                // 確実にカメラを全幅に
-                cameraSection.style.position = 'absolute';
-                cameraSection.style.top = '0';
-                cameraSection.style.left = '0';
-                cameraSection.style.width = '100%';
-                cameraSection.style.height = '100vh';
-            }, 100);
-            
-            // Step 4: 最終確認
-            setTimeout(() => {
-                pdfSection.style.display = 'none';
-                cameraSection.style.transform = 'translateZ(0)';
-                cameraSection.style.webkitTransform = 'translateZ(0)';
-            }, 400);
+            // モーダル方式でカメラを全画面表示
+            this.showCameraModal();
         },
         resetSelection() {
             this.elements['selection-marker'].classList.add('hidden');
@@ -594,34 +667,8 @@
             instructionEl.classList.remove('hidden');
         },
         revertToSplitView() {
-            const pdfSection = this.elements['pdf-section'];
-            const cameraSection = this.elements['camera-section'];
-            
-            // 直接スタイル操作で分割表示に戻す
-            // PDFセクションを復活
-            pdfSection.style.display = 'flex';
-            pdfSection.style.visibility = 'visible';
-            pdfSection.style.opacity = '1';
-            pdfSection.style.transform = 'translateX(0)';
-            pdfSection.style.position = 'absolute';
-            pdfSection.style.top = '0';
-            pdfSection.style.left = '0';
-            pdfSection.style.width = '50%';
-            pdfSection.style.height = '100vh';
-            pdfSection.style.zIndex = '1';
-            
-            // カメラセクションを半幅に戻す
-            cameraSection.style.position = 'absolute';
-            cameraSection.style.top = '0';
-            cameraSection.style.left = '50%';
-            cameraSection.style.width = '50%';
-            cameraSection.style.height = '100vh';
-            cameraSection.style.zIndex = '1';
-            cameraSection.style.transform = 'none';
-            
-            // ターゲット画像関連のUIを非表示
-            this.elements['pdf-reselect-btn'].style.display = 'none';
-            this.elements['target-image-container'].style.display = 'none';
+            // モーダルが開いている場合は閉じる
+            this.hideCameraModal();
             
             // 比較機能を無効化
             this.isCompareMode = false;
@@ -637,29 +684,37 @@
             // カメラフレームのエフェクトをリセット
             this.elements['camera-frame'].style.boxShadow = 'none';
             this.elements['match-indicator'].classList.add('hidden');
+            this.elements['modal-match-indicator'].classList.add('hidden');
             
             // 選択UI要素を非表示
             this.elements['selection-marker'].classList.add('hidden');
             this.elements['selection-instruction'].classList.add('hidden');
             
-            // 強制再描画
-            pdfSection.offsetHeight;
-            cameraSection.offsetHeight;
-            
-            // 確実化のため少し遅れて再実行
-            setTimeout(() => {
-                pdfSection.style.display = 'flex';
-                pdfSection.style.width = '50%';
-                pdfSection.style.left = '0';
-                cameraSection.style.width = '50%';
-                cameraSection.style.left = '50%';
-            }, 100);
+            // ターゲット画像関連のUIを非表示
+            this.elements['target-image-container'].classList.add('hidden');
         },
 
         // --- イベントリスナーと初期化 ---
         initEventListeners() {
+            // 通常の撮影ボタン
             this.elements['capture-btn'].addEventListener('click', () => this.takePicture());
-            this.elements['ai-assistant-btn'].addEventListener('click', () => { if (this.targetImageDataUrl) this.getAiShootingAssistant(this.targetImageDataUrl); });
+            
+            // モーダルの撮影ボタン
+            this.elements['modal-capture-btn'].addEventListener('click', () => this.takePicture());
+            
+            // モーダル閉じるボタン
+            this.elements['close-camera-modal-btn'].addEventListener('click', () => this.revertToSplitView());
+            
+            // モーダルAIアシスタントボタン
+            this.elements['modal-ai-assistant-btn'].addEventListener('click', () => { 
+                if (this.targetImageDataUrl) this.getAiShootingAssistant(this.targetImageDataUrl); 
+            });
+            
+            // 既存のAIアシスタントボタン
+            this.elements['ai-assistant-btn'].addEventListener('click', () => { 
+                if (this.targetImageDataUrl) this.getAiShootingAssistant(this.targetImageDataUrl); 
+            });
+            
             this.elements['open-album-btn'].addEventListener('click', () => { this.elements['album-modal'].classList.remove('hidden'); });
             this.elements['close-album-btn'].addEventListener('click', () => { this.elements['album-modal'].classList.add('hidden'); });
             this.elements['save-api-key-btn'].addEventListener('click', () => this.saveApiKey());
@@ -686,7 +741,6 @@
             this.elements['toggle-compare-btn'].addEventListener('click', () => this.toggleCompareMode());
             this.elements['pdf-viewer'].addEventListener('touchstart', (e) => this.handlePdfTap(e), { passive: false });
             this.elements['pdf-viewer'].addEventListener('click', (e) => this.handlePdfTap(e));
-            this.elements['pdf-reselect-btn'].addEventListener('click', () => this.revertToSplitView());
             this.elements['close-modal-btn'].addEventListener('click', () => this.elements['gemini-modal'].classList.add('hidden'));
             this.elements['copy-report-btn'].addEventListener('click', () => {
                 const textToCopy = this.elements['report-content'].textContent;
@@ -700,7 +754,7 @@
             });
         },
         init() {
-            const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'selection-box', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'opencv-js', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'skip-api-key-btn'];
+            const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'selection-box', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'opencv-js', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'skip-api-key-btn', 'camera-modal', 'modal-camera-stream', 'modal-target-image', 'modal-match-indicator', 'close-camera-modal-btn', 'modal-ai-assistant-btn', 'modal-gps-status-dot', 'modal-compass-status-dot', 'modal-capture-btn', 'modal-photo-count', 'modal-photo-gallery'];
             ids.forEach(id => { if(document.getElementById(id)) this.elements[id] = document.getElementById(id); });
             
             this.initEventListeners();
