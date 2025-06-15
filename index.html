@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Inspection_camera_app</title>
+    <title>構造物点検カメラアプリ (HTTPS必須)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
-    <script async src="https://docs.opencv.org/4.9.0/opencv.js" id="opencv-js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/piexifjs/1.0.6/piexif.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/piexifjs/1.0.6/piexif.js" crossorigin="anonymous"></script>
     <style>
         html, body, #app-container { 
             height: 100%; 
@@ -38,6 +37,18 @@
             width: 50%; 
             z-index: 1;
         }
+        
+        /* カメラ全画面表示用のクラス */
+        .camera-fullscreen { 
+            left: 0 !important; 
+            width: 100% !important; 
+            z-index: 10 !important;
+        }
+        .pdf-hidden { 
+            left: -100% !important; 
+            z-index: 0 !important;
+        }
+        
         #capture-btn { width: 64px; height: 64px; border-radius: 50%; border: 5px solid white; background-color: rgba(255, 255, 255, 0.3); transition: background-color 0.2s, transform 0.1s; }
         #capture-btn:active { background-color: rgba(255, 255, 255, 0.6); transform: scale(0.95); }
         .ping-animation { animation: ping 0.5s cubic-bezier(0, 0, 0.2, 1); }
@@ -51,23 +62,23 @@
         #camera-stream { width: 100%; height: 100%; object-fit: contain; }
         
         /* ズームスライダーのスタイル */
-        #zoom-slider {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 120px;
-            height: 6px;
+        .slider-vertical {
+            writing-mode: bt-lr; /* IE */
+            -webkit-appearance: slider-vertical; /* WebKit */
+            width: 8px;
+            height: 120px;
             background: #ddd;
-            border-radius: 3px;
+            border-radius: 4px;
             outline: none;
             opacity: 0.8;
             transition: opacity 0.2s;
         }
         
-        #zoom-slider:hover {
+        .slider-vertical:hover {
             opacity: 1;
         }
         
-        #zoom-slider::-webkit-slider-thumb {
+        .slider-vertical::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
             width: 20px;
@@ -79,7 +90,7 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
         
-        #zoom-slider::-moz-range-thumb {
+        .slider-vertical::-moz-range-thumb {
             width: 20px;
             height: 20px;
             background: #ffffff;
@@ -87,6 +98,15 @@
             border-radius: 50%;
             cursor: pointer;
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            border: none;
+        }
+        
+        /* Firefox用の縦スライダー */
+        .slider-vertical::-moz-range-track {
+            width: 8px;
+            height: 120px;
+            background: #ddd;
+            border-radius: 4px;
         }
     </style>
 </head>
@@ -131,12 +151,57 @@
                 <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
                     <button id="capture-btn" title="撮影"></button>
                 </div>
+                
+                <!-- 比較モード時の追加UI -->
+                <div id="target-image-container" class="hidden absolute top-2 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-70 p-2 rounded-lg z-30">
+                    <div class="text-xs text-white mb-1">比較画像</div>
+                    <img id="target-image" class="w-32 h-24 border-2 border-teal-500 rounded object-cover">
+                    <div id="comparison-match-rate" class="text-xs text-center text-white mt-1">一致率: --</div>
+                </div>
+                
+                <!-- ズーム・AI操作パネル -->
+                <div id="control-panel" class="hidden absolute top-4 right-4 bottom-4 flex flex-col justify-between z-40">
+                    <!-- 上部ボタン群 -->
+                    <div class="flex flex-col gap-2">
+                        <button id="close-compare-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg">
+                            ✖<br><span class="text-xs">戻る</span>
+                        </button>
+                        <button id="ai-assistant-btn" class="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg">
+                            ✨<br><span class="text-xs">撮影補助</span>
+                        </button>
+                        <button id="show-album-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg">
+                            📁<br><span class="text-xs">アルバム</span>
+                        </button>
+                    </div>
+                    
+                    <!-- 中央：ズームスライダー -->
+                    <div class="bg-black bg-opacity-70 p-4 rounded-lg flex flex-col items-center gap-2">
+                        <div class="text-white text-xs font-bold">ズーム</div>
+                        <div id="zoom-level-display" class="text-white text-sm font-bold mb-2">1.0x</div>
+                        <div class="flex flex-col items-center gap-2">
+                            <span class="text-white text-xs">3.0x</span>
+                            <input type="range" 
+                                   id="zoom-slider" 
+                                   min="0.5" 
+                                   max="3.0" 
+                                   step="0.1" 
+                                   value="1.0"
+                                   orient="vertical"
+                                   class="slider-vertical">
+                            <span class="text-white text-xs">0.5x</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 下部：撮影ボタンと撮影数 -->
+                    <div class="flex flex-col items-center gap-3">
+                        <span id="compare-photo-count" class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full">0枚</span>
+                        <button id="compare-capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
+                            <div class="w-16 h-16 bg-white rounded-full shadow-inner border-2 border-gray-200"></div>
+                        </button>
+                    </div>
+                </div>
             </div>
             <div class="flex-shrink-0 h-24 flex flex-col">
-                 <div id="target-image-container" class="mb-1 hidden items-center space-x-2">
-                    <img id="target-image" class="h-10 border-2 border-teal-500 rounded-md inline-block">
-                    <button id="ai-assistant-btn" class="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-1 px-2 rounded-lg text-xs">✨ 撮影補助</button>
-                </div>
                 <div class="flex items-center justify-between">
                     <h3 class="text-sm font-bold text-gray-400">撮影プレビュー</h3>
                     <div class="flex items-center gap-2">
@@ -162,80 +227,6 @@
                 <button id="skip-api-key-btn" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">スキップ</button>
             </div>
             <p class="text-xs text-gray-400 mt-2">※スキップした場合、AI機能は利用できません</p>
-        </div>
-    </div>
-
-    <!-- カメラ全画面モーダル -->
-    <div id="camera-modal" class="hidden fixed inset-0 bg-gray-900 z-[80] flex">
-        <!-- メインカメラエリア（全画面） -->
-        <div class="flex-grow relative bg-black overflow-hidden">
-            <div id="camera-container" class="w-full h-full relative" style="transform-origin: center center;">
-                <video id="modal-camera-stream" autoplay playsinline class="w-full h-full object-contain"></video>
-            </div>
-            
-            <!-- 左上：センサー情報と比較画像 -->
-            <div class="absolute top-4 left-4 flex flex-col gap-4 z-30">
-                <!-- センサー情報 -->
-                <div class="bg-black bg-opacity-70 p-3 rounded-lg text-xs text-white">
-                    <div class="flex items-center gap-2 mb-1">
-                        <span id="modal-gps-status-dot" class="status-dot bg-red-500"></span> 
-                        <span>GPS</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span id="modal-compass-status-dot" class="status-dot bg-red-500"></span> 
-                        <span>方位</span>
-                    </div>
-                </div>
-                
-                <!-- 比較画像 -->
-                <div class="bg-black bg-opacity-70 p-2 rounded-lg">
-                    <div class="text-xs text-white mb-1">比較画像</div>
-                    <img id="modal-target-image" class="w-20 h-16 border-2 border-teal-500 rounded object-cover">
-                    <div id="modal-match-indicator" class="hidden bg-green-500 text-white font-bold text-xs px-2 py-1 rounded mt-1 text-center">一致率: 0%</div>
-                </div>
-            </div>
-            
-            <!-- 右側：コントロールパネル -->
-            <div class="absolute top-4 right-4 bottom-4 flex flex-col justify-between z-30">
-                <!-- 上部ボタン群 -->
-                <div class="flex flex-col gap-2">
-                    <button id="close-camera-modal-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg">
-                        ✖<br><span class="text-xs">戻る</span>
-                    </button>
-                    <button id="modal-ai-assistant-btn" class="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg">
-                        ✨<br><span class="text-xs">撮影補助</span>
-                    </button>
-                    <button id="show-album-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg">
-                        📁<br><span class="text-xs">アルバム</span>
-                    </button>
-                </div>
-                
-                <!-- 中央：ズームスライダー -->
-                <div class="bg-black bg-opacity-70 p-4 rounded-lg flex flex-col items-center gap-2">
-                    <div class="text-white text-xs font-bold">ズーム</div>
-                    <div id="zoom-level-display" class="text-white text-sm font-bold">1.0x</div>
-                    <input type="range" 
-                           id="zoom-slider" 
-                           min="0.5" 
-                           max="3.0" 
-                           step="0.1" 
-                           value="1.0"
-                           class="w-24 h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer slider-vertical"
-                           style="writing-mode: bt-lr; -webkit-appearance: slider-vertical;">
-                    <div class="flex justify-between text-white text-xs w-full">
-                        <span>0.5x</span>
-                        <span>3.0x</span>
-                    </div>
-                </div>
-                
-                <!-- 下部：撮影ボタンと撮影数 -->
-                <div class="flex flex-col items-center gap-2">
-                    <span id="modal-photo-count" class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full">0枚</span>
-                    <button id="modal-capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center">
-                        <div class="w-16 h-16 bg-white rounded-full shadow-inner"></div>
-                    </button>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -272,6 +263,37 @@
     <canvas id="capture-canvas" class="hidden"></canvas>
 
     <script>
+    // 改善されたエラーハンドリング
+    window.addEventListener('error', (event) => {
+        // より安全なプロパティアクセス
+        const message = event.message || '';
+        const filename = event.filename || '';
+        const lineno = event.lineno || 0;
+        
+        if (message.includes && (message === 'Script error.' || message.includes('Script error'))) {
+            console.log('Script error suppressed:', filename, lineno);
+            event.preventDefault();
+            return false;
+        }
+        
+        // OpenCV関連エラーを抑制
+        if (filename.includes && filename.includes('opencv')) {
+            console.log('OpenCV error suppressed:', message);
+            event.preventDefault();
+            return false;
+        }
+        
+        return false;
+    }, true);
+
+    window.addEventListener('unhandledrejection', (event) => {
+        if (event.reason) {
+            console.log('Promise rejection handled:', event.reason.toString());
+        }
+        event.preventDefault();
+    });
+
+    // 構造物点検カメラアプリ
     const App = {
         elements: {},
         pdfDoc: null, currentPageNum: 1, pageIsRendering: false, pageNumIsPending: null,
@@ -279,58 +301,184 @@
         targetImageDataUrl: null, frameCount: 0, MATCH_THRESHOLD: 0.7, cv: null,
         sensorData: { latitude: null, longitude: null, heading: null },
         photoCount: 0,
-        apiKey: '',
+        apiKey: '', // メモリ上で管理（localStorageは使用しない）
         zoomLevel: 1.0,
         maxZoom: 3.0,
         minZoom: 0.5,
 
-        // API設定関連
-        initApiKeyModal() {
-            const savedApiKey = localStorage.getItem('gemini_api_key');
-            if (savedApiKey) {
-                this.apiKey = savedApiKey;
-                this.elements['api-key-modal'].classList.add('hidden');
+        // セキュリティチェック関連 - 改善版
+        checkSecureContext() {
+            try {
+                const isSecure = window.isSecureContext || 
+                               location.protocol === 'https:' || 
+                               location.hostname === 'localhost' || 
+                               location.hostname === '127.0.0.1' ||
+                               location.hostname === '[::1]';
+                
+                if (!isSecure) {
+                    this.showSecurityAlert();
+                    return false;
+                }
+                return true;
+            } catch (error) {
+                console.warn('セキュリティチェックエラー:', error);
+                return true; // セキュリティチェックに失敗した場合は続行
             }
+        },
+        
+        showSecurityAlert() {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[100] p-4';
+            alertDiv.innerHTML = `
+                <div class="bg-red-600 text-white p-6 rounded-lg shadow-lg max-w-md text-center">
+                    <div class="text-4xl mb-4">🔒</div>
+                    <div class="font-bold text-xl mb-4">セキュリティエラー</div>
+                    <div class="text-sm mb-4">
+                        このアプリはカメラ・GPS・センサー機能を使用するため、<strong>HTTPS接続</strong>が必要です。
+                    </div>
+                    <div class="text-xs mb-6 bg-red-700 p-3 rounded">
+                        <div class="font-bold mb-2">解決方法：</div>
+                        <div class="text-left">
+                            • HTTPSでアクセスしてください<br>
+                            • 開発環境の場合は localhost を使用<br>
+                            • GitHubやNetlifyなどでデプロイ
+                        </div>
+                    </div>
+                    <div class="text-xs text-red-200">
+                        現在のURL: ${location.href}
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(alertDiv);
+        },
+
+        showPermissionAlert(type, message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'fixed top-4 left-1/2 -translate-x-1/2 bg-red-600 text-white p-4 rounded-lg shadow-lg z-[90] max-w-sm';
+            alertDiv.innerHTML = `
+                <div class="flex items-start gap-3">
+                    <div class="text-xl">⚠️</div>
+                    <div>
+                        <div class="font-bold">${type}許可が必要</div>
+                        <div class="text-sm mt-1">${message}</div>
+                        <button onclick="this.parentElement.parentElement.parentElement.remove()" 
+                                class="mt-2 bg-white text-red-600 px-3 py-1 rounded text-sm font-bold">
+                            閉じる
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                if (alertDiv.parentElement) {
+                    alertDiv.remove();
+                }
+            }, 10000);
+        },
+
+        // API設定関連 - localStorageを使用しない版
+        initApiKeyModal() {
+            // APIキー設定モーダルを表示
+            this.elements['api-key-modal'].classList.remove('hidden');
         },
         saveApiKey() {
             const keyInput = this.elements['api-key-input'];
             const key = keyInput.value.trim();
             if (key) {
-                this.apiKey = key;
-                localStorage.setItem('gemini_api_key', key);
+                this.apiKey = key; // メモリ上でのみ保存
                 this.elements['api-key-modal'].classList.add('hidden');
-                alert('APIキーを保存しました。');
+                this.showSuccessMessage('APIキーを設定しました。（このセッション中のみ有効）');
             } else {
                 alert('有効なAPIキーを入力してください。');
             }
         },
         skipApiKey() {
             this.elements['api-key-modal'].classList.add('hidden');
+            this.showInfoMessage('AI機能は利用できません。APIキーを設定すると利用可能になります。');
+        },
+
+        showSuccessMessage(message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'fixed top-4 left-1/2 -translate-x-1/2 bg-green-600 text-white p-4 rounded-lg shadow-lg z-[90] max-w-sm';
+            alertDiv.innerHTML = `
+                <div class="flex items-start gap-3">
+                    <div class="text-xl">✅</div>
+                    <div>
+                        <div class="text-sm">${message}</div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                if (alertDiv.parentElement) {
+                    alertDiv.remove();
+                }
+            }, 3000);
+        },
+
+        showInfoMessage(message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'fixed top-4 left-1/2 -translate-x-1/2 bg-blue-600 text-white p-4 rounded-lg shadow-lg z-[90] max-w-sm';
+            alertDiv.innerHTML = `
+                <div class="flex items-start gap-3">
+                    <div class="text-xl">ℹ️</div>
+                    <div>
+                        <div class="text-sm">${message}</div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                if (alertDiv.parentElement) {
+                    alertDiv.remove();
+                }
+            }, 5000);
         },
 
         // PDF関連
         renderPage(num) {
+            if (typeof pdfjsLib === 'undefined') {
+                console.error('PDF.jsが読み込まれていません');
+                this.showPermissionAlert('PDF機能エラー', 'PDF.jsライブラリが読み込まれていません。ページを再読み込みしてください。');
+                return;
+            }
+            
             this.pageIsRendering = true;
             if (!this.pdfDoc) return;
-            this.pdfDoc.getPage(num).then(page => {
-                const container = this.elements['pdf-viewer-wrapper'];
-                if (!container) return;
-                const viewport = page.getViewport({ scale: 1.5 });
-                const scale = container.clientWidth / viewport.width;
-                const scaledViewport = page.getViewport({ scale: scale });
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
-                canvas.height = scaledViewport.height;
-                canvas.width = scaledViewport.width;
-                this.elements['pdf-viewer'].innerHTML = '';
-                this.elements['pdf-viewer'].appendChild(canvas);
-                const renderContext = { canvasContext: context, viewport: scaledViewport };
-                page.render(renderContext).promise.then(() => {
-                    this.pageIsRendering = false;
-                    if (this.pageNumIsPending !== null) { this.renderPage(this.pageNumIsPending); this.pageNumIsPending = null; }
+            
+            try {
+                this.pdfDoc.getPage(num).then(page => {
+                    const container = this.elements['pdf-viewer-wrapper'];
+                    if (!container) return;
+                    const viewport = page.getViewport({ scale: 1.5 });
+                    const scale = container.clientWidth / viewport.width;
+                    const scaledViewport = page.getViewport({ scale: scale });
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = scaledViewport.height;
+                    canvas.width = scaledViewport.width;
+                    this.elements['pdf-viewer'].innerHTML = '';
+                    this.elements['pdf-viewer'].appendChild(canvas);
+                    const renderContext = { canvasContext: context, viewport: scaledViewport };
+                    page.render(renderContext).promise.then(() => {
+                        this.pageIsRendering = false;
+                        if (this.pageNumIsPending !== null) { 
+                            this.renderPage(this.pageNumIsPending); 
+                            this.pageNumIsPending = null; 
+                        }
+                    });
                 });
-            });
-            this.elements['page-num'].textContent = num;
+            } catch (error) {
+                console.error('PDF描画エラー:', error);
+                this.pageIsRendering = false;
+            }
+            
+            if (this.elements['page-num']) {
+                this.elements['page-num'].textContent = num;
+            }
         },
         queueRenderPage(num) {
             if (this.pageIsRendering) { this.pageNumIsPending = num; } 
@@ -338,81 +486,194 @@
         },
 
         // センサー関連
-        initSensors() {
+        async initSensors() {
             if ('geolocation' in navigator) {
-                navigator.geolocation.watchPosition(
-                    (p) => { this.sensorData.latitude = p.coords.latitude; this.sensorData.longitude = p.coords.longitude; this.elements['gps-status-dot'].classList.replace('bg-red-500', 'bg-green-500'); },
-                    (e) => { console.warn(`GPSエラー: ${e.message}`); this.elements['gps-status-dot'].classList.replace('bg-green-500', 'bg-red-500'); },
-                    { enableHighAccuracy: true }
-                );
+                try {
+                    await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(
+                            (position) => {
+                                this.sensorData.latitude = position.coords.latitude;
+                                this.sensorData.longitude = position.coords.longitude;
+                                if (this.elements['gps-status-dot']) {
+                                    this.elements['gps-status-dot'].classList.replace('bg-red-500', 'bg-green-500');
+                                }
+                                resolve(position);
+                            },
+                            (error) => {
+                                console.warn(`GPS許可が必要です: ${error.message}`);
+                                this.showPermissionAlert('GPS', 'このアプリは写真に位置情報を埋め込むためGPS許可が必要です。');
+                                reject(error);
+                            },
+                            { enableHighAccuracy: true, timeout: 10000 }
+                        );
+                    });
+                    
+                    navigator.geolocation.watchPosition(
+                        (p) => { 
+                            this.sensorData.latitude = p.coords.latitude; 
+                            this.sensorData.longitude = p.coords.longitude; 
+                            if (this.elements['gps-status-dot']) {
+                                this.elements['gps-status-dot'].classList.replace('bg-red-500', 'bg-green-500'); 
+                            }
+                        },
+                        (e) => { 
+                            console.warn(`GPS監視エラー: ${e.message}`); 
+                            if (this.elements['gps-status-dot']) {
+                                this.elements['gps-status-dot'].classList.replace('bg-green-500', 'bg-red-500'); 
+                            }
+                        },
+                        { enableHighAccuracy: true }
+                    );
+                } catch (error) {
+                    if (this.elements['gps-status-dot']) {
+                        this.elements['gps-status-dot'].classList.replace('bg-green-500', 'bg-red-500');
+                    }
+                }
             }
-            const handleOrientation = (event) => {
-                if (event.alpha !== null) { this.sensorData.heading = event.alpha; this.elements['compass-status-dot'].classList.replace('bg-red-500', 'bg-green-500'); } 
-                else { this.elements['compass-status-dot'].classList.replace('bg-green-500', 'bg-red-500'); }
-            };
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission().then(p => { if (p === 'granted') window.addEventListener('deviceorientationabsolute', handleOrientation, true); else alert('方位センサーの許可が必要です。'); }).catch(console.error);
-            } else { window.addEventListener('deviceorientationabsolute', handleOrientation, true); }
+            
+            try {
+                const handleOrientation = (event) => {
+                    if (event.alpha !== null) { 
+                        this.sensorData.heading = event.alpha; 
+                        if (this.elements['compass-status-dot']) {
+                            this.elements['compass-status-dot'].classList.replace('bg-red-500', 'bg-green-500'); 
+                        }
+                    }
+                };
+                
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    const permission = await DeviceOrientationEvent.requestPermission();
+                    if (permission === 'granted') {
+                        window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+                    }
+                } else { 
+                    window.addEventListener('deviceorientationabsolute', handleOrientation, true); 
+                }
+            } catch (error) {
+                console.warn(`方位センサーエラー: ${error.message}`);
+            }
         },
 
         // カメラ関連
         async initCamera() {
             try {
-                const constraints = { video: { facingMode: 'environment', width: { ideal: 4032 }, height: { ideal: 3024 }, aspectRatio: { ideal: 4 / 3 } }, audio: false };
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                this.elements['camera-stream'].srcObject = stream;
-            } catch (err) {
-                console.warn("4:3高解像度カメラへのアクセスに失敗、デフォルトで試行します: ", err);
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                    this.elements['camera-stream'].srcObject = stream;
-                } catch (e) {
-                    alert("カメラにアクセスできませんでした。ブラウザの設定でカメラの使用を許可してください。");
+                const permissions = await navigator.permissions.query({ name: 'camera' });
+                if (permissions.state === 'denied') {
+                    this.showPermissionAlert('カメラ', 'カメラへのアクセスが拒否されています。設定でカメラアクセスを許可してください。');
+                    return;
                 }
+                
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { 
+                            facingMode: 'environment', 
+                            width: { ideal: 4032 }, 
+                            height: { ideal: 3024 }, 
+                            aspectRatio: { ideal: 4 / 3 } 
+                        }, 
+                        audio: false 
+                    });
+                    this.elements['camera-stream'].srcObject = stream;
+                    console.log('高解像度4:3カメラに接続しました');
+                } catch (highResError) {
+                    console.warn("4:3高解像度カメラへのアクセスに失敗、標準カメラで試行します");
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: 'environment' }, 
+                        audio: false 
+                    });
+                    this.elements['camera-stream'].srcObject = stream;
+                    console.log('標準カメラに接続しました');
+                }
+            } catch (err) {
+                console.error("カメラアクセスエラー:", err);
+                let errorMessage = 'カメラにアクセスできませんでした。';
+                
+                switch (err.name) {
+                    case 'NotAllowedError':
+                        errorMessage = 'カメラの使用が許可されていません。ブラウザの設定でカメラアクセスを許可してください。';
+                        break;
+                    case 'NotFoundError':
+                        errorMessage = 'カメラが見つかりません。';
+                        break;
+                    case 'SecurityError':
+                        errorMessage = 'セキュリティ上の理由でカメラにアクセスできません。HTTPSで接続しているか確認してください。';
+                        break;
+                }
+                
+                this.showPermissionAlert('カメラエラー', errorMessage);
             }
         },
+
         async takePicture() {
-            // モーダル表示中かどうかで使用する要素を選択
-            const isModalOpen = !this.elements['camera-modal'].classList.contains('hidden');
-            const captureBtn = isModalOpen ? this.elements['modal-capture-btn'] : this.elements['capture-btn'];
-            const video = isModalOpen ? this.elements['modal-camera-stream'] : this.elements['camera-stream'];
-            
-            captureBtn.classList.add('ping-animation');
-            setTimeout(() => captureBtn.classList.remove('ping-animation'), 500);
+            try {
+                const captureBtn = this.elements['capture-btn'];
+                const compareCaptureBtn = this.elements['compare-capture-btn'];
+                
+                // 比較モード中かどうかで使用するボタンを選択
+                const activeBtn = this.isCompareMode && !this.elements['control-panel'].classList.contains('hidden') 
+                    ? compareCaptureBtn : captureBtn;
+                
+                if (activeBtn) {
+                    activeBtn.classList.add('ping-animation');
+                    setTimeout(() => activeBtn.classList.remove('ping-animation'), 500);
+                }
 
-            if (!video.srcObject) return;
+                const video = this.elements['camera-stream'];
+                if (!video || !video.srcObject) {
+                    throw new Error('カメラが接続されていません');
+                }
 
-            const canvas = this.elements['capture-canvas'];
-            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-            const imageDataUrl = canvas.toDataURL('image/jpeg', 1.0);
-            
-            let finalImageDataUrl = imageDataUrl;
-            if (this.sensorData.latitude !== null && this.sensorData.longitude !== null && this.sensorData.heading !== null) {
-                const zeroth = {}; const gps = {};
-                zeroth[piexif.ImageIFD.Make] = "Inspection_camera_app";
-                gps[piexif.GPSIFD.GPSLatitudeRef] = this.sensorData.latitude < 0 ? 'S' : 'N';
-                gps[piexif.GPSIFD.GPSLatitude] = piexif.GPSHelper.degToDms(Math.abs(this.sensorData.latitude));
-                gps[piexif.GPSIFD.GPSLongitudeRef] = this.sensorData.longitude < 0 ? 'W' : 'E';
-                gps[piexif.GPSIFD.GPSLongitude] = piexif.GPSHelper.degToDms(Math.abs(this.sensorData.longitude));
-                gps[piexif.GPSIFD.GPSImgDirectionRef] = "T";
-                gps[piexif.GPSIFD.GPSImgDirection] = [Math.round(this.sensorData.heading), 1];
-                const exifObj = {"0th":zeroth, "Exif":{}, "GPS":gps, "1st":{}, "thumbnail":null};
-                const exifbytes = piexif.dump(exifObj);
-                finalImageDataUrl = piexif.insert(exifbytes, imageDataUrl);
-            } else {
-                console.warn("センサーデータ不十分のためEXIFなし");
+                const canvas = this.elements['capture-canvas'];
+                canvas.width = video.videoWidth; 
+                canvas.height = video.videoHeight;
+                const context = canvas.getContext('2d');
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageDataUrl = canvas.toDataURL('image/jpeg', 1.0);
+                
+                let finalImageDataUrl = imageDataUrl;
+                
+                // EXIFデータの追加
+                try {
+                    if (typeof piexif !== 'undefined' && this.sensorData.latitude !== null && this.sensorData.longitude !== null && this.sensorData.heading !== null) {
+                        const zeroth = {}; const gps = {};
+                        zeroth[piexif.ImageIFD.Make] = "Inspection_camera_app";
+                        gps[piexif.GPSIFD.GPSLatitudeRef] = this.sensorData.latitude < 0 ? 'S' : 'N';
+                        gps[piexif.GPSIFD.GPSLatitude] = piexif.GPSHelper.degToDms(Math.abs(this.sensorData.latitude));
+                        gps[piexif.GPSIFD.GPSLongitudeRef] = this.sensorData.longitude < 0 ? 'W' : 'E';
+                        gps[piexif.GPSIFD.GPSLongitude] = piexif.GPSHelper.degToDms(Math.abs(this.sensorData.longitude));
+                        gps[piexif.GPSIFD.GPSImgDirectionRef] = "T";
+                        gps[piexif.GPSIFD.GPSImgDirection] = [Math.round(this.sensorData.heading), 1];
+                        const exifObj = {"0th":zeroth, "Exif":{}, "GPS":gps, "1st":{}, "thumbnail":null};
+                        const exifbytes = piexif.dump(exifObj);
+                        finalImageDataUrl = piexif.insert(exifbytes, imageDataUrl);
+                        console.log('EXIF情報を埋め込みました');
+                    }
+                } catch (exifError) {
+                    console.warn("EXIF埋め込みエラー:", exifError);
+                    finalImageDataUrl = imageDataUrl;
+                }
+                
+                this.addToGallery(finalImageDataUrl);
+
+                this.photoCount++;
+                const badge = this.elements['photo-count-badge'];
+                const compareCount = this.elements['compare-photo-count'];
+                if (badge) {
+                    badge.textContent = `${this.photoCount}枚`;
+                    badge.classList.remove('hidden');
+                }
+                if (compareCount) {
+                    compareCount.textContent = `${this.photoCount}枚`;
+                }
+                
+                console.log('写真を撮影しました');
+                
+            } catch (error) {
+                console.error('撮影エラー:', error);
+                this.showPermissionAlert('撮影エラー', `写真の撮影に失敗しました: ${error.message}`);
             }
-            
-            this.addToGallery(finalImageDataUrl);
-
-            this.photoCount++;
-            const badge = this.elements['photo-count-badge'];
-            const modalCount = this.elements['modal-photo-count'];
-            badge.textContent = `${this.photoCount}枚`;
-            modalCount.textContent = `${this.photoCount}枚`;
-            badge.classList.remove('hidden');
         },
+
         addToGallery(dataUrl) {
             this.elements['gallery-placeholder'].classList.add('hidden');
             const previewWrapper = document.createElement('div');
@@ -475,7 +736,6 @@
                 if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
                     return result.candidates[0].content.parts[0].text;
                 } else {
-                    console.error("Unexpected API Response:", result);
                     throw new Error("AIからの有効な応答がありませんでした。");
                 }
             } catch (error) {
@@ -485,18 +745,20 @@
                 throw error;
             }
         },
+
         async analyzeImageWithGemini(dataUrl) {
             if (!this.apiKey) {
-                alert('AI機能を使用するにはAPIキーの設定が必要です。');
+                this.showPermissionAlert('API設定', 'AI機能を使用するにはAPIキーの設定が必要です。');
                 this.elements['api-key-modal'].classList.remove('hidden');
                 return;
             }
             
-            this.elements['modal-title'].innerHTML = `<span class="text-2xl mr-2">✨</span> AIによる損傷分析`;
-            this.elements['gemini-modal'].classList.remove('hidden');
-            this.elements['report-generation-area'].classList.add('hidden'); 
-            this.elements['gemini-modal-content'].innerHTML = `<div class="flex flex-col justify-center items-center py-8"><div class="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div><p class="text-center mt-4">AIが分析中です...</p></div>`;
             try {
+                this.elements['modal-title'].innerHTML = `<span class="text-2xl mr-2">✨</span> AIによる損傷分析`;
+                this.elements['gemini-modal'].classList.remove('hidden');
+                this.elements['report-generation-area'].classList.add('hidden'); 
+                this.elements['gemini-modal-content'].innerHTML = `<div class="flex flex-col justify-center items-center py-8"><div class="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div><p class="text-center mt-4">AIが分析中です...</p></div>`;
+                
                 const prompt = "この画像は構造物の点検時に撮影されたものです。コンクリートのひび割れ、剥離、鉄筋の露出、漏水、錆などの損傷の可能性を分析し、発見した点を箇条書きで簡潔に説明してください。損傷が見られない場合は「特に問題は見つかりませんでした。」と回答してください。日本語で回答してください。";
                 const analysisText = await this.callGeminiApi(prompt, dataUrl);
                 this.elements['gemini-modal-content'].innerHTML = `<h4 class="text-xl font-semibold">分析結果</h4><div id="gemini-modal-result" class="mt-2 p-4 bg-gray-900 rounded-lg">${analysisText.replace(/\n/g, '<br>')}</div>`;
@@ -507,14 +769,16 @@
                 this.elements['gemini-modal-content'].appendChild(generateBtn);
             } catch (error) {
                 console.error("Gemini API Error:", error);
-                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">分析中にエラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${error.message}</p><button onclick="App.elements['api-key-modal'].classList.remove('hidden')" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
+                let errorMessage = error.message;
+                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">分析中にエラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${errorMessage}</p><button onclick="App.elements['api-key-modal'].classList.remove('hidden')" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
             }
         },
+
         async generateReportFromAnalysis(analysisText) {
             this.elements['report-generation-area'].classList.remove('hidden');
             this.elements['report-content'].innerHTML = `<div class="flex items-center justify-center h-full"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div><p class="ml-4">報告書を作成中...</p></div>`;
             try {
-                const prompt = `あなたは土木技術の専門家として、構造物の点検報告書を作成しています。以下の写真分析結果に基づき、所見、評価、および推奨される次のステップ（例：「詳細調査が必要」「経過観察」「軽微な補修」など）を含む、詳細で専門的な報告書の文章を作成してください。\n\n### 分析結果\n${analysisText}\n\n### 報告書（案）\n`;
+                const prompt = `あなたは土木技術の専門家として、構造物の点検報告書を作成しています。以下の写真分析結果に基づき、所見、評価、および推奨される次のステップを含む、詳細で専門的な報告書の文章を作成してください。\n\n### 分析結果\n${analysisText}\n\n### 報告書（案）\n`;
                 const reportText = await this.callGeminiApi(prompt);
                 this.elements['report-content'].textContent = reportText;
             } catch (error) {
@@ -522,9 +786,10 @@
                 this.elements['report-content'].innerHTML = `<p class="text-red-400">報告書の作成中にエラーが発生しました：${error.message}</p>`;
             }
         },
+
         async getAiShootingAssistant(dataUrl) {
             if (!this.apiKey) {
-                alert('AI機能を使用するにはAPIキーの設定が必要です。');
+                this.showPermissionAlert('API設定', 'AI機能を使用するにはAPIキーの設定が必要です。');
                 this.elements['api-key-modal'].classList.remove('hidden');
                 return;
             }
@@ -534,26 +799,27 @@
             this.elements['report-generation-area'].classList.add('hidden');
             this.elements['gemini-modal-content'].innerHTML = `<div class="flex flex-col justify-center items-center py-8"><div class="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div><p class="text-center mt-4">AIが写真を確認しています...</p></div>`;
             try {
-                const prompt = `あなたは経験豊富な土木技術者です。この写真は過去の点検で撮影されたものです。\n1. この写真に写っている構造物や部材が何であるか、専門用語を使いつつ簡潔に説明してください。\n2. この後、新人技術者が同じ写真を撮影します。同じアングルや構図で撮影するための、具体的で分かりやすいアドバイスをしてください。\n\n現在地は日本の福井県越前市です。緯度は${this.sensorData.latitude || '不明'}、経度は${this.sensorData.longitude || '不明'}です。これらの情報も参考に、回答を作成してください。\n\n例：\n**説明:** これは橋台の側面とウィング（袖壁）の接合部です。\n**撮影アドバイス:** 橋台から約5m離れ、川の下流側から上流側を向いて撮影してください。太陽が背になる午前中が推奨です。`;
+                const prompt = `あなたは経験豊富な土木技術者です。この写真は過去の点検で撮影されたものです。\n1. この写真に写っている構造物や部材が何であるか、専門用語を使いつつ簡潔に説明してください。\n2. この後、新人技術者が同じ写真を撮影します。同じアングルや構図で撮影するための、具体的で分かりやすいアドバイスをしてください。\n\n現在地は日本の福井県越前市です。緯度は${this.sensorData.latitude || '不明'}、経度は${this.sensorData.longitude || '不明'}です。これらの情報も参考に、回答を作成してください。`;
                 const assistantText = await this.callGeminiApi(prompt, dataUrl);
                 this.elements['gemini-modal-content'].innerHTML = `<div class="prose prose-invert max-w-none">${assistantText.replace(/\n/g, '<br>')}</div>`;
             } catch (error) {
                 console.error("AI Assistant Error:", error);
-                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">AIアシスタントの呼び出し中にエラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${error.message}</p><button onclick="App.elements['api-key-modal'].classList.remove('hidden')" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
+                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">AIアシスタントの呼び出し中にエラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${error.message}</p>`;
             }
         },
 
         // ズーム機能
         updateZoom() {
-            const container = this.elements['camera-container'];
+            const video = this.elements['camera-stream'];
             const zoomDisplay = this.elements['zoom-level-display'];
             const zoomSlider = this.elements['zoom-slider'];
             
-            if (container) {
-                container.style.transform = `scale(${this.zoomLevel})`;
+            if (video && zoomDisplay) {
+                video.style.transform = `scale(${this.zoomLevel})`;
                 zoomDisplay.textContent = `${this.zoomLevel.toFixed(1)}x`;
+                
                 if (zoomSlider) {
-                    zoomSlider.value = this.zoomLevel;
+                    zoomSlider.value = this.zoomLevel.toString();
                 }
             }
         },
@@ -561,57 +827,49 @@
         setZoomFromSlider() {
             const zoomSlider = this.elements['zoom-slider'];
             if (zoomSlider) {
-                this.zoomLevel = parseFloat(zoomSlider.value);
-                this.updateZoom();
+                const newZoom = parseFloat(zoomSlider.value);
+                if (!isNaN(newZoom) && newZoom >= this.minZoom && newZoom <= this.maxZoom) {
+                    this.zoomLevel = newZoom;
+                    this.updateZoom();
+                }
             }
-        },
-        
-        zoomIn() {
-            if (this.zoomLevel < this.maxZoom) {
-                this.zoomLevel = Math.min(this.zoomLevel + 0.2, this.maxZoom);
-                this.updateZoom();
-            }
-        },
-        
-        zoomOut() {
-            if (this.zoomLevel > this.minZoom) {
-                this.zoomLevel = Math.max(this.zoomLevel - 0.2, this.minZoom);
-                this.updateZoom();
-            }
-        },
-        
-        resetZoom() {
-            this.zoomLevel = 1.0;
-            this.updateZoom();
         },
         
         // ピンチズーム対応
         initPinchZoom() {
-            const container = this.elements['camera-container'];
-            if (!container) return;
+            const video = this.elements['camera-stream'];
+            if (!video) return;
             
             let initialDistance = 0;
             let initialZoom = 1.0;
+            let isZooming = false;
             
-            container.addEventListener('touchstart', (e) => {
+            video.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 2) {
+                    e.preventDefault();
                     initialDistance = this.getDistance(e.touches[0], e.touches[1]);
                     initialZoom = this.zoomLevel;
-                    e.preventDefault();
+                    isZooming = true;
                 }
             }, { passive: false });
             
-            container.addEventListener('touchmove', (e) => {
-                if (e.touches.length === 2) {
+            video.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2 && isZooming) {
+                    e.preventDefault();
                     const currentDistance = this.getDistance(e.touches[0], e.touches[1]);
                     const scale = currentDistance / initialDistance;
                     const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, initialZoom * scale));
                     
                     this.zoomLevel = newZoom;
                     this.updateZoom();
-                    e.preventDefault();
                 }
             }, { passive: false });
+            
+            video.addEventListener('touchend', (e) => {
+                if (e.touches.length < 2) {
+                    isZooming = false;
+                }
+            });
         },
         
         getDistance(touch1, touch2) {
@@ -620,93 +878,64 @@
             return Math.sqrt(dx * dx + dy * dy);
         },
 
-        // モーダルカメラ関連
-        showCameraModal() {
-            // ターゲット画像をモーダルに設定
-            this.elements['modal-target-image'].src = this.targetImageDataUrl;
-            
-            // 現在のカメラストリームをモーダルに移動
-            const currentStream = this.elements['camera-stream'].srcObject;
-            this.elements['modal-camera-stream'].srcObject = currentStream;
-            
-            // GPS・方位センサーの状態をコピー
-            this.elements['modal-gps-status-dot'].className = this.elements['gps-status-dot'].className;
-            this.elements['modal-compass-status-dot'].className = this.elements['compass-status-dot'].className;
-            
-            // 撮影枚数をコピー
-            this.elements['modal-photo-count'].textContent = `${this.photoCount}枚`;
-            
-            // ズームをリセット
-            this.resetZoom();
-            
-            // モーダルを表示
-            this.elements['camera-modal'].classList.remove('hidden');
-            
-            // ピンチズーム初期化
-            this.initPinchZoom();
-        },
-        
-        hideCameraModal() {
-            // カメラストリームを元に戻す
-            const modalStream = this.elements['modal-camera-stream'].srcObject;
-            this.elements['camera-stream'].srcObject = modalStream;
-            
-            // モーダルを非表示
-            this.elements['camera-modal'].classList.add('hidden');
-        },
-
-        // 画像比較関連
+        // 画像比較関連 - 修正版
         comparisonLoop() {
-            // 通常カメラまたはモーダルカメラで比較実行
-            const cameraElement = this.elements['camera-modal'].classList.contains('hidden') 
-                ? this.elements['camera-stream'] 
-                : this.elements['modal-camera-stream'];
-            
-            const matchIndicator = this.elements['camera-modal'].classList.contains('hidden')
-                ? this.elements['match-indicator']
-                : this.elements['modal-match-indicator'];
-            
-            const cameraFrame = this.elements['camera-modal'].classList.contains('hidden')
-                ? this.elements['camera-frame']
-                : this.elements['modal-camera-stream'];
-            
-            // 比較モードが有効で、ターゲット画像が設定されており、カメラが準備できている場合のみ比較実行
-            if (this.cv && this.isCompareMode && this.targetImageDataUrl && 
-                cameraElement.readyState === 4 && 
-                this.selectionState === 'completed') {
-                this.frameCount++;
-                if (this.frameCount % 3 === 0) {
-                     try {
-                        let src = this.cv.imread(cameraElement); 
-                        let templ = this.cv.imread(this.elements['target-image']);
-                        let result = new this.cv.Mat(); 
-                        let mask = new this.cv.Mat();
-                        this.cv.matchTemplate(src, templ, result, this.cv.TM_CCOEFF_NORMED, mask);
-                        let resultData = this.cv.minMaxLoc(result, mask); 
-                        let maxVal = resultData.maxVal;
-                        if (maxVal > this.MATCH_THRESHOLD) {
-                            cameraFrame.style.boxShadow = `0 0 20px 5px rgba(25, 255, 25, 0.8)`;
-                            matchIndicator.textContent = `一致率: ${Math.round(maxVal * 100)}%`;
-                            matchIndicator.classList.remove('hidden');
-                        } else { 
+            try {
+                // OpenCVが利用できない場合は比較処理をスキップ
+                if (!this.cv || !this.isCompareMode || !this.targetImageDataUrl || this.selectionState !== 'completed') {
+                    if (this.elements['camera-frame']) {
+                        this.elements['camera-frame'].style.boxShadow = 'none'; 
+                    }
+                    if (this.elements['match-indicator']) {
+                        this.elements['match-indicator'].classList.add('hidden');
+                    }
+                    requestAnimationFrame(() => this.comparisonLoop());
+                    return;
+                }
+                
+                const cameraElement = this.elements['camera-stream'];
+                const matchIndicator = this.elements['comparison-match-rate'];
+                const cameraFrame = this.elements['camera-frame'];
+                
+                if (cameraElement && cameraElement.readyState === 4) {
+                    this.frameCount++;
+                    if (this.frameCount % 3 === 0) {
+                         try {
+                            let src = this.cv.imread(cameraElement); 
+                            let templ = this.cv.imread(this.elements['target-image']);
+                            let result = new this.cv.Mat(); 
+                            let mask = new this.cv.Mat();
+                            this.cv.matchTemplate(src, templ, result, this.cv.TM_CCOEFF_NORMED, mask);
+                            let resultData = this.cv.minMaxLoc(result, mask); 
+                            let maxVal = resultData.maxVal;
+                            
+                            const matchPercentage = Math.round(maxVal * 100);
+                            matchIndicator.textContent = `一致率: ${matchPercentage}%`;
+                            
+                            if (maxVal > this.MATCH_THRESHOLD) {
+                                cameraFrame.style.boxShadow = `0 0 20px 5px rgba(25, 255, 25, 0.8)`;
+                                matchIndicator.classList.remove('text-white');
+                                matchIndicator.classList.add('text-green-400');
+                            } else { 
+                                cameraFrame.style.boxShadow = 'none'; 
+                                matchIndicator.classList.remove('text-green-400');
+                                matchIndicator.classList.add('text-white');
+                            }
+                            src.delete(); templ.delete(); result.delete(); mask.delete();
+                        } catch (err) { 
+                            console.warn('画像比較エラー:', err);
                             cameraFrame.style.boxShadow = 'none'; 
-                            matchIndicator.classList.add('hidden'); 
                         }
-                        src.delete(); templ.delete(); result.delete(); mask.delete();
-                    } catch (err) { 
-                        cameraFrame.style.boxShadow = 'none'; 
-                        matchIndicator.classList.add('hidden'); 
                     }
                 }
-            } else { 
-                this.elements['camera-frame'].style.boxShadow = 'none'; 
-                this.elements['match-indicator'].classList.add('hidden');
-                this.elements['modal-match-indicator'].classList.add('hidden');
+            } catch (error) {
+                console.warn('比較ループエラー:', error);
             }
+            
             requestAnimationFrame(() => this.comparisonLoop());
         },
 
-        // 2回タップでの範囲選択機能
+        // 修正されたPDFタップ処理
         handlePdfTap(event) {
             if (!this.isCompareMode || this.selectionState === 'completed') return;
             event.preventDefault();
@@ -736,9 +965,13 @@
                 this.cropAndSetTarget(selRect);
             }
         },
+
+        // 修正されたcropAndSetTarget関数
         cropAndSetTarget(rect) {
             const pdfCanvas = this.elements['pdf-viewer'].querySelector('canvas');
             if (!pdfCanvas) return;
+            
+            console.log('cropAndSetTarget開始:', rect);
             
             // 画像を切り取り
             const tempCanvas = document.createElement('canvas');
@@ -756,24 +989,55 @@
             this.selectionState = 'completed';
             this.isCompareMode = true;
             
-            // 比較ボタンの表示を「比較終了」に変更
+            // カメラを全画面表示に変更
+            this.showFullscreenCamera();
+            
+            console.log('cropAndSetTarget完了 - カメラ全画面表示開始');
+        },
+
+        // 修正されたカメラ全画面表示機能
+        showFullscreenCamera() {
+            console.log('showFullscreenCamera開始');
+            
+            // PDFセクションを非表示、カメラセクションを全画面に
+            const pdfSection = this.elements['pdf-section'];
+            const cameraSection = this.elements['camera-section'];
+            
+            // CSSクラスを使用してレイアウト変更
+            pdfSection.classList.add('pdf-hidden');
+            cameraSection.classList.add('camera-fullscreen');
+            
+            // コントロールパネルを表示
+            this.elements['control-panel'].classList.remove('hidden');
+            
+            // ターゲット画像コンテナを表示
+            this.elements['target-image-container'].classList.remove('hidden');
+            
+            // 比較ボタンの状態を更新
             this.elements['toggle-compare-btn'].textContent = '🖼️ 比較終了';
             this.elements['toggle-compare-btn'].classList.remove('bg-red-600');
             this.elements['toggle-compare-btn'].classList.add('bg-purple-600');
-            this.elements['pdf-viewer'].style.cursor = 'default';
             
-            // モーダル方式でカメラを全画面表示
-            this.showCameraModal();
+            // 撮影枚数を更新
+            this.elements['compare-photo-count'].textContent = `${this.photoCount}枚`;
+            
+            // ピンチズーム初期化
+            setTimeout(() => {
+                this.initPinchZoom();
+            }, 100);
+            
+            console.log('showFullscreenCamera完了');
         },
+
         resetSelection() {
             this.elements['selection-marker'].classList.add('hidden');
             this.elements['selection-instruction'].classList.add('hidden');
             this.selectionState = 'idle';
         },
+
         toggleCompareMode() {
-            // 選択完了状態の場合は比較を終了
             if (this.selectionState === 'completed') {
-                console.log('比較終了がクリックされました');
+                // 比較終了
                 this.revertToSplitView();
                 return;
             }
@@ -796,14 +1060,29 @@
                 console.log('比較モード終了');
             }
         },
+
         showInstruction(text) {
             const instructionEl = this.elements['selection-instruction'];
             instructionEl.textContent = text;
             instructionEl.classList.remove('hidden');
         },
+
+        // 修正されたrevertToSplitView関数
         revertToSplitView() {
-            // モーダルが開いている場合は閉じる
-            this.hideCameraModal();
+            console.log('revertToSplitView開始');
+            
+            // レイアウトを元に戻す
+            const pdfSection = this.elements['pdf-section'];
+            const cameraSection = this.elements['camera-section'];
+            
+            pdfSection.classList.remove('pdf-hidden');
+            cameraSection.classList.remove('camera-fullscreen');
+            
+            // コントロールパネルを非表示
+            this.elements['control-panel'].classList.add('hidden');
+            
+            // ターゲット画像コンテナを非表示
+            this.elements['target-image-container'].classList.add('hidden');
             
             // 比較機能を無効化
             this.isCompareMode = false;
@@ -818,69 +1097,145 @@
             
             // カメラフレームのエフェクトをリセット
             this.elements['camera-frame'].style.boxShadow = 'none';
-            this.elements['match-indicator'].classList.add('hidden');
-            this.elements['modal-match-indicator'].classList.add('hidden');
             
             // 選択UI要素を非表示
             this.elements['selection-marker'].classList.add('hidden');
             this.elements['selection-instruction'].classList.add('hidden');
             
-            // ターゲット画像関連のUIを非表示
-            this.elements['target-image-container'].classList.add('hidden');
+            // ズームをリセット
+            this.zoomLevel = 1.0;
+            this.updateZoom();
+            
+            console.log('revertToSplitView完了');
         },
 
-        // --- イベントリスナーと初期化 ---
+        // OpenCV初期化
+        async initOpenCV() {
+            return new Promise((resolve) => {
+                if (window.cv && window.cv.imread) {
+                    this.cv = window.cv;
+                    console.log('OpenCV.js初期化完了');
+                    resolve(true);
+                    return;
+                }
+
+                let attempts = 0;
+                const maxAttempts = 50;
+                const checkInterval = setInterval(() => {
+                    attempts++;
+                    if (window.cv && window.cv.imread) {
+                        this.cv = window.cv;
+                        clearInterval(checkInterval);
+                        console.log('OpenCV.js初期化完了');
+                        resolve(true);
+                    } else if (attempts >= maxAttempts) {
+                        clearInterval(checkInterval);
+                        console.warn('OpenCV.js読み込みタイムアウト - 比較機能は無効です');
+                        this.disableComparisonFeatures();
+                        resolve(false);
+                    }
+                }, 100);
+            });
+        },
+
+        disableComparisonFeatures() {
+            const compareBtn = this.elements['toggle-compare-btn'];
+            if (compareBtn) {
+                compareBtn.textContent = '🔍 手動比較';
+                compareBtn.classList.add('opacity-75');
+                compareBtn.title = '画像比較機能は無効です。PDFを見ながら目視で比較してください。';
+            }
+        },
+
+        // イベントリスナーと初期化
         initEventListeners() {
-            // 通常の撮影ボタン
+            // 撮影ボタン
             this.elements['capture-btn'].addEventListener('click', () => this.takePicture());
-            
-            // モーダルの撮影ボタン
-            this.elements['modal-capture-btn'].addEventListener('click', () => this.takePicture());
+            if (this.elements['compare-capture-btn']) {
+                this.elements['compare-capture-btn'].addEventListener('click', () => this.takePicture());
+            }
             
             // ズームスライダー
-            this.elements['zoom-slider'].addEventListener('input', () => this.setZoomFromSlider());
+            if (this.elements['zoom-slider']) {
+                this.elements['zoom-slider'].addEventListener('input', () => this.setZoomFromSlider());
+                this.elements['zoom-slider'].addEventListener('change', () => this.setZoomFromSlider());
+            }
             
-            // モーダル閉じるボタン
-            this.elements['close-camera-modal-btn'].addEventListener('click', () => this.revertToSplitView());
+            // 比較モード関連
+            if (this.elements['close-compare-btn']) {
+                this.elements['close-compare-btn'].addEventListener('click', () => this.revertToSplitView());
+            }
+            if (this.elements['ai-assistant-btn']) {
+                this.elements['ai-assistant-btn'].addEventListener('click', () => { 
+                    if (this.targetImageDataUrl) this.getAiShootingAssistant(this.targetImageDataUrl); 
+                });
+            }
+            if (this.elements['show-album-btn']) {
+                this.elements['show-album-btn'].addEventListener('click', () => {
+                    this.elements['album-modal'].classList.remove('hidden');
+                });
+            }
             
-            // アルバム表示ボタン
-            this.elements['show-album-btn'].addEventListener('click', () => {
-                this.elements['album-modal'].classList.remove('hidden');
-            });
-            
-            // モーダルAIアシスタントボタン
-            this.elements['modal-ai-assistant-btn'].addEventListener('click', () => { 
-                if (this.targetImageDataUrl) this.getAiShootingAssistant(this.targetImageDataUrl); 
-            });
-            
-            // 既存のAIアシスタントボタン
-            this.elements['ai-assistant-btn'].addEventListener('click', () => { 
-                if (this.targetImageDataUrl) this.getAiShootingAssistant(this.targetImageDataUrl); 
-            });
-            
+            // その他のイベントリスナー
             this.elements['open-album-btn'].addEventListener('click', () => { this.elements['album-modal'].classList.remove('hidden'); });
             this.elements['close-album-btn'].addEventListener('click', () => { this.elements['album-modal'].classList.add('hidden'); });
             this.elements['save-api-key-btn'].addEventListener('click', () => this.saveApiKey());
             this.elements['skip-api-key-btn'].addEventListener('click', () => this.skipApiKey());
+            
+            // PDF関連
             this.elements['pdf-upload'].addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (!file || file.type !== 'application/pdf') return;
-                const fileReader = new FileReader();
-                fileReader.onload = () => {
-                    const typedarray = new Uint8Array(fileReader.result);
-                    pdfjsLib.getDocument(typedarray).promise.then(pdf => {
-                        this.pdfDoc = pdf;
-                        this.elements['page-count'].textContent = this.pdfDoc.numPages;
-                        this.currentPageNum = 1;
-                        this.renderPage(this.currentPageNum);
-                        this.elements['pdf-controls'].classList.remove('hidden');
-                        this.elements['pdf-placeholder'].classList.add('hidden');
-                    });
-                };
-                fileReader.readAsArrayBuffer(file);
+                try {
+                    const file = e.target.files[0];
+                    if (!file || file.type !== 'application/pdf') {
+                        this.showPermissionAlert('ファイルエラー', 'PDFファイルを選択してください。');
+                        return;
+                    }
+                    
+                    if (typeof pdfjsLib === 'undefined') {
+                        this.showPermissionAlert('PDF機能エラー', 'PDF.jsライブラリが読み込まれていません。');
+                        return;
+                    }
+                    
+                    const fileReader = new FileReader();
+                    fileReader.onload = () => {
+                        try {
+                            const typedarray = new Uint8Array(fileReader.result);
+                            pdfjsLib.getDocument(typedarray).promise.then(pdf => {
+                                this.pdfDoc = pdf;
+                                this.elements['page-count'].textContent = this.pdfDoc.numPages;
+                                this.currentPageNum = 1;
+                                this.renderPage(this.currentPageNum);
+                                this.elements['pdf-controls'].classList.remove('hidden');
+                                this.elements['pdf-placeholder'].classList.add('hidden');
+                                console.log(`PDFを読み込みました: ${this.pdfDoc.numPages}ページ`);
+                            }).catch(pdfError => {
+                                console.error('PDF読み込みエラー:', pdfError);
+                                this.showPermissionAlert('PDF読み込みエラー', 'PDFファイルの読み込みに失敗しました。');
+                            });
+                        } catch (parseError) {
+                            console.error('PDFパースエラー:', parseError);
+                            this.showPermissionAlert('PDF解析エラー', 'PDFファイルの解析に失敗しました。');
+                        }
+                    };
+                    fileReader.readAsArrayBuffer(file);
+                } catch (error) {
+                    console.error('PDFアップロード処理エラー:', error);
+                    this.showPermissionAlert('アップロードエラー', 'ファイルアップロード処理中にエラーが発生しました。');
+                }
             });
-            this.elements['prev-page'].addEventListener('click', () => { if (this.currentPageNum > 1) { this.currentPageNum--; this.queueRenderPage(this.currentPageNum); } });
-            this.elements['next-page'].addEventListener('click', () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) { this.currentPageNum++; this.queueRenderPage(this.currentPageNum); } });
+            
+            this.elements['prev-page'].addEventListener('click', () => { 
+                if (this.currentPageNum > 1) { 
+                    this.currentPageNum--; 
+                    this.queueRenderPage(this.currentPageNum); 
+                } 
+            });
+            this.elements['next-page'].addEventListener('click', () => { 
+                if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) { 
+                    this.currentPageNum++; 
+                    this.queueRenderPage(this.currentPageNum); 
+                } 
+            });
             this.elements['toggle-compare-btn'].addEventListener('click', () => this.toggleCompareMode());
             this.elements['pdf-viewer'].addEventListener('touchstart', (e) => this.handlePdfTap(e), { passive: false });
             this.elements['pdf-viewer'].addEventListener('click', (e) => this.handlePdfTap(e));
@@ -891,30 +1246,85 @@
                 textArea.value = textToCopy;
                 document.body.appendChild(textArea);
                 textArea.select();
-                try { document.execCommand('copy'); this.elements['copy-report-btn'].textContent = 'コピー完了'; setTimeout(() => { this.elements['copy-report-btn'].textContent = '文章をコピー'; }, 2000); } 
-                catch (err) { console.error('コピー失敗', err); }
+                try { 
+                    document.execCommand('copy'); 
+                    this.elements['copy-report-btn'].textContent = 'コピー完了'; 
+                    setTimeout(() => { this.elements['copy-report-btn'].textContent = '文章をコピー'; }, 2000); 
+                } catch (err) { 
+                    console.error('コピー失敗', err); 
+                }
                 document.body.removeChild(textArea);
             });
         },
-        init() {
-            const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'selection-box', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'opencv-js', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'skip-api-key-btn', 'camera-modal', 'modal-camera-stream', 'modal-target-image', 'modal-match-indicator', 'close-camera-modal-btn', 'modal-ai-assistant-btn', 'modal-gps-status-dot', 'modal-compass-status-dot', 'modal-capture-btn', 'modal-photo-count', 'camera-container', 'zoom-slider', 'zoom-level-display', 'show-album-btn'];
-            ids.forEach(id => { if(document.getElementById(id)) this.elements[id] = document.getElementById(id); });
-            
-            this.initEventListeners();
-            this.initCamera();
-            this.initSensors();
-            this.initApiKeyModal();
-            
-            const readyCheck = setInterval(() => {
-                if (window.cv && window.cv.imread) {
-                    clearInterval(readyCheck);
-                    this.cv = window.cv;
-                    console.log('OpenCV.js is ready.');
-                    requestAnimationFrame(() => this.comparisonLoop());
+
+        async init() {
+            try {
+                console.log('アプリ初期化開始...');
+                
+                // セキュリティチェック（簡素化）
+                try {
+                    if (!this.checkSecureContext()) {
+                        console.warn('セキュアコンテキストではありません');
+                        // セキュリティエラーでも初期化を続行
+                    }
+                } catch (securityError) {
+                    console.warn('セキュリティチェックエラー:', securityError);
+                    // セキュリティチェックに失敗しても続行
                 }
-            }, 100);
+                
+                // 要素の取得
+                const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'skip-api-key-btn', 'control-panel', 'close-compare-btn', 'show-album-btn', 'zoom-slider', 'zoom-level-display', 'compare-photo-count', 'compare-capture-btn', 'comparison-match-rate'];
+                
+                ids.forEach(id => { 
+                    const element = document.getElementById(id);
+                    if (element) {
+                        this.elements[id] = element;
+                    } else {
+                        console.warn(`要素が見つかりません: ${id}`);
+                    }
+                });
+                
+                this.initEventListeners();
+                this.initApiKeyModal();
+                
+                // 非同期でカメラとセンサーを初期化
+                this.initCamera().catch(err => {
+                    console.error('カメラ初期化エラー:', err);
+                });
+                
+                this.initSensors().catch(err => {
+                    console.error('センサー初期化エラー:', err);
+                });
+                
+                // OpenCVの初期化（任意）
+                this.initOpenCV().then(loaded => {
+                    if (loaded) {
+                        console.log('OpenCV.js読み込み完了 - 画像比較機能が利用可能');
+                    } else {
+                        console.log('OpenCV.js読み込み失敗 - 手動比較モードで動作');
+                    }
+                });
+                
+                // 比較ループを開始
+                requestAnimationFrame(() => this.comparisonLoop());
+                
+                console.log('✅ 構造物点検カメラアプリ初期化完了');
+                
+            } catch (error) {
+                console.error('アプリ初期化エラー:', error);
+                this.showPermissionAlert('初期化エラー', `アプリケーションの初期化に失敗しました: ${error.message}`);
+            }
         }
     };
+
+    // OpenCV.jsの読み込み
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = 'https://docs.opencv.org/4.9.0/opencv.js';
+    script.onerror = () => {
+        console.warn('OpenCV.js読み込み失敗 - 手動比較モードで動作します');
+    };
+    document.head.appendChild(script);
 
     window.addEventListener('DOMContentLoaded', () => App.init());
 
