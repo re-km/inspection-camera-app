@@ -128,28 +128,52 @@
 
     <!-- カメラ全画面モーダル -->
     <div id="camera-modal" class="hidden fixed inset-0 bg-gray-900 z-[80] flex flex-col">
-        <div class="flex-grow relative bg-black">
-            <video id="modal-camera-stream" autoplay playsinline class="w-full h-full object-contain"></video>
-            <div class="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-4 z-20">
+        <div class="flex-grow relative bg-black overflow-hidden">
+            <div id="camera-container" class="w-full h-full relative" style="transform-origin: center center;">
+                <video id="modal-camera-stream" autoplay playsinline class="w-full h-full object-contain"></video>
+            </div>
+            
+            <!-- ターゲット画像と一致率 -->
+            <div class="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-4 z-30">
                 <img id="modal-target-image" class="h-16 border-2 border-teal-500 rounded-md">
                 <div id="modal-match-indicator" class="hidden bg-green-500 text-white font-bold text-sm px-3 py-1 rounded-full shadow-lg"></div>
             </div>
-            <div class="absolute top-4 right-4 flex flex-col gap-2 z-20">
-                <button id="close-camera-modal-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">✖ 戻る</button>
-                <button id="modal-ai-assistant-btn" class="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-2 px-4 rounded-lg">✨ 撮影補助</button>
+            
+            <!-- 右上ボタン群 -->
+            <div class="absolute top-4 right-4 flex flex-col gap-2 z-30">
+                <button id="close-camera-modal-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-lg">✖ 戻る</button>
+                <button id="modal-ai-assistant-btn" class="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-2 px-4 rounded-lg shadow-lg">✨ 撮影補助</button>
             </div>
-            <div class="absolute top-4 left-4 bg-black bg-opacity-50 p-2 rounded-md text-xs z-20">
+            
+            <!-- 左上センサー情報 -->
+            <div class="absolute top-4 left-4 bg-black bg-opacity-50 p-2 rounded-md text-xs z-30">
                 <div><span id="modal-gps-status-dot" class="status-dot bg-red-500"></span> GPS</div>
                 <div><span id="modal-compass-status-dot" class="status-dot bg-red-500"></span> 方位</div>
             </div>
-            <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
-                <button id="modal-capture-btn" class="w-20 h-20 border-8 border-white bg-white bg-opacity-30 rounded-full hover:bg-opacity-60 transition-all" title="撮影"></button>
+            
+            <!-- ズームコントロール -->
+            <div class="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-30">
+                <button id="zoom-in-btn" class="w-12 h-12 bg-black bg-opacity-70 text-white font-bold text-xl rounded-full shadow-lg flex items-center justify-center">+</button>
+                <button id="zoom-out-btn" class="w-12 h-12 bg-black bg-opacity-70 text-white font-bold text-xl rounded-full shadow-lg flex items-center justify-center">-</button>
+                <button id="zoom-reset-btn" class="w-12 h-8 bg-black bg-opacity-70 text-white font-bold text-xs rounded-full shadow-lg flex items-center justify-center">1x</button>
+            </div>
+            
+            <!-- 撮影ボタン（大きく、見えやすく） -->
+            <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-30">
+                <button id="modal-capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center">
+                    <div class="w-16 h-16 bg-white rounded-full shadow-inner"></div>
+                </button>
             </div>
         </div>
+        
+        <!-- 下部情報パネル -->
         <div class="flex-shrink-0 bg-gray-800 p-4">
             <div class="flex items-center justify-between mb-2">
                 <h3 class="text-lg font-bold text-white">比較撮影モード</h3>
-                <span id="modal-photo-count" class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full">0枚</span>
+                <div class="flex items-center gap-4">
+                    <span id="zoom-level-display" class="bg-gray-600 text-white text-sm font-bold px-2 py-1 rounded">1.0x</span>
+                    <span id="modal-photo-count" class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full">0枚</span>
+                </div>
             </div>
             <div id="modal-photo-gallery" class="flex space-x-2 overflow-x-auto bg-gray-700 rounded-lg p-2 h-20">
                 <div id="modal-gallery-placeholder" class="w-full h-full flex items-center justify-center text-gray-500 text-sm">撮影写真がここに表示されます</div>
@@ -198,6 +222,9 @@
         sensorData: { latitude: null, longitude: null, heading: null },
         photoCount: 0,
         apiKey: '',
+        zoomLevel: 1.0,
+        maxZoom: 3.0,
+        minZoom: 0.5,
 
         // API設定関連
         initApiKeyModal() {
@@ -463,6 +490,71 @@
             }
         },
 
+        // ズーム機能
+        updateZoom() {
+            const container = this.elements['camera-container'];
+            const zoomDisplay = this.elements['zoom-level-display'];
+            
+            if (container) {
+                container.style.transform = `scale(${this.zoomLevel})`;
+                zoomDisplay.textContent = `${this.zoomLevel.toFixed(1)}x`;
+            }
+        },
+        
+        zoomIn() {
+            if (this.zoomLevel < this.maxZoom) {
+                this.zoomLevel = Math.min(this.zoomLevel + 0.2, this.maxZoom);
+                this.updateZoom();
+            }
+        },
+        
+        zoomOut() {
+            if (this.zoomLevel > this.minZoom) {
+                this.zoomLevel = Math.max(this.zoomLevel - 0.2, this.minZoom);
+                this.updateZoom();
+            }
+        },
+        
+        resetZoom() {
+            this.zoomLevel = 1.0;
+            this.updateZoom();
+        },
+        
+        // ピンチズーム対応
+        initPinchZoom() {
+            const container = this.elements['camera-container'];
+            if (!container) return;
+            
+            let initialDistance = 0;
+            let initialZoom = 1.0;
+            
+            container.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    initialDistance = this.getDistance(e.touches[0], e.touches[1]);
+                    initialZoom = this.zoomLevel;
+                    e.preventDefault();
+                }
+            }, { passive: false });
+            
+            container.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2) {
+                    const currentDistance = this.getDistance(e.touches[0], e.touches[1]);
+                    const scale = currentDistance / initialDistance;
+                    const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, initialZoom * scale));
+                    
+                    this.zoomLevel = newZoom;
+                    this.updateZoom();
+                    e.preventDefault();
+                }
+            }, { passive: false });
+        },
+        
+        getDistance(touch1, touch2) {
+            const dx = touch1.clientX - touch2.clientX;
+            const dy = touch1.clientY - touch2.clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        },
+
         // モーダルカメラ関連
         showCameraModal() {
             // ターゲット画像をモーダルに設定
@@ -479,8 +571,14 @@
             // 撮影枚数をコピー
             this.elements['modal-photo-count'].textContent = `${this.photoCount}枚`;
             
+            // ズームをリセット
+            this.resetZoom();
+            
             // モーダルを表示
             this.elements['camera-modal'].classList.remove('hidden');
+            
+            // ピンチズーム初期化
+            this.initPinchZoom();
             
             // モーダル内のギャラリーをクリア
             this.elements['modal-photo-gallery'].innerHTML = '<div id="modal-gallery-placeholder" class="w-full h-full flex items-center justify-center text-gray-500 text-sm">撮影写真がここに表示されます</div>';
@@ -702,6 +800,11 @@
             // モーダルの撮影ボタン
             this.elements['modal-capture-btn'].addEventListener('click', () => this.takePicture());
             
+            // ズームボタン
+            this.elements['zoom-in-btn'].addEventListener('click', () => this.zoomIn());
+            this.elements['zoom-out-btn'].addEventListener('click', () => this.zoomOut());
+            this.elements['zoom-reset-btn'].addEventListener('click', () => this.resetZoom());
+            
             // モーダル閉じるボタン
             this.elements['close-camera-modal-btn'].addEventListener('click', () => this.revertToSplitView());
             
@@ -754,7 +857,7 @@
             });
         },
         init() {
-            const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'selection-box', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'opencv-js', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'skip-api-key-btn', 'camera-modal', 'modal-camera-stream', 'modal-target-image', 'modal-match-indicator', 'close-camera-modal-btn', 'modal-ai-assistant-btn', 'modal-gps-status-dot', 'modal-compass-status-dot', 'modal-capture-btn', 'modal-photo-count', 'modal-photo-gallery'];
+            const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'selection-box', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'opencv-js', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'skip-api-key-btn', 'camera-modal', 'modal-camera-stream', 'modal-target-image', 'modal-match-indicator', 'close-camera-modal-btn', 'modal-ai-assistant-btn', 'modal-gps-status-dot', 'modal-compass-status-dot', 'modal-capture-btn', 'modal-photo-count', 'modal-photo-gallery', 'camera-container', 'zoom-in-btn', 'zoom-out-btn', 'zoom-reset-btn', 'zoom-level-display'];
             ids.forEach(id => { if(document.getElementById(id)) this.elements[id] = document.getElementById(id); });
             
             this.initEventListeners();
