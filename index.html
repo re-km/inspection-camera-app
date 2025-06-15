@@ -27,7 +27,6 @@
 <body class="bg-gray-900 text-white">
 
     <div id="app-container" class="flex flex-row h-full">
-
         <!-- 左セクション: PDFビューア -->
         <div id="pdf-section" class="section w-1/2 p-2 bg-gray-800">
             <div class="flex-shrink-0">
@@ -92,8 +91,7 @@
             <h2 class="text-2xl font-bold">アルバム</h2>
             <button id="close-album-btn" class="text-3xl font-bold text-white">&times;</button>
         </div>
-        <div id="album-grid" class="flex-grow overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
-        </div>
+        <div id="album-grid" class="flex-grow overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4"></div>
     </div>
     
     <!-- Geminiモーダル -->
@@ -120,388 +118,367 @@
     <canvas id="capture-canvas" class="hidden"></canvas>
 
     <script>
-    // --- グローバル変数 ---
-    const elements = {};
-    let pdfDoc = null, currentPageNum = 1, pageIsRendering = false, pageNumIsPending = null;
-    let isCompareMode = false;
-    let selectionState = 'idle';
-    let p1 = { x: 0, y: 0 };
-    let targetImageDataUrl = null;
-    let frameCount = 0;
-    const MATCH_THRESHOLD = 0.7;
-    let cv = null;
-    const sensorData = { latitude: null, longitude: null, heading: null };
-    let photoCount = 0;
+    const App = {
+        elements: {},
+        pdfDoc: null, currentPageNum: 1, pageIsRendering: false, pageNumIsPending: null,
+        isCompareMode: false, selectionState: 'idle', p1: { x: 0, y: 0 },
+        targetImageDataUrl: null, frameCount: 0, MATCH_THRESHOLD: 0.7, cv: null,
+        sensorData: { latitude: null, longitude: null, heading: null },
+        photoCount: 0,
 
-    // --- 関数定義 ---
-
-    // PDF関連
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
-    function renderPage(num) {
-        pageIsRendering = true;
-        if (!pdfDoc) return;
-        pdfDoc.getPage(num).then(page => {
-            const container = elements['pdf-viewer-wrapper'];
-            if (!container) return;
-            const viewport = page.getViewport({ scale: 1.5 });
-            const scale = container.clientWidth / viewport.width;
-            const scaledViewport = page.getViewport({ scale: scale });
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.height = scaledViewport.height;
-            canvas.width = scaledViewport.width;
-            elements['pdf-viewer'].innerHTML = '';
-            elements['pdf-viewer'].appendChild(canvas);
-            const renderContext = { canvasContext: context, viewport: scaledViewport };
-            page.render(renderContext).promise.then(() => {
-                pageIsRendering = false;
-                if (pageNumIsPending !== null) { renderPage(pageNumIsPending); pageNumIsPending = null; }
-            });
-        });
-        elements['page-num'].textContent = num;
-    }
-    function queueRenderPage(num) {
-        if (pageIsRendering) { pageNumIsPending = num; } 
-        else { renderPage(num); }
-    }
-
-    // センサー関連
-    function initSensors() {
-        if ('geolocation' in navigator) {
-            navigator.geolocation.watchPosition(
-                (p) => { sensorData.latitude = p.coords.latitude; sensorData.longitude = p.coords.longitude; elements['gps-status-dot'].classList.replace('bg-red-500', 'bg-green-500'); },
-                (e) => { console.warn(`GPSエラー: ${e.message}`); elements['gps-status-dot'].classList.replace('bg-green-500', 'bg-red-500'); },
-                { enableHighAccuracy: true }
-            );
-        }
-        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-             DeviceOrientationEvent.requestPermission().then(p => { if (p === 'granted') window.addEventListener('deviceorientationabsolute', handleOrientation, true); else alert('方位センサーの許可が必要です。'); }).catch(console.error);
-        } else { window.addEventListener('deviceorientationabsolute', handleOrientation, true); }
-    }
-    function handleOrientation(event) {
-        if (event.alpha !== null) { sensorData.heading = event.alpha; elements['compass-status-dot'].classList.replace('bg-red-500', 'bg-green-500'); } 
-        else { elements['compass-status-dot'].classList.replace('bg-green-500', 'bg-red-500'); }
-    }
-
-    // カメラ関連
-    async function initCamera() {
-        try {
-            const constraints = { video: { facingMode: 'environment', width: { ideal: 4032 }, height: { ideal: 3024 }, aspectRatio: { ideal: 4 / 3 } }, audio: false };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            elements['camera-stream'].srcObject = stream;
-        } catch (err) {
-            console.warn("4:3高解像度カメラへのアクセスに失敗、デフォルトで試行します: ", err);
-            try {
-                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                 elements['camera-stream'].srcObject = stream;
-            } catch (e) {
-                alert("カメラにアクセスできませんでした。ブラウザの設定でカメラの使用を許可してください。");
-            }
-        }
-    }
-    async function takePicture() {
-        const btn = elements['capture-btn'];
-        btn.classList.add('ping-animation');
-        setTimeout(() => btn.classList.remove('ping-animation'), 500);
-
-        const video = elements['camera-stream'];
-        if (!video.srcObject) return;
-
-        const canvas = elements['capture-canvas'];
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageDataUrl = canvas.toDataURL('image/jpeg', 1.0);
-        
-        let finalImageDataUrl = imageDataUrl;
-        if (sensorData.latitude !== null && sensorData.longitude !== null && sensorData.heading !== null) {
-            const zeroth = {}; const gps = {};
-            zeroth[piexif.ImageIFD.Make] = "Inspection_camera_app";
-            gps[piexif.GPSIFD.GPSLatitudeRef] = sensorData.latitude < 0 ? 'S' : 'N';
-            gps[piexif.GPSIFD.GPSLatitude] = piexif.GPSHelper.degToDms(Math.abs(sensorData.latitude));
-            gps[piexif.GPSIFD.GPSLongitudeRef] = sensorData.longitude < 0 ? 'W' : 'E';
-            gps[piexif.GPSIFD.GPSLongitude] = piexif.GPSHelper.degToDms(Math.abs(sensorData.longitude));
-            gps[piexif.GPSIFD.GPSImgDirectionRef] = "T";
-            gps[piexif.GPSIFD.GPSImgDirection] = [Math.round(sensorData.heading), 1];
-            const exifObj = {"0th":zeroth, "Exif":{}, "GPS":gps, "1st":{}, "thumbnail":null};
-            const exifbytes = piexif.dump(exifObj);
-            finalImageDataUrl = piexif.insert(exifbytes, imageDataUrl);
-        } else {
-            console.warn("センサーデータ不十分のためEXIFなし");
-        }
-        
-        addToGallery(finalImageDataUrl);
-
-        photoCount++;
-        const badge = elements['photo-count-badge'];
-        badge.textContent = `${photoCount}枚`;
-        badge.classList.remove('hidden');
-    }
-    function addToGallery(dataUrl) {
-        elements['gallery-placeholder'].classList.add('hidden');
-        const previewWrapper = document.createElement('div');
-        previewWrapper.className = 'relative w-24 h-full flex-shrink-0 group';
-        const previewImg = document.createElement('img');
-        previewImg.src = dataUrl;
-        previewImg.className = 'w-full h-full object-cover rounded-md';
-        previewWrapper.appendChild(previewImg);
-        elements['photo-gallery'].appendChild(previewWrapper);
-        elements['photo-gallery'].scrollLeft = elements['photo-gallery'].scrollWidth;
-        
-        const albumItem = document.createElement('div');
-        albumItem.className = 'relative w-full aspect-4/3 group cursor-pointer';
-        const albumImg = document.createElement('img');
-        albumImg.src = dataUrl;
-        albumImg.className = 'w-full h-full object-cover rounded-lg';
-        albumItem.appendChild(albumImg);
-        const albumOverlay = document.createElement('div');
-        albumOverlay.className = 'absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity p-1';
-        const analyzeButton = document.createElement('button');
-        analyzeButton.innerHTML = `✨ AI分析`;
-        analyzeButton.className = 'text-white bg-purple-600 hover:bg-purple-700 font-bold py-2 px-3 rounded-lg text-xs';
-        analyzeButton.onclick = (e) => { e.stopPropagation(); analyzeImageWithGemini(dataUrl); };
-        albumOverlay.appendChild(analyzeButton);
-        albumItem.appendChild(albumOverlay);
-        elements['album-grid'].appendChild(albumItem);
-    }
-
-    // AI関連
-    async function callGeminiApi(prompt, imageDataUrl = null) {
-        const apiKey = "";
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-        
-        const parts = [{ text: prompt }];
-        if (imageDataUrl) {
-            const base64ImageData = imageDataUrl.split(',')[1];
-            parts.push({ inlineData: { mimeType: "image/jpeg", data: base64ImageData } });
-        }
-        
-        const payload = { contents: [{ role: "user", parts: parts }] };
-        const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        
-        if (!response.ok) {
-            const errorBody = await response.json();
-            console.error("API Error:", errorBody);
-            throw new Error(`APIエラー: ${response.status} ${errorBody.error?.message || response.statusText}`);
-        }
-        
-        const result = await response.json();
-        
-        if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
-            return result.candidates[0].content.parts[0].text;
-        } else {
-            console.error("Unexpected API Response:", result);
-            throw new Error("AIからの有効な応答がありませんでした。");
-        }
-    }
-    
-    async function analyzeImageWithGemini(dataUrl) {
-        elements['modal-title'].innerHTML = `<span class="text-2xl mr-2">✨</span> AIによる損傷分析`;
-        elements['gemini-modal'].classList.remove('hidden');
-        elements['report-generation-area'].classList.add('hidden'); 
-        elements['gemini-modal-content'].innerHTML = `<div class="flex flex-col justify-center items-center py-8"><div class="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div><p class="text-center mt-4">AIが分析中です...</p></div>`;
-        try {
-            const prompt = "この画像は構造物の点検時に撮影されたものです。コンクリートのひび割れ、剥離、鉄筋の露出、漏水、錆などの損傷の可能性を分析し、発見した点を箇条書きで簡潔に説明してください。損傷が見られない場合は「特に問題は見つかりませんでした。」と回答してください。日本語で回答してください。";
-            const analysisText = await callGeminiApi(prompt, dataUrl);
-            
-            elements['gemini-modal-content'].innerHTML = `<h4 class="text-xl font-semibold">分析結果</h4><div id="gemini-modal-result" class="mt-2 p-4 bg-gray-900 rounded-lg">${analysisText.replace(/\n/g, '<br>')}</div>`;
-            const generateBtn = document.createElement('button');
-            generateBtn.innerHTML = `✨ 報告書を作成`;
-            generateBtn.className = 'mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg';
-            generateBtn.onclick = () => generateReportFromAnalysis(analysisText);
-            elements['gemini-modal-content'].appendChild(generateBtn);
-        } catch (error) {
-            console.error("Gemini API Error:", error);
-            elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">分析中にエラーが発生しました。コンソールで詳細を確認してください。</p><p class="text-xs text-gray-400 mt-2">${error.message}</p>`;
-        }
-    }
-    
-    async function generateReportFromAnalysis(analysisText) {
-        elements['report-generation-area'].classList.remove('hidden');
-        elements['report-content'].innerHTML = `<div class="flex items-center justify-center h-full"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div><p class="ml-4">報告書を作成中...</p></div>`;
-        try {
-            const prompt = `あなたは土木技術の専門家として、構造物の点検報告書を作成しています。以下の写真分析結果に基づき、所見、評価、および推奨される次のステップ（例：「詳細調査が必要」「経過観察」「軽微な補修」など）を含む、詳細で専門的な報告書の文章を作成してください。\n\n### 分析結果\n${analysisText}\n\n### 報告書（案）\n`;
-            const reportText = await callGeminiApi(prompt);
-            elements['report-content'].textContent = reportText;
-        } catch (error) {
-            console.error("Report Generation Error:", error);
-            elements['report-content'].innerHTML = `<p class="text-red-400">報告書の作成中にエラーが発生しました。</p>`;
-        }
-    }
-    
-    async function getAiShootingAssistant(dataUrl) {
-        elements['modal-title'].innerHTML = `<span class="text-2xl mr-2">✨</span> AI撮影アシスタント`;
-        elements['gemini-modal'].classList.remove('hidden');
-        elements['report-generation-area'].classList.add('hidden');
-        elements['gemini-modal-content'].innerHTML = `<div class="flex flex-col justify-center items-center py-8"><div class="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div><p class="text-center mt-4">AIが写真を確認しています...</p></div>`;
-        try {
-            const prompt = `あなたは経験豊富な土木技術者です。この写真は過去の点検で撮影されたものです。\n1. この写真に写っている構造物や部材が何であるか、専門用語を使いつつ簡潔に説明してください。\n2. この後、新人技術者が同じ写真を撮影します。同じアングルや構図で撮影するための、具体的で分かりやすいアドバイスをしてください。\n\n現在地は日本の福井県越前市です。緯度は${sensorData.latitude || '不明'}、経度は${sensorData.longitude || '不明'}です。これらの情報も参考に、回答を作成してください。\n\n例：\n**説明:** これは橋台の側面とウィング（袖壁）の接合部です。\n**撮影アドバイス:** 橋台から約5m離れ、川の下流側から上流側を向いて撮影してください。太陽が背になる午前中が推奨です。`;
-            const assistantText = await callGeminiApi(prompt, dataUrl);
-            elements['gemini-modal-content'].innerHTML = `<div class="prose prose-invert max-w-none">${assistantText.replace(/\n/g, '<br>')}</div>`;
-        } catch (error) {
-            console.error("AI Assistant Error:", error);
-            elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">AIアシスタントの呼び出し中にエラーが発生しました。</p>`;
-        }
-    }
-
-    // 画像比較関連
-    function comparisonLoop() {
-        if (cv && isCompareMode && targetImageDataUrl && elements['camera-stream'].readyState === 4) {
-            frameCount++;
-            if (frameCount % 3 === 0) {
-                 try {
-                    let src = cv.imread(elements['camera-stream']); let templ = cv.imread(elements['target-image']);
-                    let result = new cv.Mat(); let mask = new cv.Mat();
-                    cv.matchTemplate(src, templ, result, cv.TM_CCOEFF_NORMED, mask);
-                    let resultData = cv.minMaxLoc(result, mask); let maxVal = resultData.maxVal;
-                    if (maxVal > MATCH_THRESHOLD) {
-                        elements['camera-frame'].style.boxShadow = `0 0 20px 5px rgba(25, 255, 25, 0.8)`;
-                        elements['match-indicator'].textContent = `一致率: ${Math.round(maxVal * 100)}%`;
-                        elements['match-indicator'].classList.remove('hidden');
-                    } else { elements['camera-frame'].style.boxShadow = 'none'; elements['match-indicator'].classList.add('hidden'); }
-                    src.delete(); templ.delete(); result.delete(); mask.delete();
-                } catch (err) { elements['camera-frame'].style.boxShadow = 'none'; elements['match-indicator'].classList.add('hidden'); }
-            }
-        } else { elements['camera-frame'].style.boxShadow = 'none'; elements['match-indicator'].classList.add('hidden'); }
-        requestAnimationFrame(comparisonLoop);
-    }
-
-    // 2回タップでの範囲選択機能
-    function handlePdfTap(event) {
-        if (!isCompareMode) return;
-        event.preventDefault();
-        const rect = elements['pdf-viewer'].getBoundingClientRect();
-        const x = (event.touches ? event.touches[0].clientX : event.clientX) - rect.left;
-        const y = (event.touches ? event.touches[0].clientY : event.clientY) - rect.top;
-        if (selectionState === 'waiting_for_p1') {
-            p1 = { x, y };
-            elements['selection-marker'].style.left = `${x}px`;
-            elements['selection-marker'].style.top = `${y}px`;
-            elements['selection-marker'].classList.remove('hidden');
-            showInstruction('右下をタップしてください');
-            selectionState = 'waiting_for_p2';
-        } else if (selectionState === 'waiting_for_p2') {
-            const p2 = { x, y };
-            const selRect = { x: Math.min(p1.x, p2.x), y: Math.min(p1.y, p2.y), width: Math.abs(p1.x - p2.x), height: Math.abs(p1.y - p2.y) };
-            if (selRect.width < 10 || selRect.height < 10) { resetSelection(); return; }
-            cropAndSetTarget(selRect);
-        }
-    }
-    function cropAndSetTarget(rect) {
-        const pdfCanvas = elements['pdf-viewer'].querySelector('canvas');
-        if (!pdfCanvas) return;
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = rect.width;
-        tempCanvas.height = rect.height;
-        tempCanvas.getContext('2d').drawImage(pdfCanvas, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height);
-        targetImageDataUrl = tempCanvas.toDataURL('image/png');
-        elements['target-image'].src = targetImageDataUrl;
-        elements['target-image-container'].style.display = 'flex';
-        
-        elements['pdf-section'].classList.add('hidden');
-        elements['camera-section'].classList.remove('w-1/2');
-        elements['camera-section'].classList.add('w-full');
-        elements['pdf-reselect-btn'].classList.remove('hidden');
-
-        toggleCompareMode();
-    }
-    function resetSelection() {
-        elements['selection-marker'].classList.add('hidden');
-        elements['selection-instruction'].classList.add('hidden');
-        selectionState = 'idle';
-    }
-    function toggleCompareMode() {
-        isCompareMode = !isCompareMode;
-        if (isCompareMode) {
-            selectionState = 'waiting_for_p1';
-            elements['toggle-compare-btn'].textContent = '🖼️ 終了';
-            elements['toggle-compare-btn'].classList.replace('bg-teal-600', 'bg-red-600');
-            elements['pdf-viewer'].style.cursor = 'crosshair';
-            showInstruction('比較範囲の左上をタップ');
-        } else {
-            resetSelection();
-            elements['toggle-compare-btn'].textContent = '🖼️ 比較';
-            elements['toggle-compare-btn'].classList.replace('bg-red-600', 'bg-teal-600');
-            elements['pdf-viewer'].style.cursor = 'default';
-        }
-    }
-    function showInstruction(text) {
-        const instructionEl = elements['selection-instruction'];
-        instructionEl.textContent = text;
-        instructionEl.classList.remove('hidden');
-    }
-
-    function revertToSplitView() {
-        elements['pdf-section'].classList.remove('hidden');
-        elements['camera-section'].classList.add('w-1/2');
-        elements['camera-section'].classList.remove('w-full');
-        elements['pdf-reselect-btn'].classList.add('hidden');
-        elements['target-image-container'].style.display = 'none';
-        targetImageDataUrl = null;
-    }
-
-    // --- イベントリスナーと初期化 ---
-    function initEventListeners() {
-        elements['capture-btn'].addEventListener('click', takePicture);
-        elements['ai-assistant-btn'].addEventListener('click', () => { if (targetImageDataUrl) getAiShootingAssistant(targetImageDataUrl); });
-        elements['open-album-btn'].addEventListener('click', () => { elements['album-modal'].classList.remove('hidden'); });
-        elements['close-album-btn'].addEventListener('click', () => { elements['album-modal'].classList.add('hidden'); });
-        elements['pdf-upload'].addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file || file.type !== 'application/pdf') return;
-            const fileReader = new FileReader();
-            fileReader.onload = function() {
-                const typedarray = new Uint8Array(this.result);
-                pdfjsLib.getDocument(typedarray).promise.then(pdf => {
-                    pdfDoc = pdf;
-                    elements['page-count'].textContent = pdfDoc.numPages;
-                    currentPageNum = 1;
-                    renderPage(currentPageNum);
-                    elements['pdf-controls'].classList.remove('hidden');
-                    elements['pdf-placeholder'].classList.add('hidden');
+        // PDF関連
+        renderPage(num) {
+            this.pageIsRendering = true;
+            if (!this.pdfDoc) return;
+            this.pdfDoc.getPage(num).then(page => {
+                const container = this.elements['pdf-viewer-wrapper'];
+                if (!container) return;
+                const viewport = page.getViewport({ scale: 1.5 });
+                const scale = container.clientWidth / viewport.width;
+                const scaledViewport = page.getViewport({ scale: scale });
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = scaledViewport.height;
+                canvas.width = scaledViewport.width;
+                this.elements['pdf-viewer'].innerHTML = '';
+                this.elements['pdf-viewer'].appendChild(canvas);
+                const renderContext = { canvasContext: context, viewport: scaledViewport };
+                page.render(renderContext).promise.then(() => {
+                    this.pageIsRendering = false;
+                    if (this.pageNumIsPending !== null) { this.renderPage(this.pageNumIsPending); this.pageNumIsPending = null; }
                 });
-            };
-            fileReader.readAsArrayBuffer(file);
-        });
-        elements['prev-page'].addEventListener('click', () => { if (currentPageNum > 1) { currentPageNum--; queueRenderPage(currentPageNum); } });
-        elements['next-page'].addEventListener('click', () => { if (pdfDoc && currentPageNum < pdfDoc.numPages) { currentPageNum++; queueRenderPage(currentPageNum); } });
-        elements['toggle-compare-btn'].addEventListener('click', toggleCompareMode);
-        elements['pdf-viewer'].addEventListener('touchstart', handlePdfTap, { passive: false });
-        elements['pdf-viewer'].addEventListener('click', handlePdfTap);
-        elements['pdf-reselect-btn'].addEventListener('click', revertToSplitView);
-        if(elements['close-modal-btn']) elements['close-modal-btn'].addEventListener('click', () => elements['gemini-modal'].classList.add('hidden'));
-        if(elements['copy-report-btn']) elements['copy-report-btn'].addEventListener('click', () => {
-            const textToCopy = elements['report-content'].textContent;
-            const textArea = document.createElement('textarea');
-            textArea.value = textToCopy;
-            document.body.appendChild(textArea);
-            textArea.select();
-            try { document.execCommand('copy'); elements['copy-report-btn'].textContent = 'コピー完了'; setTimeout(() => { elements['copy-report-btn'].textContent = '文章をコピー'; }, 2000); } 
-            catch (err) { console.error('コピー失敗', err); }
-            document.body.removeChild(textArea);
-        });
-    }
+            });
+            this.elements['page-num'].textContent = num;
+        },
+        queueRenderPage(num) {
+            if (this.pageIsRendering) { this.pageNumIsPending = num; } 
+            else { this.renderPage(num); }
+        },
 
-    document.addEventListener('DOMContentLoaded', () => {
-        const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'selection-box', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'opencv-js', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn'];
-        ids.forEach(id => { if(document.getElementById(id)) elements[id] = document.getElementById(id); });
-        
-        initEventListeners();
-        initCamera();
-        initSensors();
-
-        if (elements['opencv-js']) {
-            elements['opencv-js'].onload = () => {
-                let checkCvInterval = setInterval(() => {
-                    if (window.cv && window.cv.imread) {
-                        clearInterval(checkCvInterval);
-                        cv = window.cv;
-                        console.log('OpenCV.js is ready.');
-                        requestAnimationFrame(comparisonLoop);
-                    }
-                }, 100);
+        // センサー関連
+        initSensors() {
+            if ('geolocation' in navigator) {
+                navigator.geolocation.watchPosition(
+                    (p) => { this.sensorData.latitude = p.coords.latitude; this.sensorData.longitude = p.coords.longitude; this.elements['gps-status-dot'].classList.replace('bg-red-500', 'bg-green-500'); },
+                    (e) => { console.warn(`GPSエラー: ${e.message}`); this.elements['gps-status-dot'].classList.replace('bg-green-500', 'bg-red-500'); },
+                    { enableHighAccuracy: true }
+                );
+            }
+            const handleOrientation = (event) => {
+                if (event.alpha !== null) { this.sensorData.heading = event.alpha; this.elements['compass-status-dot'].classList.replace('bg-red-500', 'bg-green-500'); } 
+                else { this.elements['compass-status-dot'].classList.replace('bg-green-500', 'bg-red-500'); }
             };
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission().then(p => { if (p === 'granted') window.addEventListener('deviceorientationabsolute', handleOrientation, true); else alert('方位センサーの許可が必要です。'); }).catch(console.error);
+            } else { window.addEventListener('deviceorientationabsolute', handleOrientation, true); }
+        },
+
+        // カメラ関連
+        async initCamera() {
+            try {
+                const constraints = { video: { facingMode: 'environment', width: { ideal: 4032 }, height: { ideal: 3024 }, aspectRatio: { ideal: 4 / 3 } }, audio: false };
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                this.elements['camera-stream'].srcObject = stream;
+            } catch (err) {
+                console.warn("4:3高解像度カメラへのアクセスに失敗、デフォルトで試行します: ", err);
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    this.elements['camera-stream'].srcObject = stream;
+                } catch (e) {
+                    alert("カメラにアクセスできませんでした。ブラウザの設定でカメラの使用を許可してください。");
+                }
+            }
+        },
+        async takePicture() {
+            const btn = this.elements['capture-btn'];
+            btn.classList.add('ping-animation');
+            setTimeout(() => btn.classList.remove('ping-animation'), 500);
+
+            const video = this.elements['camera-stream'];
+            if (!video.srcObject) return;
+
+            const canvas = this.elements['capture-canvas'];
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageDataUrl = canvas.toDataURL('image/jpeg', 1.0);
+            
+            let finalImageDataUrl = imageDataUrl;
+            if (this.sensorData.latitude !== null && this.sensorData.longitude !== null && this.sensorData.heading !== null) {
+                const zeroth = {}; const gps = {};
+                zeroth[piexif.ImageIFD.Make] = "Inspection_camera_app";
+                gps[piexif.GPSIFD.GPSLatitudeRef] = this.sensorData.latitude < 0 ? 'S' : 'N';
+                gps[piexif.GPSIFD.GPSLatitude] = piexif.GPSHelper.degToDms(Math.abs(this.sensorData.latitude));
+                gps[piexif.GPSIFD.GPSLongitudeRef] = this.sensorData.longitude < 0 ? 'W' : 'E';
+                gps[piexif.GPSIFD.GPSLongitude] = piexif.GPSHelper.degToDms(Math.abs(this.sensorData.longitude));
+                gps[piexif.GPSIFD.GPSImgDirectionRef] = "T";
+                gps[piexif.GPSIFD.GPSImgDirection] = [Math.round(this.sensorData.heading), 1];
+                const exifObj = {"0th":zeroth, "Exif":{}, "GPS":gps, "1st":{}, "thumbnail":null};
+                const exifbytes = piexif.dump(exifObj);
+                finalImageDataUrl = piexif.insert(exifbytes, imageDataUrl);
+            } else {
+                console.warn("センサーデータ不十分のためEXIFなし");
+            }
+            
+            this.addToGallery(finalImageDataUrl);
+
+            this.photoCount++;
+            const badge = this.elements['photo-count-badge'];
+            badge.textContent = `${this.photoCount}枚`;
+            badge.classList.remove('hidden');
+        },
+        addToGallery(dataUrl) {
+            this.elements['gallery-placeholder'].classList.add('hidden');
+            const previewWrapper = document.createElement('div');
+            previewWrapper.className = 'relative w-24 h-full flex-shrink-0 group';
+            const previewImg = document.createElement('img');
+            previewImg.src = dataUrl;
+            previewImg.className = 'w-full h-full object-cover rounded-md';
+            previewWrapper.appendChild(previewImg);
+            this.elements['photo-gallery'].appendChild(previewWrapper);
+            this.elements['photo-gallery'].scrollLeft = this.elements['photo-gallery'].scrollWidth;
+            
+            const albumItem = document.createElement('div');
+            albumItem.className = 'relative w-full aspect-4/3 group cursor-pointer';
+            const albumImg = document.createElement('img');
+            albumImg.src = dataUrl;
+            albumImg.className = 'w-full h-full object-cover rounded-lg';
+            albumItem.appendChild(albumImg);
+            const albumOverlay = document.createElement('div');
+            albumOverlay.className = 'absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity p-1';
+            const analyzeButton = document.createElement('button');
+            analyzeButton.innerHTML = `✨ AI分析`;
+            analyzeButton.className = 'text-white bg-purple-600 hover:bg-purple-700 font-bold py-2 px-3 rounded-lg text-xs';
+            analyzeButton.onclick = (e) => { e.stopPropagation(); this.analyzeImageWithGemini(dataUrl); };
+            albumOverlay.appendChild(analyzeButton);
+            albumItem.appendChild(albumOverlay);
+            this.elements['album-grid'].appendChild(albumItem);
+        },
+
+        // AI関連
+        async callGeminiApi(prompt, imageDataUrl = null) {
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            const parts = [{ text: prompt }];
+            if (imageDataUrl) {
+                const base64ImageData = imageDataUrl.split(',')[1];
+                parts.push({ inlineData: { mimeType: "image/jpeg", data: base64ImageData } });
+            }
+            const payload = { contents: [{ role: "user", parts: parts }] };
+            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            if (!response.ok) {
+                const errorBody = await response.json();
+                console.error("API Error:", errorBody);
+                throw new Error(`APIエラー: ${response.status} ${errorBody.error?.message || response.statusText}`);
+            }
+            const result = await response.json();
+            if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+                return result.candidates[0].content.parts[0].text;
+            } else {
+                console.error("Unexpected API Response:", result);
+                throw new Error("AIからの有効な応答がありませんでした。");
+            }
+        },
+        async analyzeImageWithGemini(dataUrl) {
+            this.elements['modal-title'].innerHTML = `<span class="text-2xl mr-2">✨</span> AIによる損傷分析`;
+            this.elements['gemini-modal'].classList.remove('hidden');
+            this.elements['report-generation-area'].classList.add('hidden'); 
+            this.elements['gemini-modal-content'].innerHTML = `<div class="flex flex-col justify-center items-center py-8"><div class="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div><p class="text-center mt-4">AIが分析中です...</p></div>`;
+            try {
+                const prompt = "この画像は構造物の点検時に撮影されたものです。コンクリートのひび割れ、剥離、鉄筋の露出、漏水、錆などの損傷の可能性を分析し、発見した点を箇条書きで簡潔に説明してください。損傷が見られない場合は「特に問題は見つかりませんでした。」と回答してください。日本語で回答してください。";
+                const analysisText = await this.callGeminiApi(prompt, dataUrl);
+                this.elements['gemini-modal-content'].innerHTML = `<h4 class="text-xl font-semibold">分析結果</h4><div id="gemini-modal-result" class="mt-2 p-4 bg-gray-900 rounded-lg">${analysisText.replace(/\n/g, '<br>')}</div>`;
+                const generateBtn = document.createElement('button');
+                generateBtn.innerHTML = `✨ 報告書を作成`;
+                generateBtn.className = 'mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg';
+                generateBtn.onclick = () => this.generateReportFromAnalysis(analysisText);
+                this.elements['gemini-modal-content'].appendChild(generateBtn);
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">分析中にエラーが発生しました。コンソールで詳細を確認してください。</p><p class="text-xs text-gray-400 mt-2">${error.message}</p>`;
+            }
+        },
+        async generateReportFromAnalysis(analysisText) {
+            this.elements['report-generation-area'].classList.remove('hidden');
+            this.elements['report-content'].innerHTML = `<div class="flex items-center justify-center h-full"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div><p class="ml-4">報告書を作成中...</p></div>`;
+            try {
+                const prompt = `あなたは土木技術の専門家として、構造物の点検報告書を作成しています。以下の写真分析結果に基づき、所見、評価、および推奨される次のステップ（例：「詳細調査が必要」「経過観察」「軽微な補修」など）を含む、詳細で専門的な報告書の文章を作成してください。\n\n### 分析結果\n${analysisText}\n\n### 報告書（案）\n`;
+                const reportText = await this.callGeminiApi(prompt);
+                this.elements['report-content'].textContent = reportText;
+            } catch (error) {
+                console.error("Report Generation Error:", error);
+                this.elements['report-content'].innerHTML = `<p class="text-red-400">報告書の作成中にエラーが発生しました。</p>`;
+            }
+        },
+        async getAiShootingAssistant(dataUrl) {
+            this.elements['modal-title'].innerHTML = `<span class="text-2xl mr-2">✨</span> AI撮影アシスタント`;
+            this.elements['gemini-modal'].classList.remove('hidden');
+            this.elements['report-generation-area'].classList.add('hidden');
+            this.elements['gemini-modal-content'].innerHTML = `<div class="flex flex-col justify-center items-center py-8"><div class="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div><p class="text-center mt-4">AIが写真を確認しています...</p></div>`;
+            try {
+                const prompt = `あなたは経験豊富な土木技術者です。この写真は過去の点検で撮影されたものです。\n1. この写真に写っている構造物や部材が何であるか、専門用語を使いつつ簡潔に説明してください。\n2. この後、新人技術者が同じ写真を撮影します。同じアングルや構図で撮影するための、具体的で分かりやすいアドバイスをしてください。\n\n現在地は日本の福井県越前市です。緯度は${this.sensorData.latitude || '不明'}、経度は${this.sensorData.longitude || '不明'}です。これらの情報も参考に、回答を作成してください。\n\n例：\n**説明:** これは橋台の側面とウィング（袖壁）の接合部です。\n**撮影アドバイス:** 橋台から約5m離れ、川の下流側から上流側を向いて撮影してください。太陽が背になる午前中が推奨です。`;
+                const assistantText = await this.callGeminiApi(prompt, dataUrl);
+                this.elements['gemini-modal-content'].innerHTML = `<div class="prose prose-invert max-w-none">${assistantText.replace(/\n/g, '<br>')}</div>`;
+            } catch (error) {
+                console.error("AI Assistant Error:", error);
+                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">AIアシスタントの呼び出し中にエラーが発生しました。</p>`;
+            }
+        },
+
+        // 画像比較関連
+        comparisonLoop() {
+            if (this.cv && this.isCompareMode && this.targetImageDataUrl && this.elements['camera-stream'].readyState === 4) {
+                this.frameCount++;
+                if (this.frameCount % 3 === 0) {
+                     try {
+                        let src = this.cv.imread(this.elements['camera-stream']); let templ = this.cv.imread(this.elements['target-image']);
+                        let result = new this.cv.Mat(); let mask = new this.cv.Mat();
+                        this.cv.matchTemplate(src, templ, result, this.cv.TM_CCOEFF_NORMED, mask);
+                        let resultData = this.cv.minMaxLoc(result, mask); let maxVal = resultData.maxVal;
+                        if (maxVal > this.MATCH_THRESHOLD) {
+                            this.elements['camera-frame'].style.boxShadow = `0 0 20px 5px rgba(25, 255, 25, 0.8)`;
+                            this.elements['match-indicator'].textContent = `一致率: ${Math.round(maxVal * 100)}%`;
+                            this.elements['match-indicator'].classList.remove('hidden');
+                        } else { this.elements['camera-frame'].style.boxShadow = 'none'; this.elements['match-indicator'].classList.add('hidden'); }
+                        src.delete(); templ.delete(); result.delete(); mask.delete();
+                    } catch (err) { this.elements['camera-frame'].style.boxShadow = 'none'; this.elements['match-indicator'].classList.add('hidden'); }
+                }
+            } else { this.elements['camera-frame'].style.boxShadow = 'none'; this.elements['match-indicator'].classList.add('hidden'); }
+            requestAnimationFrame(() => this.comparisonLoop());
+        },
+
+        // 2回タップでの範囲選択機能
+        handlePdfTap(event) {
+            if (!this.isCompareMode) return;
+            event.preventDefault();
+            const rect = this.elements['pdf-viewer'].getBoundingClientRect();
+            const x = (event.touches ? event.touches[0].clientX : event.clientX) - rect.left;
+            const y = (event.touches ? event.touches[0].clientY : event.clientY) - rect.top;
+            if (this.selectionState === 'waiting_for_p1') {
+                this.p1 = { x, y };
+                this.elements['selection-marker'].style.left = `${x}px`;
+                this.elements['selection-marker'].style.top = `${y}px`;
+                this.elements['selection-marker'].classList.remove('hidden');
+                this.showInstruction('右下をタップしてください');
+                this.selectionState = 'waiting_for_p2';
+            } else if (this.selectionState === 'waiting_for_p2') {
+                const p2 = { x, y };
+                const selRect = { x: Math.min(this.p1.x, p2.x), y: Math.min(this.p1.y, p2.y), width: Math.abs(this.p1.x - p2.x), height: Math.abs(this.p1.y - p2.y) };
+                if (selRect.width < 10 || selRect.height < 10) { this.resetSelection(); return; }
+                this.cropAndSetTarget(selRect);
+            }
+        },
+        cropAndSetTarget(rect) {
+            const pdfCanvas = this.elements['pdf-viewer'].querySelector('canvas');
+            if (!pdfCanvas) return;
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = rect.width; tempCanvas.height = rect.height;
+            tempCanvas.getContext('2d').drawImage(pdfCanvas, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height);
+            this.targetImageDataUrl = tempCanvas.toDataURL('image/png');
+            this.elements['target-image'].src = this.targetImageDataUrl;
+            this.elements['target-image-container'].style.display = 'flex';
+            
+            this.elements['pdf-section'].classList.add('hidden');
+            this.elements['camera-section'].classList.remove('w-1/2');
+            this.elements['camera-section'].classList.add('w-full');
+            this.elements['pdf-reselect-btn'].classList.remove('hidden');
+
+            this.toggleCompareMode();
+        },
+        resetSelection() {
+            this.elements['selection-marker'].classList.add('hidden');
+            this.elements['selection-instruction'].classList.add('hidden');
+            this.selectionState = 'idle';
+        },
+        toggleCompareMode() {
+            this.isCompareMode = !this.isCompareMode;
+            if (this.isCompareMode) {
+                this.selectionState = 'waiting_for_p1';
+                this.elements['toggle-compare-btn'].textContent = '🖼️ 終了';
+                this.elements['toggle-compare-btn'].classList.replace('bg-teal-600', 'bg-red-600');
+                this.elements['pdf-viewer'].style.cursor = 'crosshair';
+                this.showInstruction('比較範囲の左上をタップ');
+            } else {
+                this.resetSelection();
+                this.elements['toggle-compare-btn'].textContent = '🖼️ 比較';
+                this.elements['toggle-compare-btn'].classList.replace('bg-red-600', 'bg-teal-600');
+                this.elements['pdf-viewer'].style.cursor = 'default';
+            }
+        },
+        showInstruction(text) {
+            const instructionEl = this.elements['selection-instruction'];
+            instructionEl.textContent = text;
+            instructionEl.classList.remove('hidden');
+        },
+        revertToSplitView() {
+            this.elements['pdf-section'].classList.remove('hidden');
+            this.elements['camera-section'].classList.add('w-1/2');
+            this.elements['camera-section'].classList.remove('w-full');
+            this.elements['pdf-reselect-btn'].classList.add('hidden');
+            this.elements['target-image-container'].style.display = 'none';
+            this.targetImageDataUrl = null;
+        },
+
+        // --- イベントリスナーと初期化 ---
+        initEventListeners() {
+            this.elements['capture-btn'].addEventListener('click', () => this.takePicture());
+            this.elements['ai-assistant-btn'].addEventListener('click', () => { if (this.targetImageDataUrl) this.getAiShootingAssistant(this.targetImageDataUrl); });
+            this.elements['open-album-btn'].addEventListener('click', () => { this.elements['album-modal'].classList.remove('hidden'); });
+            this.elements['close-album-btn'].addEventListener('click', () => { this.elements['album-modal'].classList.add('hidden'); });
+            this.elements['pdf-upload'].addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file || file.type !== 'application/pdf') return;
+                const fileReader = new FileReader();
+                fileReader.onload = () => {
+                    const typedarray = new Uint8Array(fileReader.result);
+                    pdfjsLib.getDocument(typedarray).promise.then(pdf => {
+                        this.pdfDoc = pdf;
+                        this.elements['page-count'].textContent = this.pdfDoc.numPages;
+                        this.currentPageNum = 1;
+                        this.renderPage(this.currentPageNum);
+                        this.elements['pdf-controls'].classList.remove('hidden');
+                        this.elements['pdf-placeholder'].classList.add('hidden');
+                    });
+                };
+                fileReader.readAsArrayBuffer(file);
+            });
+            this.elements['prev-page'].addEventListener('click', () => { if (this.currentPageNum > 1) { this.currentPageNum--; this.queueRenderPage(this.currentPageNum); } });
+            this.elements['next-page'].addEventListener('click', () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) { this.currentPageNum++; this.queueRenderPage(this.currentPageNum); } });
+            this.elements['toggle-compare-btn'].addEventListener('click', () => this.toggleCompareMode());
+            this.elements['pdf-viewer'].addEventListener('touchstart', (e) => this.handlePdfTap(e), { passive: false });
+            this.elements['pdf-viewer'].addEventListener('click', (e) => this.handlePdfTap(e));
+            this.elements['pdf-reselect-btn'].addEventListener('click', () => this.revertToSplitView());
+            this.elements['close-modal-btn'].addEventListener('click', () => this.elements['gemini-modal'].classList.add('hidden'));
+            this.elements['copy-report-btn'].addEventListener('click', () => {
+                const textToCopy = this.elements['report-content'].textContent;
+                const textArea = document.createElement('textarea');
+                textArea.value = textToCopy;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try { document.execCommand('copy'); this.elements['copy-report-btn'].textContent = 'コピー完了'; setTimeout(() => { this.elements['copy-report-btn'].textContent = '文章をコピー'; }, 2000); } 
+                catch (err) { console.error('コピー失敗', err); }
+                document.body.removeChild(textArea);
+            });
+        },
+        init() {
+            const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'selection-box', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'opencv-js', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn'];
+            ids.forEach(id => { if(document.getElementById(id)) this.elements[id] = document.getElementById(id); });
+            
+            this.initEventListeners();
+            this.initCamera();
+            this.initSensors();
+            
+            const readyCheck = setInterval(() => {
+                if (window.cv && window.cv.imread) {
+                    clearInterval(readyCheck);
+                    this.cv = window.cv;
+                    console.log('OpenCV.js is ready.');
+                    requestAnimationFrame(() => this.comparisonLoop());
+                }
+            }, 100);
         }
-    });
+    };
+
+    window.addEventListener('DOMContentLoaded', () => App.init());
 
     </script>
 </body>
