@@ -93,7 +93,6 @@
             <button id="close-album-btn" class="text-3xl font-bold text-white">&times;</button>
         </div>
         <div id="album-grid" class="flex-grow overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
-            <!-- 写真がここに追加される -->
         </div>
     </div>
     
@@ -216,7 +215,7 @@
         let finalImageDataUrl = imageDataUrl;
         if (sensorData.latitude !== null && sensorData.longitude !== null && sensorData.heading !== null) {
             const zeroth = {}; const gps = {};
-            zeroth[piexif.ImageIFD.Make] = "Inspection Camera App";
+            zeroth[piexif.ImageIFD.Make] = "Inspection_camera_app";
             gps[piexif.GPSIFD.GPSLatitudeRef] = sensorData.latitude < 0 ? 'S' : 'N';
             gps[piexif.GPSIFD.GPSLatitude] = piexif.GPSHelper.degToDms(Math.abs(sensorData.latitude));
             gps[piexif.GPSIFD.GPSLongitudeRef] = sensorData.longitude < 0 ? 'W' : 'E';
@@ -266,22 +265,44 @@
     }
 
     // AI関連
+    async function callGeminiApi(prompt, imageDataUrl = null) {
+        const apiKey = "";
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+        
+        const parts = [{ text: prompt }];
+        if (imageDataUrl) {
+            const base64ImageData = imageDataUrl.split(',')[1];
+            parts.push({ inlineData: { mimeType: "image/jpeg", data: base64ImageData } });
+        }
+        
+        const payload = { contents: [{ role: "user", parts: parts }] };
+        const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        
+        if (!response.ok) {
+            const errorBody = await response.json();
+            console.error("API Error:", errorBody);
+            throw new Error(`APIエラー: ${response.status} ${errorBody.error?.message || response.statusText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+            return result.candidates[0].content.parts[0].text;
+        } else {
+            console.error("Unexpected API Response:", result);
+            throw new Error("AIからの有効な応答がありませんでした。");
+        }
+    }
+    
     async function analyzeImageWithGemini(dataUrl) {
         elements['modal-title'].innerHTML = `<span class="text-2xl mr-2">✨</span> AIによる損傷分析`;
         elements['gemini-modal'].classList.remove('hidden');
         elements['report-generation-area'].classList.add('hidden'); 
         elements['gemini-modal-content'].innerHTML = `<div class="flex flex-col justify-center items-center py-8"><div class="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div><p class="text-center mt-4">AIが分析中です...</p></div>`;
         try {
-            const apiKey = "";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-            const base64ImageData = dataUrl.split(',')[1];
             const prompt = "この画像は構造物の点検時に撮影されたものです。コンクリートのひび割れ、剥離、鉄筋の露出、漏水、錆などの損傷の可能性を分析し、発見した点を箇条書きで簡潔に説明してください。損傷が見られない場合は「特に問題は見つかりませんでした。」と回答してください。日本語で回答してください。";
-            const payload = { contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: "image/jpeg", data: base64ImageData } }] }] };
-            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
-            const result = await response.json();
-            let analysisText = "分析結果の取得に失敗しました。";
-            if (result.candidates?.[0]?.content?.parts?.[0]?.text) { analysisText = result.candidates[0].content.parts[0].text; }
+            const analysisText = await callGeminiApi(prompt, dataUrl);
+            
             elements['gemini-modal-content'].innerHTML = `<h4 class="text-xl font-semibold">分析結果</h4><div id="gemini-modal-result" class="mt-2 p-4 bg-gray-900 rounded-lg">${analysisText.replace(/\n/g, '<br>')}</div>`;
             const generateBtn = document.createElement('button');
             generateBtn.innerHTML = `✨ 報告書を作成`;
@@ -293,46 +314,28 @@
             elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">分析中にエラーが発生しました。コンソールで詳細を確認してください。</p><p class="text-xs text-gray-400 mt-2">${error.message}</p>`;
         }
     }
+    
     async function generateReportFromAnalysis(analysisText) {
         elements['report-generation-area'].classList.remove('hidden');
         elements['report-content'].innerHTML = `<div class="flex items-center justify-center h-full"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div><p class="ml-4">報告書を作成中...</p></div>`;
         try {
-            const apiKey = "";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
             const prompt = `あなたは土木技術の専門家として、構造物の点検報告書を作成しています。以下の写真分析結果に基づき、所見、評価、および推奨される次のステップ（例：「詳細調査が必要」「経過観察」「軽微な補修」など）を含む、詳細で専門的な報告書の文章を作成してください。\n\n### 分析結果\n${analysisText}\n\n### 報告書（案）\n`;
-            const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
-            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
-            const result = await response.json();
-            let reportText = "報告書の作成に失敗しました。";
-            if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
-                reportText = result.candidates[0].content.parts[0].text;
-            }
+            const reportText = await callGeminiApi(prompt);
             elements['report-content'].textContent = reportText;
         } catch (error) {
             console.error("Report Generation Error:", error);
             elements['report-content'].innerHTML = `<p class="text-red-400">報告書の作成中にエラーが発生しました。</p>`;
         }
     }
+    
     async function getAiShootingAssistant(dataUrl) {
         elements['modal-title'].innerHTML = `<span class="text-2xl mr-2">✨</span> AI撮影アシスタント`;
         elements['gemini-modal'].classList.remove('hidden');
         elements['report-generation-area'].classList.add('hidden');
         elements['gemini-modal-content'].innerHTML = `<div class="flex flex-col justify-center items-center py-8"><div class="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div><p class="text-center mt-4">AIが写真を確認しています...</p></div>`;
-        
         try {
-            const apiKey = "";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-            const base64ImageData = dataUrl.split(',')[1];
             const prompt = `あなたは経験豊富な土木技術者です。この写真は過去の点検で撮影されたものです。\n1. この写真に写っている構造物や部材が何であるか、専門用語を使いつつ簡潔に説明してください。\n2. この後、新人技術者が同じ写真を撮影します。同じアングルや構図で撮影するための、具体的で分かりやすいアドバイスをしてください。\n\n現在地は日本の福井県越前市です。緯度は${sensorData.latitude || '不明'}、経度は${sensorData.longitude || '不明'}です。これらの情報も参考に、回答を作成してください。\n\n例：\n**説明:** これは橋台の側面とウィング（袖壁）の接合部です。\n**撮影アドバイス:** 橋台から約5m離れ、川の下流側から上流側を向いて撮影してください。太陽が背になる午前中が推奨です。`;
-            const payload = { contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: "image/jpeg", data: base64ImageData } }] }] };
-            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
-            const result = await response.json();
-            let assistantText = "AIアシスタントからのアドバイスを取得できませんでした。";
-            if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
-                assistantText = result.candidates[0].content.parts[0].text;
-            }
+            const assistantText = await callGeminiApi(prompt, dataUrl);
             elements['gemini-modal-content'].innerHTML = `<div class="prose prose-invert max-w-none">${assistantText.replace(/\n/g, '<br>')}</div>`;
         } catch (error) {
             console.error("AI Assistant Error:", error);
