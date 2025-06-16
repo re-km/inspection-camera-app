@@ -235,6 +235,83 @@
         </div>
     </div>
 
+    <!-- 全画面カメラモーダル（確実な実装） -->
+    <div id="fullscreen-camera-modal" class="hidden fixed inset-0 bg-black z-[90] flex flex-col">
+        <!-- カメラ映像エリア -->
+        <div class="flex-grow relative bg-black overflow-hidden">
+            <video id="fullscreen-camera-stream" autoplay playsinline class="w-full h-full object-contain"></video>
+            
+            <!-- 左上：センサー情報と比較画像 -->
+            <div class="absolute top-4 left-4 flex flex-col gap-4 z-30">
+                <!-- センサー情報 -->
+                <div class="bg-black bg-opacity-70 p-3 rounded-lg text-xs text-white">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span id="fullscreen-gps-status-dot" class="status-dot bg-red-500"></span> 
+                        <span>GPS</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="fullscreen-compass-status-dot" class="status-dot bg-red-500"></span> 
+                        <span>方位</span>
+                    </div>
+                </div>
+                
+                <!-- 比較画像 -->
+                <div class="bg-black bg-opacity-70 p-2 rounded-lg">
+                    <div class="text-xs text-white mb-1">比較画像</div>
+                    <img id="fullscreen-target-image" class="w-32 h-24 border-2 border-teal-500 rounded object-cover">
+                    <div id="fullscreen-match-indicator" class="text-xs text-center text-white mt-1">一致率: --</div>
+                </div>
+            </div>
+            
+            <!-- 右側：コントロールパネル -->
+            <div class="absolute top-4 right-4 bottom-4 flex flex-col justify-between z-40">
+                <!-- 上部ボタン群 -->
+                <div class="flex flex-col gap-2">
+                    <button id="close-fullscreen-camera-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg">
+                        ✖<br><span class="text-xs">戻る</span>
+                    </button>
+                    <button id="fullscreen-ai-assistant-btn" class="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg">
+                        ✨<br><span class="text-xs">撮影補助</span>
+                    </button>
+                    <button id="fullscreen-show-album-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg">
+                        📁<br><span class="text-xs">アルバム</span>
+                    </button>
+                </div>
+                
+                <!-- 中央：ズームスライダー -->
+                <div class="bg-black bg-opacity-70 p-4 rounded-lg flex flex-col items-center gap-2">
+                    <div class="text-white text-xs font-bold">ズーム</div>
+                    <div id="fullscreen-zoom-level-display" class="text-white text-sm font-bold mb-2">1.0x</div>
+                    <div class="flex flex-col items-center gap-2">
+                        <span class="text-white text-xs">3.0x</span>
+                        <input type="range" 
+                               id="fullscreen-zoom-slider" 
+                               min="0.5" 
+                               max="3.0" 
+                               step="0.1" 
+                               value="1.0"
+                               orient="vertical"
+                               class="slider-vertical">
+                        <span class="text-white text-xs">0.5x</span>
+                    </div>
+                </div>
+                
+                <!-- 下部：撮影ボタンと撮影数 -->
+                <div class="flex flex-col items-center gap-3">
+                    <span id="fullscreen-photo-count" class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full">0枚</span>
+                    <button id="fullscreen-capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
+                        <div class="w-16 h-16 bg-white rounded-full shadow-inner border-2 border-gray-200"></div>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 成功メッセージ表示エリア -->
+            <div id="fullscreen-success-message" class="hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-600 text-white p-4 rounded-lg text-center text-xl font-bold">
+                📱 カメラ全画面表示成功！
+            </div>
+        </div>
+    </div>
+
     <!-- 全画面アルバムモーダル -->
     <div id="album-modal" class="hidden fixed inset-0 bg-gray-900 z-50 flex flex-col p-4">
         <div class="flex-shrink-0 flex justify-between items-center mb-4">
@@ -628,19 +705,25 @@
 
         async takePicture() {
             try {
-                const captureBtn = this.elements['capture-btn'];
-                const compareCaptureBtn = this.elements['compare-capture-btn'];
+                // 全画面モーダル表示中かどうかで使用する要素を選択
+                const isFullscreenModalOpen = !this.elements['fullscreen-camera-modal'].classList.contains('hidden');
                 
-                // 比較モード中かどうかで使用するボタンを選択
-                const activeBtn = this.isCompareMode && !this.elements['control-panel'].classList.contains('hidden') 
-                    ? compareCaptureBtn : captureBtn;
+                let captureBtn, video;
+                if (isFullscreenModalOpen) {
+                    captureBtn = this.elements['fullscreen-capture-btn'];
+                    video = this.elements['fullscreen-camera-stream'];
+                } else {
+                    captureBtn = this.isCompareMode && !this.elements['control-panel'].classList.contains('hidden') 
+                        ? this.elements['compare-capture-btn'] 
+                        : this.elements['capture-btn'];
+                    video = this.elements['camera-stream'];
+                }
                 
-                if (activeBtn) {
-                    activeBtn.classList.add('ping-animation');
-                    setTimeout(() => activeBtn.classList.remove('ping-animation'), 500);
+                if (captureBtn) {
+                    captureBtn.classList.add('ping-animation');
+                    setTimeout(() => captureBtn.classList.remove('ping-animation'), 500);
                 }
 
-                const video = this.elements['camera-stream'];
                 if (!video || !video.srcObject) {
                     throw new Error('カメラが接続されていません');
                 }
@@ -678,14 +761,21 @@
                 this.addToGallery(finalImageDataUrl);
 
                 this.photoCount++;
+                
+                // 撮影枚数の更新（全画面モーダル対応）
                 const badge = this.elements['photo-count-badge'];
                 const compareCount = this.elements['compare-photo-count'];
+                const fullscreenCount = this.elements['fullscreen-photo-count'];
+                
                 if (badge) {
                     badge.textContent = `${this.photoCount}枚`;
                     badge.classList.remove('hidden');
                 }
                 if (compareCount) {
                     compareCount.textContent = `${this.photoCount}枚`;
+                }
+                if (fullscreenCount) {
+                    fullscreenCount.textContent = `${this.photoCount}枚`;
                 }
                 
                 console.log('写真を撮影しました');
@@ -857,9 +947,12 @@
             }
         },
         
-        // ピンチズーム対応
+        // ピンチズーム対応（全画面モーダル対応）
         initPinchZoom() {
-            const video = this.elements['camera-stream'];
+            // 全画面モーダル表示中かどうかで使用する要素を選択
+            const isFullscreenModalOpen = !this.elements['fullscreen-camera-modal'].classList.contains('hidden');
+            const video = isFullscreenModalOpen ? this.elements['fullscreen-camera-stream'] : this.elements['camera-stream'];
+            
             if (!video) return;
             
             let initialDistance = 0;
@@ -883,7 +976,11 @@
                     const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, initialZoom * scale));
                     
                     this.zoomLevel = newZoom;
-                    this.updateZoom();
+                    if (isFullscreenModalOpen) {
+                        this.updateFullscreenZoom();
+                    } else {
+                        this.updateZoom();
+                    }
                 }
             }, { passive: false });
             
@@ -900,7 +997,7 @@
             return Math.sqrt(dx * dx + dy * dy);
         },
 
-        // 画像比較関連 - 修正版
+        // 画像比較関連 - 全画面モーダル対応版
         comparisonLoop() {
             try {
                 // OpenCVが利用できない場合は比較処理をスキップ
@@ -915,16 +1012,26 @@
                     return;
                 }
                 
-                const cameraElement = this.elements['camera-stream'];
-                const matchIndicator = this.elements['comparison-match-rate'];
-                const cameraFrame = this.elements['camera-frame'];
+                // 全画面モーダル表示中かどうかで使用する要素を選択
+                const isFullscreenModalOpen = !this.elements['fullscreen-camera-modal'].classList.contains('hidden');
+                
+                let cameraElement, matchIndicator, cameraFrame;
+                if (isFullscreenModalOpen) {
+                    cameraElement = this.elements['fullscreen-camera-stream'];
+                    matchIndicator = this.elements['fullscreen-match-indicator'];
+                    cameraFrame = this.elements['fullscreen-camera-stream'].parentElement;
+                } else {
+                    cameraElement = this.elements['camera-stream'];
+                    matchIndicator = this.elements['comparison-match-rate'];
+                    cameraFrame = this.elements['camera-frame'];
+                }
                 
                 if (cameraElement && cameraElement.readyState === 4) {
                     this.frameCount++;
                     if (this.frameCount % 3 === 0) {
                          try {
                             let src = this.cv.imread(cameraElement); 
-                            let templ = this.cv.imread(this.elements['target-image']);
+                            let templ = this.cv.imread(isFullscreenModalOpen ? this.elements['fullscreen-target-image'] : this.elements['target-image']);
                             let result = new this.cv.Mat(); 
                             let mask = new this.cv.Mat();
                             this.cv.matchTemplate(src, templ, result, this.cv.TM_CCOEFF_NORMED, mask);
@@ -1065,138 +1172,159 @@
             console.log('=== cropAndSetTarget完了 ===');
         },
 
-        // 超詳細デバッグ版カメラ全画面表示機能
+        // iPhone確実対応：モーダル方式でカメラ全画面表示
         showFullscreenCamera() {
-            console.log('🚀🚀🚀 showFullscreenCamera開始 🚀🚀🚀');
+            console.log('🚀 モーダル方式でカメラ全画面表示開始');
             
-            const pdfSection = this.elements['pdf-section'];
-            const cameraSection = this.elements['camera-section'];
-            
-            // 要素の存在確認
-            if (!pdfSection) {
-                console.error('❌ pdf-section要素が見つかりません');
-                return;
-            }
-            if (!cameraSection) {
-                console.error('❌ camera-section要素が見つかりません');
-                return;
+            // 成功メッセージを表示（視覚的確認用）
+            const successMessage = this.elements['fullscreen-success-message'];
+            if (successMessage) {
+                successMessage.classList.remove('hidden');
+                setTimeout(() => {
+                    successMessage.classList.add('hidden');
+                }, 2000);
             }
             
-            console.log('✅ 要素取得成功');
-            console.log('PDFセクション現在のスタイル:', {
-                display: window.getComputedStyle(pdfSection).display,
-                left: window.getComputedStyle(pdfSection).left,
-                width: window.getComputedStyle(pdfSection).width
-            });
-            console.log('カメラセクション現在のスタイル:', {
-                left: window.getComputedStyle(cameraSection).left,
-                width: window.getComputedStyle(cameraSection).width,
-                zIndex: window.getComputedStyle(cameraSection).zIndex
-            });
-            
-            // 段階1: PDFセクションを隠す
-            console.log('📴 段階1: PDFセクション非表示化');
-            pdfSection.style.display = 'none';
-            pdfSection.style.visibility = 'hidden';
-            pdfSection.style.left = '-100vw';
-            console.log('PDFセクション設定後:', {
-                display: pdfSection.style.display,
-                visibility: pdfSection.style.visibility,
-                left: pdfSection.style.left
-            });
-            
-            // 段階2: カメラセクションを全画面化
-            console.log('📱 段階2: カメラセクション全画面化');
-            cameraSection.style.left = '0';
-            cameraSection.style.width = '100vw';
-            cameraSection.style.position = 'absolute';
-            cameraSection.style.zIndex = '20';
-            console.log('カメラセクション設定後:', {
-                left: cameraSection.style.left,
-                width: cameraSection.style.width,
-                position: cameraSection.style.position,
-                zIndex: cameraSection.style.zIndex
-            });
-            
-            // 段階3: CSSクラスも適用
-            console.log('🎨 段階3: CSSクラス適用');
-            pdfSection.classList.add('pdf-hidden');
-            cameraSection.classList.add('camera-fullscreen');
-            console.log('CSSクラス適用後:', {
-                pdfHasHiddenClass: pdfSection.classList.contains('pdf-hidden'),
-                cameraHasFullscreenClass: cameraSection.classList.contains('camera-fullscreen')
-            });
-            
-            // 段階4: 強制再描画
-            console.log('🔄 段階4: 強制再描画');
-            document.body.offsetHeight;
-            cameraSection.offsetWidth;
-            pdfSection.offsetHeight;
-            console.log('強制再描画完了');
-            
-            // 段階5: コントロールパネル表示
-            console.log('🎛️ 段階5: コントロールパネル表示');
-            if (this.elements['control-panel']) {
-                this.elements['control-panel'].classList.remove('hidden');
-                this.elements['control-panel'].style.display = 'flex';
-                console.log('コントロールパネル表示設定完了');
-            } else {
-                console.error('❌ control-panel要素が見つかりません');
+            // 現在のカメラストリームを全画面モーダルに移動
+            const currentStream = this.elements['camera-stream'].srcObject;
+            const fullscreenVideo = this.elements['fullscreen-camera-stream'];
+            if (fullscreenVideo && currentStream) {
+                fullscreenVideo.srcObject = currentStream;
+                console.log('✅ カメラストリーム移動完了');
             }
             
-            // 段階6: ターゲット画像表示
-            console.log('🖼️ 段階6: ターゲット画像表示');
-            if (this.elements['target-image-container']) {
-                this.elements['target-image-container'].classList.remove('hidden');
-                this.elements['target-image-container'].style.display = 'block';
-                console.log('ターゲット画像表示設定完了');
-            } else {
-                console.error('❌ target-image-container要素が見つかりません');
+            // ターゲット画像を設定
+            const fullscreenTargetImage = this.elements['fullscreen-target-image'];
+            if (fullscreenTargetImage && this.targetImageDataUrl) {
+                fullscreenTargetImage.src = this.targetImageDataUrl;
+                console.log('✅ ターゲット画像設定完了');
             }
             
-            // 段階7: 撮影枚数更新
-            console.log('📊 段階7: 撮影枚数更新');
-            if (this.elements['compare-photo-count']) {
-                this.elements['compare-photo-count'].textContent = `${this.photoCount}枚`;
-                console.log('撮影枚数更新完了:', this.photoCount);
+            // センサー状態をコピー
+            this.syncSensorStatus();
+            
+            // 撮影枚数を更新
+            const fullscreenPhotoCount = this.elements['fullscreen-photo-count'];
+            if (fullscreenPhotoCount) {
+                fullscreenPhotoCount.textContent = `${this.photoCount}枚`;
             }
             
-            // 段階8: 視覚的確認用（赤い境界線）
-            console.log('🔍 段階8: 視覚的確認');
-            cameraSection.style.border = '5px solid red';
-            cameraSection.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
-            setTimeout(() => {
-                cameraSection.style.border = 'none';
-                cameraSection.style.backgroundColor = '';
-                console.log('視覚的確認効果終了');
-            }, 3000);
+            // ズームレベルを同期
+            this.syncZoomLevel();
             
-            // 最終確認ログ（500ms後）
-            setTimeout(() => {
-                console.log('🔍🔍🔍 最終確認（500ms後） 🔍🔍🔍');
-                console.log('PDFセクション最終状態:', {
-                    display: window.getComputedStyle(pdfSection).display,
-                    left: window.getComputedStyle(pdfSection).left,
-                    visibility: window.getComputedStyle(pdfSection).visibility,
-                    width: window.getComputedStyle(pdfSection).width
-                });
-                console.log('カメラセクション最終状態:', {
-                    width: window.getComputedStyle(cameraSection).width,
-                    left: window.getComputedStyle(cameraSection).left,
-                    zIndex: window.getComputedStyle(cameraSection).zIndex,
-                    position: window.getComputedStyle(cameraSection).position
-                });
-                console.log('コントロールパネル表示:', !this.elements['control-panel'].classList.contains('hidden'));
-                console.log('🔍🔍🔍 最終確認完了 🔍🔍🔍');
-            }, 500);
+            // 全画面モーダルを表示
+            const modal = this.elements['fullscreen-camera-modal'];
+            if (modal) {
+                modal.classList.remove('hidden');
+                console.log('✅ 全画面モーダル表示完了');
+                
+                // 表示確認用の背景色変更（2秒間）
+                modal.style.backgroundColor = 'rgba(0, 255, 0, 0.1)';
+                setTimeout(() => {
+                    modal.style.backgroundColor = 'black';
+                }, 2000);
+            }
             
-            // ピンチズーム初期化
-            setTimeout(() => {
-                this.initPinchZoom();
-                console.log('ピンチズーム初期化完了');
-            }, 100);
+            console.log('🚀 モーダル方式カメラ全画面表示完了');
+        },
+        
+        // 全画面モーダルを閉じる
+        hideFullscreenCamera() {
+            console.log('🔄 全画面モーダル終了開始');
             
-            console.log('🚀🚀🚀 showFullscreenCamera完了 🚀🚀🚀');
+            // カメラストリームを元に戻す
+            const fullscreenStream = this.elements['fullscreen-camera-stream'].srcObject;
+            const originalVideo = this.elements['camera-stream'];
+            if (originalVideo && fullscreenStream) {
+                originalVideo.srcObject = fullscreenStream;
+                console.log('✅ カメラストリーム復帰完了');
+            }
+            
+            // 全画面モーダルを非表示
+            const modal = this.elements['fullscreen-camera-modal'];
+            if (modal) {
+                modal.classList.add('hidden');
+                console.log('✅ 全画面モーダル非表示完了');
+            }
+            
+            // 比較機能を無効化
+            this.isCompareMode = false;
+            this.targetImageDataUrl = null;
+            this.selectionState = 'idle';
+            
+            // 比較ボタンの状態をリセット
+            this.elements['toggle-compare-btn'].textContent = '🖼️ 比較';
+            this.elements['toggle-compare-btn'].classList.remove('bg-red-600', 'bg-purple-600');
+            this.elements['toggle-compare-btn'].classList.add('bg-teal-600');
+            this.elements['pdf-viewer'].style.cursor = 'default';
+            
+            // カメラフレームのエフェクトをリセット
+            this.elements['camera-frame'].style.boxShadow = 'none';
+            
+            // 選択UI要素を非表示
+            this.elements['selection-marker'].classList.add('hidden');
+            this.elements['selection-instruction'].classList.add('hidden');
+            
+            // ズームをリセット
+            this.zoomLevel = 1.0;
+            this.updateZoom();
+            
+            console.log('🔄 全画面モーダル終了完了');
+        },
+        
+        // センサー状態の同期
+        syncSensorStatus() {
+            const gpsStatus = this.elements['gps-status-dot'];
+            const compassStatus = this.elements['compass-status-dot'];
+            const fullscreenGpsStatus = this.elements['fullscreen-gps-status-dot'];
+            const fullscreenCompassStatus = this.elements['fullscreen-compass-status-dot'];
+            
+            if (gpsStatus && fullscreenGpsStatus) {
+                fullscreenGpsStatus.className = gpsStatus.className;
+            }
+            if (compassStatus && fullscreenCompassStatus) {
+                fullscreenCompassStatus.className = compassStatus.className;
+            }
+        },
+        
+        // ズームレベルの同期
+        syncZoomLevel() {
+            const fullscreenZoomSlider = this.elements['fullscreen-zoom-slider'];
+            const fullscreenZoomDisplay = this.elements['fullscreen-zoom-level-display'];
+            
+            if (fullscreenZoomSlider) {
+                fullscreenZoomSlider.value = this.zoomLevel.toString();
+            }
+            if (fullscreenZoomDisplay) {
+                fullscreenZoomDisplay.textContent = `${this.zoomLevel.toFixed(1)}x`;
+            }
+        },
+        
+        // 全画面でのズーム機能
+        updateFullscreenZoom() {
+            const video = this.elements['fullscreen-camera-stream'];
+            const zoomDisplay = this.elements['fullscreen-zoom-level-display'];
+            const zoomSlider = this.elements['fullscreen-zoom-slider'];
+            
+            if (video && zoomDisplay) {
+                video.style.transform = `scale(${this.zoomLevel})`;
+                zoomDisplay.textContent = `${this.zoomLevel.toFixed(1)}x`;
+                
+                if (zoomSlider) {
+                    zoomSlider.value = this.zoomLevel.toString();
+                }
+            }
+        },
+        
+        setZoomFromFullscreenSlider() {
+            const zoomSlider = this.elements['fullscreen-zoom-slider'];
+            if (zoomSlider) {
+                const newZoom = parseFloat(zoomSlider.value);
+                if (!isNaN(newZoom) && newZoom >= this.minZoom && newZoom <= this.maxZoom) {
+                    this.zoomLevel = newZoom;
+                    this.updateFullscreenZoom();
+                }
+            }
         },
 
         resetSelection() {
@@ -1239,79 +1367,8 @@
 
         // より確実な分割表示復帰機能
         revertToSplitView() {
-            console.log('revertToSplitView開始');
-            
-            const pdfSection = this.elements['pdf-section'];
-            const cameraSection = this.elements['camera-section'];
-            
-            // 直接スタイル操作でレイアウトを戻す
-            console.log('直接スタイル操作でレイアウト復帰...');
-            
-            // PDFセクションを元に戻す
-            pdfSection.style.display = 'flex';
-            pdfSection.style.visibility = 'visible';
-            pdfSection.style.left = '0';
-            pdfSection.style.width = '50%';
-            
-            // カメラセクションを元に戻す
-            cameraSection.style.left = '50%';
-            cameraSection.style.width = '50%';
-            cameraSection.style.position = 'absolute';
-            cameraSection.style.zIndex = '1';
-            
-            // CSSクラスも削除
-            pdfSection.classList.remove('pdf-hidden');
-            cameraSection.classList.remove('camera-fullscreen');
-            
-            // コントロールパネルを非表示
-            this.elements['control-panel'].classList.add('hidden');
-            this.elements['control-panel'].style.display = 'none';
-            
-            // ターゲット画像コンテナを非表示
-            this.elements['target-image-container'].classList.add('hidden');
-            this.elements['target-image-container'].style.display = 'none';
-            
-            // 比較機能を無効化
-            this.isCompareMode = false;
-            this.targetImageDataUrl = null;
-            this.selectionState = 'idle';
-            
-            // 比較ボタンの状態をリセット
-            this.elements['toggle-compare-btn'].textContent = '🖼️ 比較';
-            this.elements['toggle-compare-btn'].classList.remove('bg-red-600', 'bg-purple-600');
-            this.elements['toggle-compare-btn'].classList.add('bg-teal-600');
-            this.elements['pdf-viewer'].style.cursor = 'default';
-            
-            // カメラフレームのエフェクトをリセット
-            this.elements['camera-frame'].style.boxShadow = 'none';
-            
-            // 選択UI要素を非表示
-            this.elements['selection-marker'].classList.add('hidden');
-            this.elements['selection-instruction'].classList.add('hidden');
-            
-            // ズームをリセット
-            this.zoomLevel = 1.0;
-            this.updateZoom();
-            
-            // 強制再描画
-            document.body.offsetHeight;
-            pdfSection.offsetWidth;
-            cameraSection.offsetWidth;
-            
-            // 最終確認ログ
-            setTimeout(() => {
-                console.log('=== 分割表示復帰確認 ===');
-                console.log('PDFセクション:');
-                console.log('- display:', window.getComputedStyle(pdfSection).display);
-                console.log('- width:', window.getComputedStyle(pdfSection).width);
-                console.log('- left:', window.getComputedStyle(pdfSection).left);
-                console.log('カメラセクション:');
-                console.log('- width:', window.getComputedStyle(cameraSection).width);
-                console.log('- left:', window.getComputedStyle(cameraSection).left);
-                console.log('=========================');
-            }, 300);
-            
-            console.log('revertToSplitView完了');
+            console.log('🔄 revertToSplitView開始 - hideFullscreenCameraに移行');
+            this.hideFullscreenCamera();
         },
 
         // OpenCV初期化
@@ -1360,10 +1417,34 @@
                 this.elements['compare-capture-btn'].addEventListener('click', () => this.takePicture());
             }
             
+            // 全画面モーダル関連のイベントリスナー
+            if (this.elements['fullscreen-capture-btn']) {
+                this.elements['fullscreen-capture-btn'].addEventListener('click', () => this.takePicture());
+            }
+            if (this.elements['close-fullscreen-camera-btn']) {
+                this.elements['close-fullscreen-camera-btn'].addEventListener('click', () => this.hideFullscreenCamera());
+            }
+            if (this.elements['fullscreen-ai-assistant-btn']) {
+                this.elements['fullscreen-ai-assistant-btn'].addEventListener('click', () => { 
+                    if (this.targetImageDataUrl) this.getAiShootingAssistant(this.targetImageDataUrl); 
+                });
+            }
+            if (this.elements['fullscreen-show-album-btn']) {
+                this.elements['fullscreen-show-album-btn'].addEventListener('click', () => {
+                    this.elements['album-modal'].classList.remove('hidden');
+                });
+            }
+            
             // ズームスライダー
             if (this.elements['zoom-slider']) {
                 this.elements['zoom-slider'].addEventListener('input', () => this.setZoomFromSlider());
                 this.elements['zoom-slider'].addEventListener('change', () => this.setZoomFromSlider());
+            }
+            
+            // 全画面ズームスライダー
+            if (this.elements['fullscreen-zoom-slider']) {
+                this.elements['fullscreen-zoom-slider'].addEventListener('input', () => this.setZoomFromFullscreenSlider());
+                this.elements['fullscreen-zoom-slider'].addEventListener('change', () => this.setZoomFromFullscreenSlider());
             }
             
             // 比較モード関連
@@ -1479,7 +1560,7 @@
                 }
                 
                 // 要素の取得
-                const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'skip-api-key-btn', 'reconfigure-api-key-btn', 'control-panel', 'close-compare-btn', 'show-album-btn', 'zoom-slider', 'zoom-level-display', 'compare-photo-count', 'compare-capture-btn', 'comparison-match-rate'];
+                const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'skip-api-key-btn', 'reconfigure-api-key-btn', 'control-panel', 'close-compare-btn', 'show-album-btn', 'zoom-slider', 'zoom-level-display', 'compare-photo-count', 'compare-capture-btn', 'comparison-match-rate', 'fullscreen-camera-modal', 'fullscreen-camera-stream', 'fullscreen-target-image', 'fullscreen-match-indicator', 'close-fullscreen-camera-btn', 'fullscreen-ai-assistant-btn', 'fullscreen-show-album-btn', 'fullscreen-zoom-slider', 'fullscreen-zoom-level-display', 'fullscreen-photo-count', 'fullscreen-capture-btn', 'fullscreen-success-message', 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot'];
                 
                 ids.forEach(id => { 
                     const element = document.getElementById(id);
