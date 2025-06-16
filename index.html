@@ -150,7 +150,7 @@
                     <div><span id="gps-status-dot" class="status-dot bg-red-500"></span> GPS</div>
                     <div><span id="compass-status-dot" class="status-dot bg-red-500"></span> 方位</div>
                 </div>
-                <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+                <div class="absolute bottom-4 right-[25%] translate-x-1/2 z-10">
                     <button id="capture-btn" title="撮影"></button>
                 </div>
             </div>
@@ -948,6 +948,13 @@
                 else console.warn(`Element with id "${id}" not found.`);
             });
             
+            // Add data-action to buttons that don't have it
+            document.querySelectorAll('button:not([data-action])').forEach(btn => {
+                if (btn.id) {
+                    btn.dataset.action = btn.id.replace(/-btn/g, '').replace(/([A-Z])/g, '-$1').toLowerCase();
+                }
+            });
+
             this.loadApiKey();
             this.setupEventListeners();
             if (!this.apiKey) {
