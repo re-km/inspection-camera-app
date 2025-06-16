@@ -4,11 +4,136 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>構造物点検カメラアプリ (HTTPS必須)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/piexifjs/1.0.6/piexif.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
     <style>
+        /* 基本的なTailwindスタイルの代替 */
+        .hidden { display: none !important; }
+        .fixed { position: fixed !important; }
+        .absolute { position: absolute !important; }
+        .relative { position: relative !important; }
+        .inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+        .flex { display: flex !important; }
+        .flex-col { flex-direction: column !important; }
+        .flex-grow { flex-grow: 1 !important; }
+        .flex-shrink-0 { flex-shrink: 0 !important; }
+        .items-center { align-items: center !important; }
+        .justify-center { justify-content: center !important; }
+        .justify-between { justify-content: space-between !important; }
+        .gap-2 { gap: 0.5rem !important; }
+        .gap-3 { gap: 0.75rem !important; }
+        .gap-4 { gap: 1rem !important; }
+        .p-2 { padding: 0.5rem !important; }
+        .p-4 { padding: 1rem !important; }
+        .p-6 { padding: 1.5rem !important; }
+        .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+        .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+        .px-4 { padding-left: 1rem; padding-right: 1rem; }
+        .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+        .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+        .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+        .mb-2 { margin-bottom: 0.5rem !important; }
+        .mb-4 { margin-bottom: 1rem !important; }
+        .mt-1 { margin-top: 0.25rem !important; }
+        .mt-2 { margin-top: 0.5rem !important; }
+        .mt-4 { margin-top: 1rem !important; }
+        .w-full { width: 100% !important; }
+        .h-full { height: 100% !important; }
+        .w-24 { width: 6rem !important; }
+        .h-24 { height: 6rem !important; }
+        .w-20 { width: 5rem !important; }
+        .h-20 { height: 5rem !important; }
+        .w-16 { width: 4rem !important; }
+        .h-16 { height: 4rem !important; }
+        .max-w-md { max-width: 28rem !important; }
+        .max-w-sm { max-width: 24rem !important; }
+        .max-w-3xl { max-width: 48rem !important; }
+        .rounded { border-radius: 0.25rem !important; }
+        .rounded-lg { border-radius: 0.5rem !important; }
+        .rounded-full { border-radius: 9999px !important; }
+        .border { border-width: 1px !important; }
+        .border-2 { border-width: 2px !important; }
+        .border-4 { border-width: 4px !important; }
+        .bg-black { background-color: #000000 !important; }
+        .bg-white { background-color: #ffffff !important; }
+        .bg-gray-700 { background-color: #374151 !important; }
+        .bg-gray-800 { background-color: #1f2937 !important; }
+        .bg-gray-900 { background-color: #111827 !important; }
+        .bg-blue-600 { background-color: #2563eb !important; }
+        .bg-green-600 { background-color: #16a34a !important; }
+        .bg-red-600 { background-color: #dc2626 !important; }
+        .bg-teal-600 { background-color: #0d9488 !important; }
+        .bg-purple-600 { background-color: #9333ea !important; }
+        .bg-yellow-600 { background-color: #ca8a04 !important; }
+        .hover\\:bg-blue-700:hover { background-color: #1d4ed8 !important; }
+        .hover\\:bg-green-700:hover { background-color: #15803d !important; }
+        .hover\\:bg-red-700:hover { background-color: #b91c1c !important; }
+        .hover\\:bg-teal-700:hover { background-color: #0f766e !important; }
+        .hover\\:bg-purple-700:hover { background-color: #7c3aed !important; }
+        .hover\\:bg-yellow-700:hover { background-color: #a16207 !important; }
+        .hover\\:bg-gray-600:hover { background-color: #4b5563 !important; }
+        .hover\\:bg-gray-500:hover { background-color: #6b7280 !important; }
+        .hover\\:bg-gray-100:hover { background-color: #f3f4f6 !important; }
+        .text-white { color: #ffffff !important; }
+        .text-gray-400 { color: #9ca3af !important; }
+        .text-gray-500 { color: #6b7280 !important; }
+        .text-red-400 { color: #f87171 !important; }
+        .text-sm { font-size: 0.875rem !important; }
+        .text-xs { font-size: 0.75rem !important; }
+        .text-xl { font-size: 1.25rem !important; }
+        .text-2xl { font-size: 1.5rem !important; }
+        .font-bold { font-weight: 700 !important; }
+        .cursor-pointer { cursor: pointer !important; }
+        .overflow-hidden { overflow: hidden !important; }
+        .overflow-auto { overflow: auto !important; }
+        .overflow-x-auto { overflow-x: auto !important; }
+        .overflow-y-auto { overflow-y: auto !important; }
+        .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important; }
+        .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important; }
+        .object-cover { object-fit: cover !important; }
+        .object-contain { object-fit: contain !important; }
+        .z-10 { z-index: 10 !important; }
+        .z-20 { z-index: 20 !important; }
+        .z-30 { z-index: 30 !important; }
+        .z-40 { z-index: 40 !important; }
+        .z-50 { z-index: 50 !important; }
+        .transition-all { transition: all 0.15s ease-in-out !important; }
+        .transition-transform { transition: transform 0.15s ease-in-out !important; }
+        .transition-colors { transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out !important; }
+        .transform { transform: translateZ(0) !important; }
+        .-translate-x-1\\/2 { transform: translateX(-50%) !important; }
+        .-translate-y-1\\/2 { transform: translateY(-50%) !important; }
+        .scale-95 { transform: scale(0.95) !important; }
+        .active\\:scale-95:active { transform: scale(0.95) !important; }
+        .grid { display: grid !important; }
+        .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+        .grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+        .grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+        .grid-cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
+        .col-span-full { grid-column: 1 / -1 !important; }
+        .space-x-2 > * + * { margin-left: 0.5rem !important; }
+        .opacity-0 { opacity: 0 !important; }
+        .opacity-100 { opacity: 1 !important; }
+        .group:hover .group-hover\\:opacity-100 { opacity: 1 !important; }
+        .transition-opacity { transition: opacity 0.15s ease-in-out !important; }
+        .bg-opacity-50 { background-color: rgba(0, 0, 0, 0.5) !important; }
+        .bg-opacity-60 { background-color: rgba(0, 0, 0, 0.6) !important; }
+        .bg-opacity-70 { background-color: rgba(0, 0, 0, 0.7) !important; }
+        .bg-opacity-80 { background-color: rgba(0, 0, 0, 0.8) !important; }
+        
+        /* レスポンシブデザイン */
+        @media (min-width: 640px) {
+            .sm\\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+        }
+        @media (min-width: 768px) {
+            .md\\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+        }
+        @media (min-width: 1024px) {
+            .lg\\:grid-cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
+        }
+        
+        /* カスタムスタイル */
         html, body, #app-container { 
             height: 100%; 
             width: 100%; 
@@ -250,7 +375,7 @@
                     <div><span id="gps-status-dot" class="status-dot bg-red-500"></span> GPS</div>
                     <div><span id="compass-status-dot" class="status-dot bg-red-500"></span> 方位</div>
                 </div>
-                <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+                <div class="absolute bottom-4 right-8 z-10">
                     <button id="capture-btn" title="撮影"></button>
                 </div>
                 
@@ -398,7 +523,7 @@
             </div>
             
             <!-- 下部中央：撮影ボタン -->
-            <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-50">
+            <div class="absolute bottom-8 right-8 z-50">
                 <button id="fullscreen-capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
                     <div class="w-16 h-16 bg-white rounded-full shadow-inner border-2 border-gray-200"></div>
                 </button>
@@ -509,6 +634,9 @@
                 return true;
             }
         },
+        
+        // アルバム関連
+        openAlbumModal() {
         
         showSecurityAlert() {
             const alertDiv = document.createElement('div');
@@ -978,51 +1106,114 @@
             }
         },
 
-        // 個別ダウンロード機能（修正版）
+        // 個別ダウンロード機能（修正版・EXIF確実埋め込み）
         downloadSinglePhoto(photoData) {
+            console.log(`📥 個別ダウンロード開始: ${photoData.fileName}`);
+            
             try {
                 let finalImageData = photoData.dataUrl;
                 
-                // EXIF情報の埋め込み
+                // EXIF情報の確実な埋め込み
                 if (typeof piexif !== 'undefined' && photoData.gps && photoData.gps.latitude && photoData.gps.longitude) {
                     try {
-                        const exifObj = {
-                            "0th": {
-                                [piexif.ImageIFD.Make]: "InspectionCamera",
-                                [piexif.ImageIFD.Model]: "WebApp",
-                                [piexif.ImageIFD.DateTime]: photoData.timestamp.toISOString().replace(/[-T:]/g, ' ').substring(0, 19)
-                            },
-                            "Exif": {
-                                [piexif.ExifIFD.DateTimeOriginal]: photoData.timestamp.toISOString().replace(/[-T:]/g, ' ').substring(0, 19)
-                            },
-                            "GPS": {
-                                [piexif.GPSIFD.GPSLatitudeRef]: photoData.gps.latitude >= 0 ? 'N' : 'S',
-                                [piexif.GPSIFD.GPSLatitude]: piexif.GPSHelper.degToDms(Math.abs(photoData.gps.latitude)),
-                                [piexif.GPSIFD.GPSLongitudeRef]: photoData.gps.longitude >= 0 ? 'E' : 'W',
-                                [piexif.GPSIFD.GPSLongitude]: piexif.GPSHelper.degToDms(Math.abs(photoData.gps.longitude))
-                            },
+                        console.log('🔧 EXIF埋め込み開始:', {
+                            lat: photoData.gps.latitude,
+                            lng: photoData.gps.longitude,
+                            heading: photoData.gps.heading
+                        });
+                        
+                        // 基本EXIF構造
+                        const zeroth = {};
+                        const exif = {};
+                        const gps = {};
+                        
+                        // カメラ情報
+                        zeroth[piexif.ImageIFD.Make] = "InspectionCamera";
+                        zeroth[piexif.ImageIFD.Model] = "StructuralInspectionApp";
+                        zeroth[piexif.ImageIFD.Software] = "WebInspectionApp_v1.0";
+                        
+                        // 撮影日時
+                        const dateStr = photoData.timestamp.toISOString().replace(/[-T]/g, ' ').substring(0, 19);
+                        zeroth[piexif.ImageIFD.DateTime] = dateStr;
+                        exif[piexif.ExifIFD.DateTimeOriginal] = dateStr;
+                        exif[piexif.ExifIFD.DateTimeDigitized] = dateStr;
+                        
+                        // GPS情報（より確実な方法）
+                        const lat = parseFloat(photoData.gps.latitude);
+                        const lng = parseFloat(photoData.gps.longitude);
+                        
+                        gps[piexif.GPSIFD.GPSVersionID] = [2, 3, 0, 0];
+                        gps[piexif.GPSIFD.GPSLatitudeRef] = lat >= 0 ? 'N' : 'S';
+                        gps[piexif.GPSIFD.GPSLatitude] = piexif.GPSHelper.degToDms(Math.abs(lat));
+                        gps[piexif.GPSIFD.GPSLongitudeRef] = lng >= 0 ? 'E' : 'W';
+                        gps[piexif.GPSIFD.GPSLongitude] = piexif.GPSHelper.degToDms(Math.abs(lng));
+                        gps[piexif.GPSIFD.GPSMapDatum] = "WGS-84";
+                        
+                        // 方位情報
+                        if (photoData.gps.heading !== null && !isNaN(photoData.gps.heading)) {
+                            const heading = parseFloat(photoData.gps.heading);
+                            gps[piexif.GPSIFD.GPSImgDirectionRef] = "T";
+                            gps[piexif.GPSIFD.GPSImgDirection] = [Math.round(heading * 100), 100];
+                        }
+                        
+                        // GPSタイムスタンプ
+                        const utcTime = photoData.timestamp;
+                        gps[piexif.GPSIFD.GPSTimeStamp] = [
+                            [utcTime.getUTCHours(), 1],
+                            [utcTime.getUTCMinutes(), 1],
+                            [utcTime.getUTCSeconds(), 1]
+                        ];
+                        
+                        // EXIF構造体を作成
+                        const exifDict = {
+                            "0th": zeroth,
+                            "Exif": exif,
+                            "GPS": gps,
                             "1st": {},
                             "thumbnail": null
                         };
                         
-                        if (photoData.gps.heading !== null && photoData.gps.heading !== undefined) {
-                            exifObj.GPS[piexif.GPSIFD.GPSImgDirectionRef] = "T";
-                            exifObj.GPS[piexif.GPSIFD.GPSImgDirection] = [Math.round(photoData.gps.heading * 100), 100];
-                        }
+                        // EXIFバイナリデータを生成
+                        const exifBytes = piexif.dump(exifDict);
                         
-                        const exifBytes = piexif.dump(exifObj);
+                        // 元画像にEXIF情報を挿入
                         finalImageData = piexif.insert(exifBytes, photoData.dataUrl);
                         
+                        console.log('✅ EXIF埋め込み完了');
+                        
+                        // EXIF確認（デバッグ用）
+                        try {
+                            const insertedExif = piexif.load(finalImageData);
+                            console.log('📍 埋め込まれたGPS情報確認:', {
+                                GPSLatitude: insertedExif.GPS[piexif.GPSIFD.GPSLatitude],
+                                GPSLongitude: insertedExif.GPS[piexif.GPSIFD.GPSLongitude],
+                                GPSLatitudeRef: insertedExif.GPS[piexif.GPSIFD.GPSLatitudeRef],
+                                GPSLongitudeRef: insertedExif.GPS[piexif.GPSIFD.GPSLongitudeRef]
+                            });
+                        } catch (verifyError) {
+                            console.warn('EXIF確認エラー:', verifyError);
+                        }
+                        
                     } catch (exifError) {
-                        console.warn('EXIF埋め込みエラー:', exifError);
+                        console.error('❌ EXIF埋め込みエラー:', exifError);
+                        console.log('元の画像データを使用します');
+                        finalImageData = photoData.dataUrl;
                     }
+                } else {
+                    console.warn('⚠️ EXIF埋め込み条件不足:', {
+                        piexif: typeof piexif !== 'undefined',
+                        gps: !!photoData.gps,
+                        lat: photoData.gps?.latitude,
+                        lng: photoData.gps?.longitude
+                    });
                 }
                 
                 this.executeDownload(finalImageData, photoData.fileName);
+                this.showTemporaryMessage(`📥 ${photoData.fileName} をダウンロード`, 'green');
                 
             } catch (error) {
-                console.error('ダウンロードエラー:', error);
-                alert(`ダウンロードに失敗しました: ${error.message}`);
+                console.error(`❌ ダウンロードエラー: ${photoData.fileName}`, error);
+                alert(`ダウンロードエラー: ${error.message}`);
             }
         },
 
@@ -1093,26 +1284,66 @@
                     try {
                         let imageData = photoData.dataUrl;
                         
-                        // EXIF情報の簡単な埋め込み
+                        // EXIF情報の確実な埋め込み
                         if (typeof piexif !== 'undefined' && photoData.gps?.latitude && photoData.gps?.longitude) {
                             try {
-                                const simpleExif = {
-                                    "0th": { [piexif.ImageIFD.DateTime]: photoData.timestamp.toISOString().slice(0, 19).replace('T', ' ') },
-                                    "Exif": {},
-                                    "GPS": {
-                                        [piexif.GPSIFD.GPSLatitudeRef]: photoData.gps.latitude >= 0 ? 'N' : 'S',
-                                        [piexif.GPSIFD.GPSLatitude]: piexif.GPSHelper.degToDms(Math.abs(photoData.gps.latitude)),
-                                        [piexif.GPSIFD.GPSLongitudeRef]: photoData.gps.longitude >= 0 ? 'E' : 'W',
-                                        [piexif.GPSIFD.GPSLongitude]: piexif.GPSHelper.degToDms(Math.abs(photoData.gps.longitude))
-                                    },
+                                console.log(`🔧 ${photoData.fileName} EXIF埋め込み開始`);
+                                
+                                const zeroth = {};
+                                const exif = {};
+                                const gps = {};
+                                
+                                // カメラ情報
+                                zeroth[piexif.ImageIFD.Make] = "InspectionCamera";
+                                zeroth[piexif.ImageIFD.Model] = "StructuralInspectionApp";
+                                zeroth[piexif.ImageIFD.Software] = "WebInspectionApp_v1.0";
+                                
+                                // 撮影日時
+                                const dateStr = photoData.timestamp.toISOString().replace(/[-T]/g, ' ').substring(0, 19);
+                                zeroth[piexif.ImageIFD.DateTime] = dateStr;
+                                exif[piexif.ExifIFD.DateTimeOriginal] = dateStr;
+                                exif[piexif.ExifIFD.DateTimeDigitized] = dateStr;
+                                
+                                // GPS情報
+                                const lat = parseFloat(photoData.gps.latitude);
+                                const lng = parseFloat(photoData.gps.longitude);
+                                
+                                gps[piexif.GPSIFD.GPSVersionID] = [2, 3, 0, 0];
+                                gps[piexif.GPSIFD.GPSLatitudeRef] = lat >= 0 ? 'N' : 'S';
+                                gps[piexif.GPSIFD.GPSLatitude] = piexif.GPSHelper.degToDms(Math.abs(lat));
+                                gps[piexif.GPSIFD.GPSLongitudeRef] = lng >= 0 ? 'E' : 'W';
+                                gps[piexif.GPSIFD.GPSLongitude] = piexif.GPSHelper.degToDms(Math.abs(lng));
+                                gps[piexif.GPSIFD.GPSMapDatum] = "WGS-84";
+                                
+                                // 方位情報
+                                if (photoData.gps.heading !== null && !isNaN(photoData.gps.heading)) {
+                                    const heading = parseFloat(photoData.gps.heading);
+                                    gps[piexif.GPSIFD.GPSImgDirectionRef] = "T";
+                                    gps[piexif.GPSIFD.GPSImgDirection] = [Math.round(heading * 100), 100];
+                                }
+                                
+                                // GPSタイムスタンプ
+                                gps[piexif.GPSIFD.GPSTimeStamp] = [
+                                    [photoData.timestamp.getUTCHours(), 1],
+                                    [photoData.timestamp.getUTCMinutes(), 1],
+                                    [photoData.timestamp.getUTCSeconds(), 1]
+                                ];
+                                
+                                const exifDict = {
+                                    "0th": zeroth,
+                                    "Exif": exif,
+                                    "GPS": gps,
                                     "1st": {},
                                     "thumbnail": null
                                 };
                                 
-                                const exifBytes = piexif.dump(simpleExif);
+                                const exifBytes = piexif.dump(exifDict);
                                 imageData = piexif.insert(exifBytes, photoData.dataUrl);
+                                
+                                console.log(`✅ ${photoData.fileName} EXIF埋め込み完了`);
+                                
                             } catch (exifError) {
-                                console.warn(`EXIF埋め込み失敗: ${photoData.fileName}`, exifError);
+                                console.error(`❌ ${photoData.fileName} EXIF埋め込みエラー:`, exifError);
                             }
                         }
                         
@@ -1480,7 +1711,123 @@
             const modal = this.elements['fullscreen-camera-modal'];
             if (modal) {
                 modal.classList.remove('hidden');
+                
+                // ボタンの強制イベント設定（遅延実行）
+                setTimeout(() => {
+                    this.setupFullscreenButtons();
+                }, 500);
             }
+        },
+
+        // 全画面ボタンの確実なセットアップ
+        setupFullscreenButtons() {
+            console.log('🔧 全画面ボタンセットアップ開始');
+            
+            // 戻るボタン
+            const backButtons = document.querySelectorAll('.control-btn.red');
+            backButtons.forEach(btn => {
+                console.log('🔴 戻るボタン設定:', btn);
+                
+                // 既存のイベントを削除
+                btn.onclick = null;
+                btn.replaceWith(btn.cloneNode(true));
+                
+                // 新しいボタンを取得して設定
+                const newBackBtn = document.querySelector('.control-btn.red');
+                if (newBackBtn) {
+                    newBackBtn.onclick = () => {
+                        console.log('🔴 戻るボタンクリック実行');
+                        this.hideFullscreenCamera();
+                    };
+                    
+                    newBackBtn.addEventListener('touchend', (e) => {
+                        console.log('🔴 戻るボタンタッチ実行');
+                        e.preventDefault();
+                        this.hideFullscreenCamera();
+                    });
+                    
+                    // 確認用スタイル
+                    newBackBtn.style.border = '2px solid #ff0000';
+                    setTimeout(() => { newBackBtn.style.border = ''; }, 2000);
+                    
+                    console.log('✅ 戻るボタン設定完了');
+                }
+            });
+            
+            // AI補助ボタン
+            const aiButtons = document.querySelectorAll('.control-btn.purple');
+            aiButtons.forEach(btn => {
+                console.log('🟣 AI補助ボタン設定:', btn);
+                
+                btn.onclick = null;
+                btn.replaceWith(btn.cloneNode(true));
+                
+                const newAiBtn = document.querySelector('.control-btn.purple');
+                if (newAiBtn) {
+                    newAiBtn.onclick = () => {
+                        console.log('🟣 AI補助ボタンクリック実行');
+                        if (this.targetImageDataUrl) {
+                            this.getAiShootingAssistant(this.targetImageDataUrl);
+                        } else {
+                            alert('比較画像を選択してください。');
+                        }
+                    };
+                    
+                    newAiBtn.addEventListener('touchend', (e) => {
+                        console.log('🟣 AI補助ボタンタッチ実行');
+                        e.preventDefault();
+                        if (this.targetImageDataUrl) {
+                            this.getAiShootingAssistant(this.targetImageDataUrl);
+                        } else {
+                            alert('比較画像を選択してください。');
+                        }
+                    });
+                    
+                    // 確認用スタイル
+                    newAiBtn.style.border = '2px solid #8b5cf6';
+                    setTimeout(() => { newAiBtn.style.border = ''; }, 2000);
+                    
+                    console.log('✅ AI補助ボタン設定完了');
+                }
+            });
+            
+            // アルバムボタン
+            const albumButtons = document.querySelectorAll('.control-btn.green');
+            albumButtons.forEach(btn => {
+                console.log('🟢 アルバムボタン設定:', btn);
+                
+                btn.onclick = null;
+                btn.replaceWith(btn.cloneNode(true));
+                
+                const newAlbumBtn = document.querySelector('.control-btn.green');
+                if (newAlbumBtn) {
+                    newAlbumBtn.onclick = () => {
+                        console.log('🟢 アルバムボタンクリック実行');
+                        this.openAlbumModal();
+                    };
+                    
+                    newAlbumBtn.addEventListener('touchend', (e) => {
+                        console.log('🟢 アルバムボタンタッチ実行');
+                        e.preventDefault();
+                        this.openAlbumModal();
+                    });
+                    
+                    newAlbumBtn.addEventListener('click', (e) => {
+                        console.log('🟢 アルバムボタンクリック実行（addEventListener）');
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.openAlbumModal();
+                    });
+                    
+                    // 確認用スタイル
+                    newAlbumBtn.style.border = '2px solid #22c55e';
+                    setTimeout(() => { newAlbumBtn.style.border = ''; }, 2000);
+                    
+                    console.log('✅ アルバムボタン設定完了');
+                }
+            });
+            
+            console.log('🎉 全画面ボタンセットアップ完了');
         },
 
         hideFullscreenCamera() {
@@ -1588,8 +1935,20 @@
             }
         },
 
-        // アルバム関連
-        openAlbumModal() {
+        showTemporaryMessage(message, color = 'blue') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `fixed top-4 left-1/2 transform -translate-x-1/2 bg-${color}-600 text-white p-3 rounded-lg shadow-lg z-[95] max-w-sm`;
+            alertDiv.innerHTML = `
+                <div class="text-center font-bold text-sm">${message}</div>
+            `;
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                if (alertDiv.parentElement) {
+                    alertDiv.remove();
+                }
+            }, 2000);
+        },
             console.log('📁 アルバムモーダルを開く');
             const modal = this.elements['album-modal'];
             if (modal) {
