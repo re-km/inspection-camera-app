@@ -150,7 +150,7 @@
                     <div><span id="gps-status-dot" class="status-dot bg-red-500"></span> GPS</div>
                     <div><span id="compass-status-dot" class="status-dot bg-red-500"></span> 方位</div>
                 </div>
-                <div class="absolute bottom-4 right-[25%] translate-x-1/2 z-10">
+                <div class="absolute bottom-4 right-1/4 z-10">
                     <button id="capture-btn" title="撮影"></button>
                 </div>
             </div>
@@ -783,9 +783,8 @@
             }
             this.isCompareMode = true;
             this.selectionState = 'waiting_for_p1';
-            const btn = document.querySelector('[data-action="toggle-compare"]');
-            btn.textContent = '🖼️ 終了';
-            btn.classList.replace('bg-teal-600', 'bg-red-600');
+            this.elements['toggle-compare-btn'].textContent = '🖼️ 終了';
+            this.elements['toggle-compare-btn'].classList.replace('bg-teal-600', 'bg-red-600');
             this.elements['pdf-viewer'].style.cursor = 'crosshair';
             this.showInstruction('比較範囲の左上をタップ');
         },
@@ -793,9 +792,8 @@
         resetCompareMode() {
             this.isCompareMode = false;
             this.selectionState = 'idle';
-            const btn = document.querySelector('[data-action="toggle-compare"]');
-            btn.textContent = '🖼️ 比較撮影';
-            btn.classList.replace('bg-red-600', 'bg-teal-600');
+            this.elements['toggle-compare-btn'].textContent = '🖼️ 比較撮影';
+            this.elements['toggle-compare-btn'].classList.replace('bg-red-600', 'bg-teal-600');
             this.elements['pdf-viewer'].style.cursor = 'default';
             this.elements['selection-marker'].classList.add('hidden');
             this.elements['selection-instruction'].classList.add('hidden');
@@ -865,44 +863,51 @@
         // 初期化とイベントリスナー
         setupEventListeners() {
             document.body.addEventListener('click', (e) => {
-                const target = e.target.closest('[data-action]');
+                const target = e.target.closest('button');
                 if (!target) return;
-        
+                
+                const id = target.id;
                 const action = target.dataset.action;
                 const photoItem = target.closest('[data-photo-id]');
                 const photoId = photoItem ? parseInt(photoItem.dataset.photoId, 10) : null;
-        
-                switch (action) {
-                    case 'open-api-modal': this.openApiKeyModal(); break;
-                    case 'save-api-key': this.saveApiKey(); break;
-                    case 'clear-api-key': this.clearApiKey(); break;
-                    case 'close-api-modal': this.elements['api-key-modal'].classList.add('hidden'); break;
-                    case 'reconfigure-api-key-from-error': this.openApiKeyModal(); break;
-                    case 'prev-page': if (this.pdfDoc && this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); break;
-                    case 'next-page': if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); break;
-                    case 'take-picture': this.takePicture(); break;
-                    case 'take-picture-fullscreen': this.takePicture(); break;
-                    case 'toggle-compare': if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); break;
-                    case 'reset-compare-mode': this.resetCompareMode(); break;
-                    case 'ai-assistant': this.getAiShootingAssistant(); break;
-                    case 'open-album': this.elements['album-modal'].classList.remove('hidden'); break;
-                    case 'close-album': this.elements['album-modal'].classList.add('hidden'); break;
-                    case 'zoom-in': this.updateZoom(this.zoomLevel + 0.2); break;
-                    case 'zoom-out': this.updateZoom(this.zoomLevel - 0.2); break;
-                    case 'zoom-reset': this.updateZoom(1.0); break;
-                    case 'download-all': this.downloadAllPhotos(); break;
-                    case 'ai-analyze': if (photoId) this.analyzeImageWithGemini(photoId); break;
-                    case 'download-single': if (photoId) this.downloadSinglePhoto(photoId); break;
-                    case 'close-gemini-modal': this.elements['gemini-modal'].classList.add('hidden'); break;
-                    case 'copy-report':
+
+                const functions = {
+                    'toggle-compare': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
+                    'open-api-modal': () => this.openApiKeyModal(),
+                    'save-api-key': () => this.saveApiKey(),
+                    'clear-api-key': () => this.clearApiKey(),
+                    'close-api-modal': () => this.elements['api-key-modal'].classList.add('hidden'),
+                    'prev-page': () => { if (this.pdfDoc && this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); },
+                    'next-page': () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); },
+                    'take-picture': () => this.takePicture(),
+                    'take-picture-fullscreen': () => this.takePicture(),
+                    'reset-compare-mode': () => this.resetCompareMode(),
+                    'ai-assistant': () => this.getAiShootingAssistant(),
+                    'open-album': () => this.elements['album-modal'].classList.remove('hidden'),
+                    'close-album': () => this.elements['album-modal'].classList.add('hidden'),
+                    'download-all': () => this.downloadAllPhotos(),
+                    'zoom-in': () => this.updateZoom(this.zoomLevel + 0.2),
+                    'zoom-out': () => this.updateZoom(this.zoomLevel - 0.2),
+                    'zoom-reset': () => this.updateZoom(1.0),
+                    'close-gemini-modal': () => this.elements['gemini-modal'].classList.add('hidden'),
+                    'copy-report': () => {
                         navigator.clipboard.writeText(this.elements['report-content'].textContent)
                             .then(() => this.showNotification('報告書をコピーしました', 'success'))
                             .catch(() => this.showNotification('コピーに失敗しました', 'error'));
-                        break;
-                    case 'generate-report':
+                    },
+                    'ai-analyze': () => { if (photoId) this.analyzeImageWithGemini(photoId); },
+                    'download-single': () => { if (photoId) this.downloadSinglePhoto(photoId); },
+                    'generate-report': () => {
                         const analysisText = this.elements['gemini-modal-content'].querySelector('div').innerHTML.replace(/<br>/g, '\n');
                         this.generateReportFromAnalysis(analysisText);
-                        break;
+                    },
+                    'reconfigure-api-key-from-error': () => this.openApiKeyModal()
+                };
+
+                const func = functions[action] || functions[id.replace(/-btn$/, '')];
+                if (func) {
+                    e.stopPropagation();
+                    func();
                 }
             });
         
@@ -931,16 +936,16 @@
         init() {
             if (!this.checkSecureContext()) return;
             const ids = [
-                'app-container', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'page-num', 'page-count', 
+                'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls',
                 'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder',
                 'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 
                 'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction',
                 'fullscreen-camera-modal', 'fullscreen-camera-stream', 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
                 'fullscreen-target-image', 'fullscreen-photo-count', 'fullscreen-zoom-level-display',
-                 'album-modal', 'album-grid', 'album-placeholder', 'album-photo-count',
+                 'album-modal', 'album-grid', 'album-placeholder', 'album-photo-count', 'close-album-btn', 'download-all-btn',
                  'download-progress', 'download-progress-bar', 'download-counter', 'download-message',
                 'gemini-modal', 'modal-title', 'gemini-modal-content-wrapper', 'gemini-modal-content', 'report-generation-area',
-                'report-content'
+                'report-content', 'copy-report-btn', 'close-modal-btn'
             ];
             ids.forEach(id => {
                 const el = document.getElementById(id);
@@ -948,13 +953,6 @@
                 else console.warn(`Element with id "${id}" not found.`);
             });
             
-            // Add data-action to buttons that don't have it
-            document.querySelectorAll('button:not([data-action])').forEach(btn => {
-                if (btn.id) {
-                    btn.dataset.action = btn.id.replace(/-btn/g, '').replace(/([A-Z])/g, '-$1').toLowerCase();
-                }
-            });
-
             this.loadApiKey();
             this.setupEventListeners();
             if (!this.apiKey) {
