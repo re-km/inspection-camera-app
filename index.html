@@ -49,7 +49,7 @@
         #selection-marker { position: absolute; width: 15px; height: 15px; background: rgba(0, 174, 255, 0.7); border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
         #camera-frame { transition: box-shadow 0.3s ease-in-out; }
         .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-        #camera-stream { width: 100%; height: 100%; object-fit: contain; transform-origin: center; transition: transform 0.2s ease-out; }
+        #camera-stream, #fullscreen-camera-stream { width: 100%; height: 100%; object-fit: contain; transform-origin: center; transition: transform 0.2s ease-out; }
         
         /* 全画面カメラの右側コントロールパネル */
         .fullscreen-control-panel {
@@ -62,7 +62,8 @@
             background: linear-gradient(to left, rgba(0,0,0,0.8), rgba(0,0,0,0.3));
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            justify-content: space-around; /* 均等配置に変更 */
+            align-items: center; /* 中央揃え */
             padding: 20px 8px;
             pointer-events: auto;
         }
@@ -82,6 +83,7 @@
             cursor: pointer;
             transition: background-color 0.2s, transform 0.1s;
             min-height: 48px;
+            width: 64px; /* 幅を固定 */
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -182,7 +184,7 @@
     <!-- 全画面カメラモーダル -->
     <div id="fullscreen-camera-modal" class="hidden fixed inset-0 bg-black z-50 flex flex-col">
         <div class="flex-grow relative bg-black overflow-hidden">
-            <video id="fullscreen-camera-stream" autoplay playsinline class="w-full h-full object-contain"></video>
+            <video id="fullscreen-camera-stream" autoplay playsinline></video>
             
             <!-- 左上：センサー情報と比較画像 -->
             <div class="absolute top-4 left-4 flex flex-col gap-3 z-10 safe-area-padding">
@@ -205,21 +207,13 @@
             
             <!-- 右側：コントロールパネル -->
             <div class="fullscreen-control-panel">
-                <div class="flex flex-col gap-3">
-                    <button id="close-fullscreen-camera-btn" class="control-btn red">
-                        <span>✖</span>
-                        <span>戻る</span>
-                    </button>
-                    <button id="fullscreen-ai-assistant-btn" class="control-btn purple">
-                        <span>✨</span>
-                        <span>AI補助</span>
-                    </button>
-                    <button id="fullscreen-show-album-btn" class="control-btn">
-                        <span>📁</span>
-                        <span>アルバム</span>
-                    </button>
-                </div>
+                <!-- 上部ボタン -->
+                <button id="close-fullscreen-camera-btn" class="control-btn red">
+                    <span>✖</span>
+                    <span>戻る</span>
+                </button>
                 
+                <!-- ズームコントロール -->
                 <div class="bg-black bg-opacity-80 p-2 rounded-lg flex flex-col items-center gap-2">
                     <div class="text-white text-xs font-bold">ズーム</div>
                     <div id="fullscreen-zoom-level-display" class="text-white text-xs font-bold">1.0x</div>
@@ -229,9 +223,18 @@
                         <button id="zoom-out-btn" class="control-btn" style="min-height: 30px; font-size: 14px;">-</button>
                     </div>
                 </div>
-                
-                <div class="flex flex-col items-center gap-2">
-                    <span id="fullscreen-photo-count" class="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full">0枚</span>
+
+                <!-- 下部ボタン -->
+                <div class="flex flex-col gap-3">
+                     <button id="fullscreen-ai-assistant-btn" class="control-btn purple">
+                        <span>✨</span>
+                        <span>AI補助</span>
+                    </button>
+                    <button id="fullscreen-show-album-btn" class="control-btn">
+                        <span>📁</span>
+                        <span>アルバム</span>
+                    </button>
+                     <span id="fullscreen-photo-count" class="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full self-center">0枚</span>
                 </div>
             </div>
             
@@ -461,7 +464,7 @@
                     audio: false 
                 });
                 this.elements['camera-stream'].srcObject = stream;
-                this.elements['fullscreen-camera-stream'].srcObject = stream; // 同じストリームを両方に設定
+                this.elements['fullscreen-camera-stream'].srcObject = stream;
             } catch (err) {
                 console.error("カメラアクセスエラー:", err);
                 this.showNotification('カメラにアクセスできません。設定を確認してください。', 'error');
@@ -469,7 +472,7 @@
         },
 
         async takePicture() {
-            const video = this.elements['camera-stream'];
+            const video = this.isCompareMode ? this.elements['fullscreen-camera-stream'] : this.elements['camera-stream'];
             if (!video || !video.srcObject) {
                 this.showNotification('カメラが準備できていません。', 'error');
                 return;
@@ -484,7 +487,6 @@
             canvas.height = video.videoHeight;
             const context = canvas.getContext('2d');
             
-            // ズームを適用して描画
             context.save();
             context.translate(canvas.width / 2, canvas.height / 2);
             context.scale(this.zoomLevel, this.zoomLevel);
@@ -499,8 +501,8 @@
         updateZoom(level) {
             this.zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, level));
             
-            this.elements['camera-stream'].style.transform = `scale(${this.zoomLevel})`;
-            this.elements['fullscreen-camera-stream'].style.transform = `scale(${this.zoomLevel})`;
+            const videoElement = this.isCompareMode ? this.elements['fullscreen-camera-stream'] : this.elements['camera-stream'];
+            videoElement.style.transform = `scale(${this.zoomLevel})`;
 
             this.elements['fullscreen-zoom-level-display'].textContent = `${this.zoomLevel.toFixed(1)}x`;
         },
@@ -604,7 +606,7 @@
                     const base64Data = photo.dataUrl.split(',')[1];
                     zip.file(photo.fileName, base64Data, { base64: true });
                     
-                    if (i % 5 === 0) { // UIがフリーズしないように小休止
+                    if (i % 5 === 0) {
                         await new Promise(resolve => setTimeout(resolve, 10));
                     }
                 }
@@ -682,7 +684,7 @@
 
         async analyzeImageWithGemini(dataUrl) {
             if (!this.apiKey) { this.initApiKeyModal(); return; }
-            this.openGeminiModal('✨ AIによる損傷分析', `<div class="flex flex-col justify-center items-center py-8"><div class="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div><p class="text-center mt-4">AIが分析中です...</p></div>`);
+            this.openGeminiModal('✨ AIによる損傷分析', `<div class="flex justify-center items-center py-8"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>`);
             try {
                 const prompt = "あなたは土木技術者です。この構造物点検写真から、コンクリートのひび割れ、剥離、鉄筋露出、漏水、錆などの損傷の可能性を分析し、発見事項を箇条書きで簡潔に説明してください。損傷が見られない場合は「特筆すべき損傷は見当たりません。」と回答してください。日本語で回答してください。";
                 const analysisText = await this.callGeminiApi(prompt, dataUrl);
@@ -704,9 +706,10 @@
         },
         
         async getAiShootingAssistant() {
+            console.log("getAiShootingAssistant called");
             if (!this.targetImageDataUrl) return;
             if (!this.apiKey) { this.initApiKeyModal(); return; }
-            this.openGeminiModal('✨ AI撮影アシスタント', `<div class="flex flex-col justify-center items-center py-8"><div class="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div><p class="text-center mt-4">AIが写真を確認しています...</p></div>`);
+            this.openGeminiModal('✨ AI撮影アシスタント', `<div class="flex justify-center items-center py-8"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>`);
             try {
                 const prompt = `あなたは経験豊富な土木技術者です。この写真は過去の点検で撮影されたものです。\n1. この写真に写っている構造物や部材が何か、専門用語を使いつつ簡潔に説明してください。\n2. 新人技術者が同じ写真を再現撮影するための、具体的で分かりやすいアドバイスをしてください。\n\n現在地情報（緯度: ${this.sensorData.latitude || '不明'}, 経度: ${this.sensorData.longitude || '不明'}）も参考にしてください。`;
                 const assistantText = await this.callGeminiApi(prompt, this.targetImageDataUrl);
@@ -730,16 +733,16 @@
 
         // 比較撮影モード
         toggleCompareMode() {
-            this.isCompareMode = !this.isCompareMode;
-            if (this.isCompareMode) {
-                this.selectionState = 'waiting_for_p1';
-                this.elements['toggle-compare-btn'].textContent = '🖼️ 終了';
-                this.elements['toggle-compare-btn'].classList.replace('bg-teal-600', 'bg-red-600');
-                this.elements['pdf-viewer'].style.cursor = 'crosshair';
-                this.showInstruction('比較範囲の左上をタップ');
-            } else {
-                this.resetCompareMode();
+            if (!this.pdfDoc) {
+                this.showNotification('先にPDFを選択してください。', 'warning');
+                return;
             }
+            this.isCompareMode = true;
+            this.selectionState = 'waiting_for_p1';
+            this.elements['toggle-compare-btn'].textContent = '🖼️ 終了';
+            this.elements['toggle-compare-btn'].classList.replace('bg-teal-600', 'bg-red-600');
+            this.elements['pdf-viewer'].style.cursor = 'crosshair';
+            this.showInstruction('比較範囲の左上をタップ');
         },
 
         resetCompareMode() {
@@ -838,26 +841,29 @@
                 fileReader.readAsArrayBuffer(file);
             });
             this.elements['prev-page'].addEventListener('click', () => { if (this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); });
-            this.elements['next-page'].addEventListener('click', () => { if (this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); });
+            this.elements['next-page'].addEventListener('click', () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); });
 
             // カメラ
             this.elements['capture-btn'].addEventListener('click', () => this.takePicture());
-            this.elements['fullscreen-capture-btn'].addEventListener('click', (e) => { e.stopPropagation(); this.takePicture(); });
+            this.elements['fullscreen-capture-btn'].addEventListener('click', () => this.takePicture());
 
             // 比較モード
-            this.elements['toggle-compare-btn'].addEventListener('click', () => this.toggleCompareMode());
+            this.elements['toggle-compare-btn'].addEventListener('click', () => {
+                if (this.isCompareMode) this.resetCompareMode();
+                else this.toggleCompareMode();
+            });
             this.elements['pdf-viewer'].addEventListener('click', e => this.handlePdfTap(e));
             this.elements['pdf-viewer'].addEventListener('touchstart', e => this.handlePdfTap(e), { passive: false });
 
             // 全画面モードボタン
-            this.elements['close-fullscreen-camera-btn'].addEventListener('click', (e) => { e.stopPropagation(); this.resetCompareMode(); });
-            this.elements['fullscreen-ai-assistant-btn'].addEventListener('click', (e) => { e.stopPropagation(); this.getAiShootingAssistant(); });
-            this.elements['fullscreen-show-album-btn'].addEventListener('click', (e) => { e.stopPropagation(); this.elements['album-modal'].classList.remove('hidden'); });
+            this.elements['close-fullscreen-camera-btn'].addEventListener('click', () => this.resetCompareMode());
+            this.elements['fullscreen-ai-assistant-btn'].addEventListener('click', () => this.getAiShootingAssistant());
+            this.elements['fullscreen-show-album-btn'].addEventListener('click', () => this.elements['album-modal'].classList.remove('hidden'));
 
             // ズーム
-            this.elements['zoom-in-btn'].addEventListener('click', (e) => { e.stopPropagation(); this.updateZoom(this.zoomLevel + 0.2); });
-            this.elements['zoom-out-btn'].addEventListener('click', (e) => { e.stopPropagation(); this.updateZoom(this.zoomLevel - 0.2); });
-            this.elements['zoom-reset-btn'].addEventListener('click', (e) => { e.stopPropagation(); this.updateZoom(1.0); });
+            this.elements['zoom-in-btn'].addEventListener('click', () => this.updateZoom(this.zoomLevel + 0.2));
+            this.elements['zoom-out-btn'].addEventListener('click', () => this.updateZoom(this.zoomLevel - 0.2));
+            this.elements['zoom-reset-btn'].addEventListener('click', () => this.updateZoom(1.0));
 
             // アルバム
             this.elements['open-album-btn'].addEventListener('click', () => this.elements['album-modal'].classList.remove('hidden'));
@@ -875,7 +881,6 @@
 
         init() {
             if (!this.checkSecureContext()) return;
-
             const ids = [
                 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 
                 'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder',
