@@ -417,13 +417,34 @@
         </div>
     </div>
 
-    <!-- 全画面アルバムモーダル -->
+    <!-- 全画面アルバムモーダル（一括ダウンロード機能付き） -->
     <div id="album-modal" class="hidden fixed inset-0 bg-gray-900 z-50 flex flex-col p-4">
         <div class="flex-shrink-0 flex justify-between items-center mb-4">
-            <h2 class="text-2xl font-bold">アルバム</h2>
-            <button id="close-album-btn" class="text-3xl font-bold text-white">&times;</button>
+            <h2 class="text-2xl font-bold">アルバム（撮影写真一覧）</h2>
+            <div class="flex items-center gap-2">
+                <span id="album-photo-count" class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full">0枚</span>
+                <button id="download-all-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm">
+                    📥 一括ダウンロード
+                </button>
+                <button id="close-album-btn" class="text-3xl font-bold text-white">&times;</button>
+            </div>
         </div>
-        <div id="album-grid" class="flex-grow overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4"></div>
+        <div id="album-grid" class="flex-grow overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+            <div id="album-placeholder" class="col-span-full flex items-center justify-center text-gray-500 text-lg py-12">
+                撮影された写真がここに表示されます
+            </div>
+        </div>
+        
+        <!-- ダウンロード進捗表示 -->
+        <div id="download-progress" class="hidden mt-4 p-4 bg-gray-800 rounded-lg">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-white font-bold">ダウンロード進行中...</span>
+                <span id="download-counter" class="text-white text-sm">0/0</span>
+            </div>
+            <div class="w-full bg-gray-700 rounded-full h-2">
+                <div id="download-progress-bar" class="bg-green-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
     </div>
     
     <!-- Geminiモーダル -->
@@ -486,6 +507,7 @@
         targetImageDataUrl: null, frameCount: 0, MATCH_THRESHOLD: 0.7, cv: null,
         sensorData: { latitude: null, longitude: null, heading: null },
         photoCount: 0,
+        photoDatabase: [], // 写真データベース（連番とデータを管理）
         apiKey: '', // メモリ上で管理
         zoomLevel: 1.0,
         maxZoom: 3.0,
@@ -993,31 +1015,227 @@
         },
 
         addToGallery(dataUrl) {
+            // 写真データベースに追加（連番管理）
+            const photoNumber = this.photoDatabase.length + 1;
+            const fileName = `Ip${photoNumber.toString().padStart(4, '0')}.jpg`;
+            const timestamp = new Date();
+            
+            const photoData = {
+                id: photoNumber,
+                fileName: fileName,
+                dataUrl: dataUrl,
+                timestamp: timestamp,
+                gps: {
+                    latitude: this.sensorData.latitude,
+                    longitude: this.sensorData.longitude,
+                    heading: this.sensorData.heading
+                }
+            };
+            
+            this.photoDatabase.push(photoData);
+            console.log(`📸 写真追加: ${fileName} (${photoNumber}枚目)`);
+            
+            // ギャラリープレビューを更新
             this.elements['gallery-placeholder'].classList.add('hidden');
             const previewWrapper = document.createElement('div');
             previewWrapper.className = 'relative w-24 h-full flex-shrink-0 group';
+            
             const previewImg = document.createElement('img');
             previewImg.src = dataUrl;
             previewImg.className = 'w-full h-full object-cover rounded-md';
             previewWrapper.appendChild(previewImg);
+            
+            // プレビューに連番表示
+            const numberOverlay = document.createElement('div');
+            numberOverlay.className = 'absolute top-1 left-1 bg-black bg-opacity-70 text-white text-xs font-bold px-1 rounded';
+            numberOverlay.textContent = photoNumber.toString().padStart(4, '0');
+            previewWrapper.appendChild(numberOverlay);
+            
             this.elements['photo-gallery'].appendChild(previewWrapper);
             this.elements['photo-gallery'].scrollLeft = this.elements['photo-gallery'].scrollWidth;
             
+            // アルバムアイテムを追加
+            this.addToAlbum(photoData);
+            
+            // アルバム写真数を更新
+            this.updateAlbumPhotoCount();
+        },
+
+        addToAlbum(photoData) {
+            // アルバムプレースホルダーを非表示
+            const placeholder = document.getElementById('album-placeholder');
+            if (placeholder) {
+                placeholder.classList.add('hidden');
+            }
+            
             const albumItem = document.createElement('div');
-            albumItem.className = 'relative w-full aspect-4/3 group cursor-pointer';
+            albumItem.className = 'relative w-full aspect-4/3 group cursor-pointer bg-gray-800 rounded-lg overflow-hidden';
+            albumItem.dataset.photoId = photoData.id;
+            
             const albumImg = document.createElement('img');
-            albumImg.src = dataUrl;
-            albumImg.className = 'w-full h-full object-cover rounded-lg';
+            albumImg.src = photoData.dataUrl;
+            albumImg.className = 'w-full h-full object-cover';
             albumItem.appendChild(albumImg);
+            
+            // 連番とファイル名表示
+            const fileInfo = document.createElement('div');
+            fileInfo.className = 'absolute top-2 left-2 bg-black bg-opacity-80 text-white text-xs font-bold px-2 py-1 rounded';
+            fileInfo.innerHTML = `<div>${photoData.id.toString().padStart(4, '0')}</div><div>${photoData.fileName}</div>`;
+            albumItem.appendChild(fileInfo);
+            
+            // 撮影日時表示
+            const timeInfo = document.createElement('div');
+            timeInfo.className = 'absolute top-2 right-2 bg-black bg-opacity-80 text-white text-xs px-2 py-1 rounded';
+            timeInfo.textContent = photoData.timestamp.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+            albumItem.appendChild(timeInfo);
+            
+            // GPS情報表示（利用可能な場合）
+            if (photoData.gps.latitude && photoData.gps.longitude) {
+                const gpsInfo = document.createElement('div');
+                gpsInfo.className = 'absolute bottom-2 left-2 bg-green-600 bg-opacity-80 text-white text-xs px-2 py-1 rounded';
+                gpsInfo.textContent = '📍 GPS';
+                albumItem.appendChild(gpsInfo);
+            }
+            
+            // ホバーオーバーレイ
             const albumOverlay = document.createElement('div');
-            albumOverlay.className = 'absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity p-1';
+            albumOverlay.className = 'absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity p-2';
+            
+            // AI分析ボタン
             const analyzeButton = document.createElement('button');
             analyzeButton.innerHTML = `✨ AI分析`;
-            analyzeButton.className = 'text-white bg-purple-600 hover:bg-purple-700 font-bold py-2 px-3 rounded-lg text-xs';
-            analyzeButton.onclick = (e) => { e.stopPropagation(); this.analyzeImageWithGemini(dataUrl); };
+            analyzeButton.className = 'text-white bg-purple-600 hover:bg-purple-700 font-bold py-2 px-3 rounded-lg text-xs mb-2';
+            analyzeButton.onclick = (e) => { 
+                e.stopPropagation(); 
+                this.analyzeImageWithGemini(photoData.dataUrl); 
+            };
             albumOverlay.appendChild(analyzeButton);
+            
+            // 個別ダウンロードボタン
+            const downloadButton = document.createElement('button');
+            downloadButton.innerHTML = `📥 ダウンロード`;
+            downloadButton.className = 'text-white bg-blue-600 hover:bg-blue-700 font-bold py-2 px-3 rounded-lg text-xs';
+            downloadButton.onclick = (e) => { 
+                e.stopPropagation(); 
+                this.downloadSinglePhoto(photoData); 
+            };
+            albumOverlay.appendChild(downloadButton);
+            
             albumItem.appendChild(albumOverlay);
             this.elements['album-grid'].appendChild(albumItem);
+        },
+
+        updateAlbumPhotoCount() {
+            const albumCount = document.getElementById('album-photo-count');
+            if (albumCount) {
+                albumCount.textContent = `${this.photoDatabase.length}枚`;
+            }
+        },
+
+        // 個別ダウンロード機能
+        downloadSinglePhoto(photoData) {
+            console.log(`📥 個別ダウンロード開始: ${photoData.fileName}`);
+            
+            try {
+                // データURLをBlobに変換
+                const byteCharacters = atob(photoData.dataUrl.split(',')[1]);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'image/jpeg' });
+                
+                // ダウンロードリンクを作成
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = photoData.fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
+                console.log(`✅ 個別ダウンロード完了: ${photoData.fileName}`);
+            } catch (error) {
+                console.error(`❌ 個別ダウンロードエラー: ${photoData.fileName}`, error);
+                alert(`ダウンロードに失敗しました: ${photoData.fileName}`);
+            }
+        },
+
+        // 一括ダウンロード機能
+        async downloadAllPhotos() {
+            console.log('📥 一括ダウンロード開始');
+            
+            if (this.photoDatabase.length === 0) {
+                alert('ダウンロードする写真がありません。');
+                return;
+            }
+            
+            // 進捗表示を開始
+            this.showDownloadProgress();
+            
+            try {
+                for (let i = 0; i < this.photoDatabase.length; i++) {
+                    const photoData = this.photoDatabase[i];
+                    
+                    // 進捗更新
+                    this.updateDownloadProgress(i + 1, this.photoDatabase.length);
+                    
+                    // 個別ダウンロード実行
+                    await this.downloadPhotoWithDelay(photoData, i);
+                }
+                
+                console.log('✅ 一括ダウンロード完了');
+                this.hideDownloadProgress();
+                alert(`${this.photoDatabase.length}枚の写真をダウンロードしました。`);
+                
+            } catch (error) {
+                console.error('❌ 一括ダウンロードエラー:', error);
+                this.hideDownloadProgress();
+                alert('一括ダウンロード中にエラーが発生しました。');
+            }
+        },
+
+        async downloadPhotoWithDelay(photoData, index) {
+            return new Promise((resolve, reject) => {
+                setTimeout(() => {
+                    try {
+                        this.downloadSinglePhoto(photoData);
+                        resolve();
+                    } catch (error) {
+                        reject(error);
+                    }
+                }, index * 500); // 500ms間隔でダウンロード
+            });
+        },
+
+        showDownloadProgress() {
+            const progressDiv = document.getElementById('download-progress');
+            if (progressDiv) {
+                progressDiv.classList.remove('hidden');
+            }
+        },
+
+        updateDownloadProgress(current, total) {
+            const counter = document.getElementById('download-counter');
+            const progressBar = document.getElementById('download-progress-bar');
+            
+            if (counter) {
+                counter.textContent = `${current}/${total}`;
+            }
+            
+            if (progressBar) {
+                const percentage = (current / total) * 100;
+                progressBar.style.width = `${percentage}%`;
+            }
+        },
+
+        hideDownloadProgress() {
+            const progressDiv = document.getElementById('download-progress');
+            if (progressDiv) {
+                progressDiv.classList.add('hidden');
+            }
         },
 
         // AI関連（完全版復活）
@@ -1432,6 +1650,28 @@
             this.createEmergencyRightPanel();
         },
 
+        // アルバムモーダル関連機能
+        openAlbumModal() {
+            console.log('📁 アルバムモーダルを開く');
+            const modal = this.elements['album-modal'];
+            if (modal) {
+                modal.classList.remove('hidden');
+                this.updateAlbumPhotoCount();
+                console.log(`✅ アルバムモーダル表示完了（${this.photoDatabase.length}枚）`);
+            } else {
+                console.error('❌ アルバムモーダルが見つかりません');
+            }
+        },
+
+        closeAlbumModal() {
+            console.log('❌ アルバムモーダルを閉じる');
+            const modal = this.elements['album-modal'];
+            if (modal) {
+                modal.classList.add('hidden');
+                console.log('✅ アルバムモーダル非表示完了');
+            }
+        },
+
         createEmergencyRightPanel() {
             console.log('🚨 緊急代替右側パネル作成');
             
@@ -1456,7 +1696,7 @@
                         <button onclick="if(App.targetImageDataUrl) App.getAiShootingAssistant(App.targetImageDataUrl)" style="background: rgba(168, 85, 247, 0.9); color: white; border: none; border-radius: 8px; padding: 8px 4px; font-size: 10px; font-weight: bold; text-align: center; cursor: pointer; min-height: 40px;">
                             ✨<br>AI補助
                         </button>
-                        <button onclick="App.elements['album-modal'].classList.remove('hidden')" style="background: rgba(59, 130, 246, 0.9); color: white; border: none; border-radius: 8px; padding: 8px 4px; font-size: 10px; font-weight: bold; text-align: center; cursor: pointer; min-height: 40px;">
+                        <button onclick="App.openAlbumModal()" style="background: rgba(59, 130, 246, 0.9); color: white; border: none; border-radius: 8px; padding: 8px 4px; font-size: 10px; font-weight: bold; text-align: center; cursor: pointer; min-height: 40px;">
                             📁<br>アルバム
                         </button>
                     </div>
@@ -1474,7 +1714,7 @@
             `;
             
             modal.appendChild(emergencyPanel);
-            console.log('✅ 緊急代替右側パネル作成完了');
+            console.log('✅ 緊急代替右側パネル作成完了（アルバムボタン修正済み）');
         },
 
         hideFullscreenCamera() {
@@ -1770,20 +2010,59 @@
                 });
             }
             
-            // アルバム表示ボタン
+            // アルバム表示ボタン（修正版）
+            console.log('📁 アルバム関連ボタン設定開始');
+            
             if (this.elements['show-album-btn']) {
                 this.elements['show-album-btn'].addEventListener('click', () => {
-                    console.log('📁 アルバム表示ボタンクリック');
-                    this.elements['album-modal'].classList.remove('hidden');
+                    console.log('📁 アルバム表示ボタンクリック（通常モード）');
+                    this.openAlbumModal();
                 });
+                console.log('✅ 通常モードアルバムボタン設定完了');
             }
             
             if (this.elements['fullscreen-show-album-btn']) {
-                this.elements['fullscreen-show-album-btn'].addEventListener('click', () => {
-                    console.log('📁 全画面アルバム表示ボタンクリック');
-                    this.elements['album-modal'].classList.remove('hidden');
+                this.elements['fullscreen-show-album-btn'].addEventListener('click', (e) => {
+                    console.log('📁 アルバム表示ボタンクリック（全画面モード）');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.openAlbumModal();
                 });
+                console.log('✅ 全画面モードアルバムボタン設定完了');
             }
+            
+            if (this.elements['open-album-btn']) {
+                this.elements['open-album-btn'].addEventListener('click', () => {
+                    console.log('📁 プレビューからアルバム表示ボタンクリック');
+                    this.openAlbumModal();
+                });
+                console.log('✅ プレビューアルバムボタン設定完了');
+            }
+            
+            // アルバムモーダル関連
+            if (this.elements['close-album-btn']) {
+                this.elements['close-album-btn'].addEventListener('click', () => {
+                    console.log('❌ アルバム閉じるボタンクリック');
+                    this.closeAlbumModal();
+                });
+                console.log('✅ アルバム閉じるボタン設定完了');
+            }
+            
+            // 一括ダウンロードボタン
+            const downloadAllBtn = document.getElementById('download-all-btn');
+            if (downloadAllBtn) {
+                downloadAllBtn.addEventListener('click', (e) => {
+                    console.log('📥 一括ダウンロードボタンクリック');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.downloadAllPhotos();
+                });
+                console.log('✅ 一括ダウンロードボタン設定完了');
+            } else {
+                console.error('❌ 一括ダウンロードボタンが見つかりません');
+            }
+            
+            console.log('📁 アルバム関連ボタン設定完了');
             
             // ズーム関連ボタン
             if (this.elements['zoom-in-btn']) {
@@ -1878,13 +2157,7 @@
                 } 
             });
             
-            // その他のボタン
-            this.elements['open-album-btn'].addEventListener('click', () => { 
-                this.elements['album-modal'].classList.remove('hidden'); 
-            });
-            this.elements['close-album-btn'].addEventListener('click', () => { 
-                this.elements['album-modal'].classList.add('hidden'); 
-            });
+            // その他のボタン（修正版）
             this.elements['close-modal-btn'].addEventListener('click', () => this.elements['gemini-modal'].classList.add('hidden'));
             this.elements['copy-report-btn'].addEventListener('click', () => {
                 const textToCopy = this.elements['report-content'].textContent;
