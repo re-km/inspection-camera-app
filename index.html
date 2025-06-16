@@ -171,13 +171,15 @@
     <div id="api-key-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[70] p-4">
         <div class="bg-gray-800 rounded-lg p-6 w-11/12 max-w-md text-white shadow-2xl">
             <h3 class="text-xl font-bold mb-4">🔑 AI機能設定</h3>
-            <p class="text-sm text-gray-300 mb-4">AI機能 (Gemini) を使用するにはAPIキーが必要です。</p>
+            <p class="text-sm text-gray-300 mb-4">AI機能 (Gemini) を使用するにはAPIキーが必要です。キーはブラウザに保存されます。</p>
             <input type="password" id="api-key-input" placeholder="Gemini API Key" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white mb-4">
             <div class="flex gap-2">
                 <button id="save-api-key-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">保存</button>
-                <button id="skip-api-key-btn" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">後で設定</button>
+                <button id="clear-api-key-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">クリア</button>
             </div>
-            <p class="text-xs text-gray-400 mt-2">※スキップした場合、AI機能は利用できません</p>
+             <button id="close-api-key-modal-btn" class="w-full mt-3 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                閉じる
+            </button>
         </div>
     </div>
     
@@ -208,7 +210,7 @@
             <!-- 右側：コントロールパネル -->
             <div class="fullscreen-control-panel">
                 <!-- 上部ボタン -->
-                <button id="close-fullscreen-camera-btn" class="control-btn red">
+                <button id="close-fullscreen-camera-btn" class="control-btn red" onclick="App.resetCompareMode()">
                     <span>✖</span>
                     <span>戻る</span>
                 </button>
@@ -226,11 +228,11 @@
 
                 <!-- 下部ボタン -->
                 <div class="flex flex-col gap-3">
-                     <button id="fullscreen-ai-assistant-btn" class="control-btn purple">
+                     <button id="fullscreen-ai-assistant-btn" class="control-btn purple" onclick="App.getAiShootingAssistant()">
                         <span>✨</span>
                         <span>AI補助</span>
                     </button>
-                    <button id="fullscreen-show-album-btn" class="control-btn">
+                    <button id="fullscreen-show-album-btn" class="control-btn" onclick="App.elements['album-modal'].classList.remove('hidden')">
                         <span>📁</span>
                         <span>アルバム</span>
                     </button>
@@ -352,8 +354,17 @@
 
         // API設定
         initApiKeyModal() {
+            // 保存済みのキーがなければモーダル表示
             if (!this.apiKey) {
                 this.elements['api-key-modal'].classList.remove('hidden');
+            }
+        },
+
+        loadApiKey() {
+            const savedKey = localStorage.getItem('geminiApiKey');
+            if (savedKey) {
+                this.apiKey = savedKey;
+                console.log('Saved API Key loaded.');
             }
         },
 
@@ -361,11 +372,19 @@
             const key = this.elements['api-key-input'].value.trim();
             if (key) {
                 this.apiKey = key;
+                localStorage.setItem('geminiApiKey', key);
                 this.elements['api-key-modal'].classList.add('hidden');
-                this.showNotification('APIキーを設定しました。', 'success');
+                this.showNotification('APIキーを保存しました。', 'success');
             } else {
                 this.showNotification('有効なAPIキーを入力してください。', 'warning');
             }
+        },
+
+        clearApiKey() {
+            this.apiKey = '';
+            localStorage.removeItem('geminiApiKey');
+            this.elements['api-key-input'].value = '';
+            this.showNotification('保存されたAPIキーを削除しました。', 'info');
         },
 
         // PDF関連
@@ -706,8 +725,10 @@
         },
         
         async getAiShootingAssistant() {
-            console.log("getAiShootingAssistant called");
-            if (!this.targetImageDataUrl) return;
+            if (!this.targetImageDataUrl) {
+                this.showNotification('比較画像が選択されていません。', 'warning');
+                return;
+            }
             if (!this.apiKey) { this.initApiKeyModal(); return; }
             this.openGeminiModal('✨ AI撮影アシスタント', `<div class="flex justify-center items-center py-8"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>`);
             try {
@@ -820,7 +841,8 @@
         initEventListeners() {
             // API
             this.elements['save-api-key-btn'].addEventListener('click', () => this.saveApiKey());
-            this.elements['skip-api-key-btn'].addEventListener('click', () => this.elements['api-key-modal'].classList.add('hidden'));
+            this.elements['clear-api-key-btn'].addEventListener('click', () => this.clearApiKey());
+            this.elements['close-api-key-modal-btn'].addEventListener('click', () => this.elements['api-key-modal'].classList.add('hidden'));
 
             // PDF
             this.elements['pdf-upload'].addEventListener('change', e => {
@@ -855,11 +877,6 @@
             this.elements['pdf-viewer'].addEventListener('click', e => this.handlePdfTap(e));
             this.elements['pdf-viewer'].addEventListener('touchstart', e => this.handlePdfTap(e), { passive: false });
 
-            // 全画面モードボタン
-            this.elements['close-fullscreen-camera-btn'].addEventListener('click', () => this.resetCompareMode());
-            this.elements['fullscreen-ai-assistant-btn'].addEventListener('click', () => this.getAiShootingAssistant());
-            this.elements['fullscreen-show-album-btn'].addEventListener('click', () => this.elements['album-modal'].classList.remove('hidden'));
-
             // ズーム
             this.elements['zoom-in-btn'].addEventListener('click', () => this.updateZoom(this.zoomLevel + 0.2));
             this.elements['zoom-out-btn'].addEventListener('click', () => this.updateZoom(this.zoomLevel - 0.2));
@@ -884,7 +901,7 @@
             const ids = [
                 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 
                 'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder',
-                'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'skip-api-key-btn',
+                'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'clear-api-key-btn', 'close-api-key-modal-btn',
                 'gps-status-dot', 'compass-status-dot', 'toggle-compare-btn', 'selection-marker', 'selection-instruction',
                 'fullscreen-camera-modal', 'fullscreen-camera-stream', 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
                 'fullscreen-target-image', 'fullscreen-photo-count', 'fullscreen-capture-btn', 'close-fullscreen-camera-btn',
@@ -894,8 +911,16 @@
                 'gemini-modal', 'modal-title', 'gemini-modal-content-wrapper', 'gemini-modal-content', 'report-generation-area',
                 'report-content', 'copy-report-btn', 'close-modal-btn'
             ];
-            ids.forEach(id => this.elements[id] = document.getElementById(id));
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    this.elements[id] = el;
+                } else {
+                    console.warn(`Element with id "${id}" not found.`);
+                }
+            });
             
+            this.loadApiKey();
             this.initEventListeners();
             this.initApiKeyModal();
             this.initCamera();
