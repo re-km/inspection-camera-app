@@ -364,6 +364,7 @@
                 const savedKey = localStorage.getItem('geminiApiKey');
                 if (savedKey) {
                     this.apiKey = savedKey;
+                    this.elements['api-key-input'].value = savedKey; // 入力欄にも反映
                     console.log('Saved API Key loaded.');
                     return true;
                 }
@@ -734,7 +735,7 @@
                 const contentHtml = `<h4 class="text-xl font-semibold">分析結果</h4><div class="mt-2 p-4 bg-gray-900 rounded-lg">${analysisText.replace(/\n/g, '<br>')}</div>
                     <button data-action="generate-report" class="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">📄 報告書(案)を作成</button>`;
                 this.elements['gemini-modal-content'].innerHTML = contentHtml;
-                this.elements['gemini-modal-content'].querySelector('[data-action="generate-report"]').onclick = () => this.generateReportFromAnalysis(analysisText);
+                this.elements['gemini-modal'].querySelector('[data-action="generate-report"]').onclick = () => this.generateReportFromAnalysis(analysisText);
             } catch (error) { this.handleGeminiError(error); }
         },
 
@@ -766,6 +767,7 @@
             const errorMessage = `<p class="text-red-400">エラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${error.message}</p>
                 <button data-action="reconfigure-api-key-from-error" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
             this.elements[elementId].innerHTML = errorMessage;
+            this.elements[elementId].querySelector('[data-action="reconfigure-api-key-from-error"]').onclick = () => this.initApiKeyModal();
         },
         
         openGeminiModal(title, content) {
@@ -862,51 +864,52 @@
 
         // 初期化とイベントリスナー
         setupEventListeners() {
-            document.body.addEventListener('click', (e) => {
+            const addClickListener = (id, callback) => {
+                const el = this.elements[id];
+                if (el) el.addEventListener('click', callback);
+            };
+
+            addClickListener('reconfigure-api-key-btn', () => this.initApiKeyModal());
+            addClickListener('save-api-key-btn', () => this.saveApiKey());
+            addClickListener('clear-api-key-btn', () => this.clearApiKey());
+            addClickListener('close-api-key-modal-btn', () => this.elements['api-key-modal'].classList.add('hidden'));
+            
+            addClickListener('prev-page', () => { if (this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); });
+            addClickListener('next-page', () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); });
+            
+            addClickListener('capture-btn', () => this.takePicture());
+            addClickListener('fullscreen-capture-btn', () => this.takePicture());
+            
+            addClickListener('toggle-compare-btn', () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); });
+            
+            addClickListener('close-fullscreen-camera-btn', () => this.resetCompareMode());
+            addClickListener('fullscreen-ai-assistant-btn', () => this.getAiShootingAssistant());
+            addClickListener('fullscreen-show-album-btn', () => this.elements['album-modal'].classList.remove('hidden'));
+            
+            addClickListener('zoom-in-btn', () => this.updateZoom(this.zoomLevel + 0.2));
+            addClickListener('zoom-out-btn', () => this.updateZoom(this.zoomLevel - 0.2));
+            addClickListener('zoom-reset-btn', () => this.updateZoom(1.0));
+            
+            addClickListener('open-album-btn', () => this.elements['album-modal'].classList.remove('hidden'));
+            addClickListener('close-album-btn', () => this.elements['album-modal'].classList.add('hidden'));
+            addClickListener('download-all-btn', () => this.downloadAllPhotos());
+            
+            addClickListener('close-modal-btn', () => this.elements['gemini-modal'].classList.add('hidden'));
+            addClickListener('copy-report-btn', () => {
+                navigator.clipboard.writeText(this.elements['report-content'].textContent)
+                    .then(() => this.showNotification('報告書をコピーしました', 'success'))
+                    .catch(() => this.showNotification('コピーに失敗しました', 'error'));
+            });
+
+            this.elements['album-grid'].addEventListener('click', (e) => {
                 const button = e.target.closest('button');
                 if (!button) return;
-
-                const action = button.dataset.action || button.id;
-                
-                // アルバム内のボタンクリック
-                if (action === 'ai-analyze' || action === 'download-single') {
-                    const photoItem = button.closest('[data-photo-id]');
-                    if (photoItem) {
-                        const photoId = parseInt(photoItem.dataset.photoId, 10);
-                        if (action === 'ai-analyze') this.analyzeImageWithGemini(photoId);
-                        if (action === 'download-single') this.downloadSinglePhoto(photoId);
-                    }
-                    return; // 他のswitch文と重複しないようにreturn
-                }
-                
-                // その他のボタン
-                switch(action) {
-                    case 'reconfigure-api-key-btn': this.initApiKeyModal(); break;
-                    case 'save-api-key-btn': this.saveApiKey(); break;
-                    case 'clear-api-key-btn': this.clearApiKey(); break;
-                    case 'close-api-key-modal-btn': this.elements['api-key-modal'].classList.add('hidden'); break;
-                    case 'reconfigure-api-key-from-error': this.initApiKeyModal(); break;
-                    case 'prev-page': if (this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); break;
-                    case 'next-page': if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); break;
-                    case 'capture-btn': this.takePicture(); break;
-                    case 'fullscreen-capture-btn': this.takePicture(); break;
-                    case 'toggle-compare-btn': if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); break;
-                    case 'close-fullscreen-camera-btn': this.resetCompareMode(); break;
-                    case 'fullscreen-ai-assistant-btn': this.getAiShootingAssistant(); break;
-                    case 'fullscreen-show-album-btn': this.elements['album-modal'].classList.remove('hidden'); break;
-                    case 'zoom-in-btn': this.updateZoom(this.zoomLevel + 0.2); break;
-                    case 'zoom-out-btn': this.updateZoom(this.zoomLevel - 0.2); break;
-                    case 'zoom-reset-btn': this.updateZoom(1.0); break;
-                    case 'open-album-btn': this.elements['album-modal'].classList.remove('hidden'); break;
-                    case 'close-album-btn': this.elements['album-modal'].classList.add('hidden'); break;
-                    case 'download-all-btn': this.downloadAllPhotos(); break;
-                    case 'close-modal-btn': this.elements['gemini-modal'].classList.add('hidden'); break;
-                    case 'copy-report-btn': 
-                        navigator.clipboard.writeText(this.elements['report-content'].textContent)
-                            .then(() => this.showNotification('報告書をコピーしました', 'success'))
-                            .catch(() => this.showNotification('コピーに失敗しました', 'error'));
-                        break;
-                }
+                const action = button.dataset.action;
+                const photoItem = button.closest('[data-photo-id]');
+                if (!photoItem) return;
+                const photoId = parseInt(photoItem.dataset.photoId, 10);
+                if (action === 'ai-analyze') this.analyzeImageWithGemini(photoId);
+                if (action === 'download-single') this.downloadSinglePhoto(photoId);
             });
 
             this.elements['pdf-upload'].addEventListener('change', e => {
