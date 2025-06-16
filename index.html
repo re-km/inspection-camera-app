@@ -356,15 +356,15 @@
             <div class="fullscreen-control-panel">
                 <!-- 上部ボタン群 -->
                 <div class="flex flex-col gap-2">
-                    <button id="close-fullscreen-camera-btn" class="control-btn red">
+                    <button id="close-fullscreen-camera-btn" class="control-btn red" onclick="App.hideFullscreenCamera(); console.log('❌ 戻るボタン直接実行');">
                         <span>✖</span>
                         <span>戻る</span>
                     </button>
-                    <button id="fullscreen-ai-assistant-btn" class="control-btn purple">
+                    <button id="fullscreen-ai-assistant-btn" class="control-btn purple" onclick="if(App.targetImageDataUrl) { App.getAiShootingAssistant(App.targetImageDataUrl); console.log('✨ AI補助ボタン直接実行'); }">
                         <span>✨</span>
                         <span>AI補助</span>
                     </button>
-                    <button id="fullscreen-show-album-btn" class="control-btn" onclick="App.openAlbumModal(); console.log('📁 全画面アルバムボタン直接クリック');">
+                    <button id="fullscreen-show-album-btn" class="control-btn" onclick="console.log('📁 アルバムボタン直接onclick実行'); App.forceOpenAlbum();">
                         <span>📁</span>
                         <span>アルバム</span>
                     </button>
@@ -1133,125 +1133,274 @@
             }
         },
 
-        // 個別ダウンロード機能（EXIF情報保持版）
+        // 個別ダウンロード機能（EXIF情報確実版）
         downloadSinglePhoto(photoData) {
             console.log(`📥 個別ダウンロード開始: ${photoData.fileName}`);
+            this.downloadSinglePhotoFixed(photoData.id);
+        },
+
+        downloadSinglePhotoFixed(photoId) {
+            console.log(`📥 修正版個別ダウンロード開始: ID ${photoId}`);
+            
+            const photoData = this.photoDatabase.find(p => p.id === parseInt(photoId));
+            if (!photoData) {
+                console.error(`❌ 写真が見つかりません: ID ${photoId}`);
+                alert(`写真が見つかりません: ID ${photoId}`);
+                return;
+            }
             
             try {
                 // EXIF情報を含む画像データを生成
                 let finalImageData = photoData.dataUrl;
                 
-                // EXIF情報の再埋め込み（ダウンロード用）
-                if (typeof piexif !== 'undefined' && photoData.gps.latitude && photoData.gps.longitude && photoData.gps.heading) {
+                // EXIF情報の埋め込み（簡素化版）
+                if (typeof piexif !== 'undefined' && photoData.gps && photoData.gps.latitude && photoData.gps.longitude) {
                     try {
-                        console.log('🔧 EXIF情報を再埋め込み中...');
+                        console.log('🔧 EXIF情報埋め込み開始...');
                         
-                        const zeroth = {};
-                        const exif = {};
-                        const gps = {};
-                        
-                        // 基本情報
-                        zeroth[piexif.ImageIFD.Make] = "InspectionCameraApp";
-                        zeroth[piexif.ImageIFD.Model] = "StructuralInspectionCamera";
-                        zeroth[piexif.ImageIFD.Software] = "WebInspectionApp_v1.0";
-                        
-                        // 撮影日時
-                        const dateStr = photoData.timestamp.toISOString().replace(/[-:]/g, '').replace('T', ' ').substring(0, 17);
-                        zeroth[piexif.ImageIFD.DateTime] = dateStr;
-                        exif[piexif.ExifIFD.DateTimeOriginal] = dateStr;
-                        exif[piexif.ExifIFD.DateTimeDigitized] = dateStr;
-                        
-                        // GPS情報
-                        gps[piexif.GPSIFD.GPSVersionID] = [2, 3, 0, 0];
-                        gps[piexif.GPSIFD.GPSLatitudeRef] = photoData.gps.latitude < 0 ? 'S' : 'N';
-                        gps[piexif.GPSIFD.GPSLatitude] = piexif.GPSHelper.degToDms(Math.abs(photoData.gps.latitude));
-                        gps[piexif.GPSIFD.GPSLongitudeRef] = photoData.gps.longitude < 0 ? 'W' : 'E';
-                        gps[piexif.GPSIFD.GPSLongitude] = piexif.GPSHelper.degToDms(Math.abs(photoData.gps.longitude));
-                        gps[piexif.GPSIFD.GPSImgDirectionRef] = "T";
-                        gps[piexif.GPSIFD.GPSImgDirection] = [Math.round(photoData.gps.heading), 1];
-                        gps[piexif.GPSIFD.GPSMapDatum] = "WGS-84";
-                        
-                        // EXIF構造体を作成
+                        // シンプルなEXIF構造
                         const exifObj = {
-                            "0th": zeroth,
-                            "Exif": exif,
-                            "GPS": gps,
+                            "0th": {
+                                [piexif.ImageIFD.Make]: "InspectionCamera",
+                                [piexif.ImageIFD.Model]: "WebApp",
+                                [piexif.ImageIFD.DateTime]: photoData.timestamp.toISOString().replace(/[-T:]/g, ' ').substring(0, 19),
+                                [piexif.ImageIFD.Software]: "StructuralInspectionApp"
+                            },
+                            "Exif": {
+                                [piexif.ExifIFD.DateTimeOriginal]: photoData.timestamp.toISOString().replace(/[-T:]/g, ' ').substring(0, 19),
+                                [piexif.ExifIFD.DateTimeDigitized]: photoData.timestamp.toISOString().replace(/[-T:]/g, ' ').substring(0, 19)
+                            },
+                            "GPS": {},
                             "1st": {},
                             "thumbnail": null
                         };
                         
-                        // EXIF情報をバイナリに変換
-                        const exifBytes = piexif.dump(exifObj);
+                        // GPS情報（安全な方法で追加）
+                        if (photoData.gps.latitude && photoData.gps.longitude) {
+                            exifObj.GPS[piexif.GPSIFD.GPSLatitudeRef] = photoData.gps.latitude >= 0 ? 'N' : 'S';
+                            exifObj.GPS[piexif.GPSIFD.GPSLatitude] = piexif.GPSHelper.degToDms(Math.abs(photoData.gps.latitude));
+                            exifObj.GPS[piexif.GPSIFD.GPSLongitudeRef] = photoData.gps.longitude >= 0 ? 'E' : 'W';
+                            exifObj.GPS[piexif.GPSIFD.GPSLongitude] = piexif.GPSHelper.degToDms(Math.abs(photoData.gps.longitude));
+                        }
                         
-                        // 画像にEXIF情報を埋め込み
+                        // 方位情報
+                        if (photoData.gps.heading !== null && photoData.gps.heading !== undefined) {
+                            exifObj.GPS[piexif.GPSIFD.GPSImgDirectionRef] = "T";
+                            exifObj.GPS[piexif.GPSIFD.GPSImgDirection] = [Math.round(photoData.gps.heading * 100), 100];
+                        }
+                        
+                        // EXIF情報を埋め込み
+                        const exifBytes = piexif.dump(exifObj);
                         finalImageData = piexif.insert(exifBytes, photoData.dataUrl);
                         
-                        console.log('✅ EXIF情報埋め込み完了');
-                        console.log('  GPS:', `${photoData.gps.latitude}, ${photoData.gps.longitude}`);
-                        console.log('  方位:', `${photoData.gps.heading}°`);
+                        console.log('✅ EXIF埋め込み成功');
+                        console.log('  GPS座標:', `${photoData.gps.latitude}, ${photoData.gps.longitude}`);
                         console.log('  撮影日時:', photoData.timestamp.toLocaleString());
+                        if (photoData.gps.heading !== null) {
+                            console.log('  方位:', `${photoData.gps.heading}°`);
+                        }
                         
                     } catch (exifError) {
                         console.warn('⚠️ EXIF埋め込みエラー:', exifError);
+                        console.warn('元の画像データを使用します');
                         finalImageData = photoData.dataUrl;
                     }
                 } else {
-                    console.warn('⚠️ EXIF情報が不完全です:', {
+                    console.warn('⚠️ EXIF埋め込み条件未満:', {
                         piexif: typeof piexif !== 'undefined',
-                        gps: photoData.gps
+                        gps: photoData.gps,
+                        latitude: photoData.gps?.latitude,
+                        longitude: photoData.gps?.longitude
                     });
                 }
                 
-                // データURLをBlobに変換
-                const byteCharacters = atob(finalImageData.split(',')[1]);
+                // 画像データをダウンロード
+                this.executeDownload(finalImageData, photoData.fileName);
+                
+                console.log(`✅ ダウンロード完了: ${photoData.fileName}`);
+                this.showTemporaryMessage(`📥 ${photoData.fileName} をダウンロードしました`, 'green');
+                
+            } catch (error) {
+                console.error(`❌ ダウンロードエラー: ${photoData.fileName}`, error);
+                alert(`ダウンロードに失敗しました: ${photoData.fileName}\nエラー: ${error.message}`);
+            }
+        },
+
+        // ダウンロード実行（共通処理）
+        executeDownload(dataUrl, fileName) {
+            try {
+                // データURLからBlobを作成
+                const base64Data = dataUrl.split(',')[1];
+                const mimeType = dataUrl.split(',')[0].split(':')[1].split(';')[0];
+                
+                const byteCharacters = atob(base64Data);
                 const byteNumbers = new Array(byteCharacters.length);
                 for (let i = 0; i < byteCharacters.length; i++) {
                     byteNumbers[i] = byteCharacters.charCodeAt(i);
                 }
                 const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { type: 'image/jpeg' });
+                const blob = new Blob([byteArray], { type: mimeType });
                 
-                // ダウンロードリンクを作成
+                // ダウンロードリンクを作成して実行
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = photoData.fileName;
+                link.download = fileName;
+                link.style.display = 'none';
+                
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                URL.revokeObjectURL(url);
                 
-                console.log(`✅ 個別ダウンロード完了: ${photoData.fileName}（EXIF情報付き）`);
+                // URLを解放
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
                 
-                // ダウンロード完了通知
-                this.showDownloadSuccess(photoData.fileName);
+                console.log(`✅ executeDownload完了: ${fileName}`);
                 
             } catch (error) {
-                console.error(`❌ 個別ダウンロードエラー: ${photoData.fileName}`, error);
-                alert(`ダウンロードに失敗しました: ${photoData.fileName}\nエラー: ${error.message}`);
+                console.error(`❌ executeDownloadエラー: ${fileName}`, error);
+                throw error;
             }
         },
 
-        showDownloadSuccess(fileName) {
-            const alertDiv = document.createElement('div');
-            alertDiv.className = 'fixed top-4 right-4 bg-green-600 text-white p-3 rounded-lg shadow-lg z-[95] max-w-sm';
-            alertDiv.innerHTML = `
-                <div class="flex items-start gap-2">
-                    <div class="text-lg">📥</div>
-                    <div>
-                        <div class="font-bold text-sm">ダウンロード完了</div>
-                        <div class="text-xs">${fileName}</div>
-                        <div class="text-xs opacity-75">EXIF情報付き</div>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(alertDiv);
+        // 一括ダウンロード機能（修正版・個別ファイル方式）
+        async downloadAllPhotos() {
+            console.log('📥 一括ダウンロード開始（修正版）');
             
-            setTimeout(() => {
-                if (alertDiv.parentElement) {
-                    alertDiv.remove();
+            if (this.photoDatabase.length === 0) {
+                alert('ダウンロードする写真がありません。');
+                return;
+            }
+            
+            // JSZipの利用可能性を確認
+            if (typeof JSZip !== 'undefined') {
+                // ZIP方式を試行
+                console.log('📦 ZIP方式を試行');
+                try {
+                    await this.downloadAllPhotosAsZip();
+                    return;
+                } catch (error) {
+                    console.error('❌ ZIP方式失敗:', error);
+                    console.log('📥 個別方式にフォールバック');
                 }
-            }, 3000);
+            }
+            
+            // 個別ダウンロード方式
+            await this.downloadAllPhotosIndividually();
+        },
+
+        // ZIP形式一括ダウンロード（簡素化版）
+        async downloadAllPhotosAsZip() {
+            console.log('📦 ZIP作成開始（簡素化版）');
+            
+            // ユーザー確認
+            const confirmMessage = `${this.photoDatabase.length}枚の写真をZIP形式でダウンロードします。\n\n処理に時間がかかる場合があります。続行しますか？`;
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+            
+            this.showDownloadProgress();
+            
+            try {
+                const zip = new JSZip();
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '');
+                
+                // 写真を順次ZIPに追加
+                for (let i = 0; i < this.photoDatabase.length; i++) {
+                    const photoData = this.photoDatabase[i];
+                    
+                    this.updateDownloadProgress(i + 1, this.photoDatabase.length, `${photoData.fileName}を処理中...`);
+                    
+                    try {
+                        // 簡単なEXIF情報埋め込み
+                        let imageData = photoData.dataUrl;
+                        
+                        if (typeof piexif !== 'undefined' && photoData.gps?.latitude && photoData.gps?.longitude) {
+                            try {
+                                const simpleExif = {
+                                    "0th": { [piexif.ImageIFD.DateTime]: photoData.timestamp.toISOString().slice(0, 19).replace('T', ' ') },
+                                    "Exif": {},
+                                    "GPS": {
+                                        [piexif.GPSIFD.GPSLatitudeRef]: photoData.gps.latitude >= 0 ? 'N' : 'S',
+                                        [piexif.GPSIFD.GPSLatitude]: piexif.GPSHelper.degToDms(Math.abs(photoData.gps.latitude)),
+                                        [piexif.GPSIFD.GPSLongitudeRef]: photoData.gps.longitude >= 0 ? 'E' : 'W',
+                                        [piexif.GPSIFD.GPSLongitude]: piexif.GPSHelper.degToDms(Math.abs(photoData.gps.longitude))
+                                    },
+                                    "1st": {},
+                                    "thumbnail": null
+                                };
+                                
+                                const exifBytes = piexif.dump(simpleExif);
+                                imageData = piexif.insert(exifBytes, photoData.dataUrl);
+                            } catch (exifError) {
+                                console.warn(`EXIF埋め込み失敗: ${photoData.fileName}`, exifError);
+                            }
+                        }
+                        
+                        // BASE64からバイナリに変換
+                        const base64Data = imageData.split(',')[1];
+                        zip.file(photoData.fileName, base64Data, { base64: true });
+                        
+                    } catch (error) {
+                        console.error(`写真処理エラー: ${photoData.fileName}`, error);
+                        // エラーが発生した写真は元データで追加
+                        const base64Data = photoData.dataUrl.split(',')[1];
+                        zip.file(photoData.fileName, base64Data, { base64: true });
+                    }
+                    
+                    // ブラウザのフリーズを防ぐ
+                    if (i % 5 === 4) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                }
+                
+                // 撮影情報ファイルを追加
+                const infoText = this.createSimpleInfoText();
+                zip.file('撮影情報.txt', infoText);
+                
+                this.updateDownloadProgress(this.photoDatabase.length, this.photoDatabase.length, 'ZIPファイルを生成中...');
+                
+                // ZIPファイルを生成（圧縮レベルを下げて高速化）
+                const zipBlob = await zip.generateAsync({
+                    type: 'blob',
+                    compression: 'DEFLATE',
+                    compressionOptions: { level: 3 }
+                });
+                
+                // ZIPファイルをダウンロード
+                const zipFileName = `InspectionPhotos_${timestamp}.zip`;
+                this.executeDownload(URL.createObjectURL(zipBlob), zipFileName);
+                
+                this.hideDownloadProgress();
+                
+                const successMsg = `📦 ZIP一括ダウンロード完了\n\n` +
+                                 `ファイル名: ${zipFileName}\n` +
+                                 `写真枚数: ${this.photoDatabase.length}枚\n` +
+                                 `ファイルサイズ: ${(zipBlob.size / 1024 / 1024).toFixed(1)}MB`;
+                alert(successMsg);
+                
+                console.log('✅ ZIP一括ダウンロード完了');
+                
+            } catch (error) {
+                console.error('❌ ZIP一括ダウンロードエラー:', error);
+                this.hideDownloadProgress();
+                throw error;
+            }
+        },
+
+        createSimpleInfoText() {
+            const timestamp = new Date().toLocaleString('ja-JP');
+            let text = `構造物点検写真一覧\n生成日時: ${timestamp}\n写真枚数: ${this.photoDatabase.length}枚\n\n`;
+            
+            this.photoDatabase.forEach((photo, index) => {
+                text += `${(index + 1).toString().padStart(3, '0')}. ${photo.fileName} - ${photo.timestamp.toLocaleString('ja-JP')}`;
+                if (photo.gps.latitude && photo.gps.longitude) {
+                    text += ` [${photo.gps.latitude.toFixed(6)}, ${photo.gps.longitude.toFixed(6)}]`;
+                }
+                text += '\n';
+            });
+            
+            return text;
         },
 
         // 一括ダウンロード機能（ZIP形式・EXIF情報保持版）
@@ -2021,7 +2170,7 @@
             this.createEmergencyRightPanel();
         },
 
-        // アルバムモーダル関連機能
+        // アルバムモーダル関連機能（強化版）
         openAlbumModal() {
             console.log('📁 アルバムモーダルを開く');
             const modal = this.elements['album-modal'];
@@ -2034,12 +2183,114 @@
             }
         },
 
+        // 強制アルバム表示（全画面時の確実な動作用）
+        forceOpenAlbum() {
+            console.log('📁 強制アルバム表示開始');
+            
+            // 複数の方法でアルバムモーダルを取得・表示
+            let modal = this.elements['album-modal'];
+            if (!modal) {
+                modal = document.getElementById('album-modal');
+                console.log('📁 document.getElementByIdで再取得');
+            }
+            
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.style.display = 'flex';
+                modal.style.visibility = 'visible';
+                modal.style.opacity = '1';
+                modal.style.zIndex = '50';
+                
+                this.updateAlbumPhotoCount();
+                console.log('✅ 強制アルバム表示成功');
+                
+                // 成功通知を表示
+                this.showTemporaryMessage('📁 アルバムを開きました', 'green');
+            } else {
+                console.error('❌ アルバムモーダルが見つかりません - 緊急代替手段');
+                this.createEmergencyAlbumModal();
+            }
+        },
+
+        // 緊急代替アルバムモーダル
+        createEmergencyAlbumModal() {
+            console.log('🚨 緊急代替アルバムモーダル作成');
+            
+            const existingModal = document.getElementById('emergency-album-modal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            const emergencyModal = document.createElement('div');
+            emergencyModal.id = 'emergency-album-modal';
+            emergencyModal.innerHTML = `
+                <div style="position: fixed; inset: 0; background: rgba(17, 24, 39, 0.95); z-index: 100; display: flex; flex-direction: column; padding: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h2 style="font-size: 24px; font-weight: bold; color: white;">アルバム（緊急表示）</h2>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <span style="background: #2563eb; color: white; font-size: 14px; font-weight: bold; padding: 4px 12px; border-radius: 16px;">${this.photoDatabase.length}枚</span>
+                            <button onclick="this.parentElement.parentElement.parentElement.remove()" style="color: white; font-size: 24px; font-weight: bold; background: none; border: none; cursor: pointer;">&times;</button>
+                        </div>
+                    </div>
+                    <div id="emergency-album-grid" style="flex-grow: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px;">
+                        ${this.createEmergencyAlbumContent()}
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(emergencyModal);
+            console.log('✅ 緊急代替アルバムモーダル作成完了');
+        },
+
+        createEmergencyAlbumContent() {
+            if (this.photoDatabase.length === 0) {
+                return '<div style="color: white; text-align: center; padding: 40px;">撮影された写真がありません</div>';
+            }
+            
+            return this.photoDatabase.map(photo => `
+                <div style="position: relative; width: 100%; aspect-ratio: 4/3; background: #374151; border-radius: 8px; overflow: hidden;">
+                    <img src="${photo.dataUrl}" style="width: 100%; height: 100%; object-fit: cover;">
+                    <div style="position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.8); color: white; font-size: 10px; font-weight: bold; padding: 4px 8px; border-radius: 4px;">
+                        ${photo.id.toString().padStart(4, '0')}<br>${photo.fileName}
+                    </div>
+                    <div style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.8); color: white; font-size: 10px; padding: 4px 8px; border-radius: 4px;">
+                        ${photo.timestamp.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                    ${photo.gps.latitude ? '<div style="position: absolute; bottom: 8px; left: 8px; background: #10b981; color: white; font-size: 10px; padding: 4px 8px; border-radius: 4px;">📍 GPS</div>' : ''}
+                    <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0'">
+                        <button onclick="App.downloadSinglePhotoFixed('${photo.id}')" style="background: #2563eb; color: white; font-weight: bold; padding: 8px 12px; border-radius: 6px; font-size: 12px; border: none; margin: 4px; cursor: pointer;">📥 ダウンロード</button>
+                    </div>
+                </div>
+            `).join('');
+        },
+
+        showTemporaryMessage(message, color = 'blue') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `fixed top-4 left-1/2 transform -translate-x-1/2 bg-${color}-600 text-white p-3 rounded-lg shadow-lg z-[95] max-w-sm`;
+            alertDiv.innerHTML = `
+                <div class="text-center font-bold text-sm">${message}</div>
+            `;
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                if (alertDiv.parentElement) {
+                    alertDiv.remove();
+                }
+            }, 2000);
+        },
+
         closeAlbumModal() {
             console.log('❌ アルバムモーダルを閉じる');
             const modal = this.elements['album-modal'];
             if (modal) {
                 modal.classList.add('hidden');
                 console.log('✅ アルバムモーダル非表示完了');
+            }
+            
+            // 緊急モーダルも閉じる
+            const emergencyModal = document.getElementById('emergency-album-modal');
+            if (emergencyModal) {
+                emergencyModal.remove();
             }
         },
 
