@@ -360,30 +360,46 @@
         },
 
         loadApiKey() {
-            const savedKey = localStorage.getItem('geminiApiKey');
-            if (savedKey) {
-                this.apiKey = savedKey;
-                console.log('Saved API Key loaded.');
+            try {
+                const savedKey = localStorage.getItem('geminiApiKey');
+                if (savedKey) {
+                    this.apiKey = savedKey;
+                    console.log('Saved API Key loaded.');
+                    return true;
+                }
+            } catch (e) {
+                console.error("Could not access localStorage:", e);
             }
+            return false;
         },
 
         saveApiKey() {
-            const key = this.elements['api-key-input'].value.trim();
-            if (key) {
-                this.apiKey = key;
-                localStorage.setItem('geminiApiKey', key);
-                this.elements['api-key-modal'].classList.add('hidden');
-                this.showNotification('APIキーを保存しました。', 'success');
-            } else {
-                this.showNotification('有効なAPIキーを入力してください。', 'warning');
+            try {
+                const key = this.elements['api-key-input'].value.trim();
+                if (key) {
+                    this.apiKey = key;
+                    localStorage.setItem('geminiApiKey', key);
+                    this.elements['api-key-modal'].classList.add('hidden');
+                    this.showNotification('APIキーを保存しました。', 'success');
+                } else {
+                    this.showNotification('有効なAPIキーを入力してください。', 'warning');
+                }
+            } catch (e) {
+                console.error("Could not save to localStorage:", e);
+                this.showNotification('APIキーの保存に失敗しました。', 'error');
             }
         },
 
         clearApiKey() {
-            this.apiKey = '';
-            localStorage.removeItem('geminiApiKey');
-            this.elements['api-key-input'].value = '';
-            this.showNotification('保存されたAPIキーを削除しました。', 'info');
+             try {
+                this.apiKey = '';
+                localStorage.removeItem('geminiApiKey');
+                this.elements['api-key-input'].value = '';
+                this.showNotification('保存されたAPIキーを削除しました。', 'info');
+            } catch (e) {
+                console.error("Could not clear localStorage:", e);
+                this.showNotification('APIキーの削除に失敗しました。', 'error');
+            }
         },
 
         // PDF関連
@@ -565,12 +581,10 @@
                     <div>${photoData.id.toString().padStart(4, '0')}</div>
                 </div>
                 <div class="absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity p-2 gap-2">
-                    <button class="ai-analyze-btn text-white bg-purple-600 hover:bg-purple-700 font-bold py-2 px-3 rounded-lg text-xs w-full">✨ AI分析</button>
-                    <button class="download-single-btn text-white bg-blue-600 hover:bg-blue-700 font-bold py-2 px-3 rounded-lg text-xs w-full">📥 ダウンロード</button>
+                    <button data-action="ai-analyze" class="text-white bg-purple-600 hover:bg-purple-700 font-bold py-2 px-3 rounded-lg text-xs w-full">✨ AI分析</button>
+                    <button data-action="download-single" class="text-white bg-blue-600 hover:bg-blue-700 font-bold py-2 px-3 rounded-lg text-xs w-full">📥 ダウンロード</button>
                 </div>
             `;
-            albumItem.querySelector('.ai-analyze-btn').onclick = (e) => { e.stopPropagation(); this.analyzeImageWithGemini(photoData.dataUrl); };
-            albumItem.querySelector('.download-single-btn').onclick = (e) => { e.stopPropagation(); this.downloadSinglePhoto(photoData); };
             this.elements['album-grid'].appendChild(albumItem);
         },
 
@@ -583,13 +597,16 @@
         },
 
         // ダウンロード機能
-        downloadSinglePhoto(photoData) {
-            const a = document.createElement('a');
-            a.href = photoData.dataUrl;
-            a.download = photoData.fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+        downloadSinglePhoto(photoId) {
+            const photoData = this.photoDatabase.find(p => p.id === photoId);
+            if(photoData) {
+                const a = document.createElement('a');
+                a.href = photoData.dataUrl;
+                a.download = photoData.fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
         },
 
         async downloadAllPhotos() {
@@ -695,7 +712,10 @@
             if (!response.ok) {
                 const errorBody = await response.json();
                 const errorMessage = errorBody.error?.message || response.statusText;
-                if (errorMessage.includes('API_KEY_INVALID')) throw new Error('APIキーが無効です。');
+                if (errorMessage.includes('API_KEY_INVALID')) {
+                    this.clearApiKey();
+                    throw new Error('APIキーが無効です。キーを削除しました。');
+                }
                 throw new Error(`APIエラー: ${errorMessage}`);
             }
             
@@ -703,12 +723,14 @@
             return result.candidates?.[0]?.content?.parts?.[0]?.text;
         },
 
-        async analyzeImageWithGemini(dataUrl) {
+        async analyzeImageWithGemini(photoId) {
+            const photoData = this.photoDatabase.find(p => p.id === photoId);
+            if (!photoData) return;
+
             try {
-                await this.callGeminiApi("Test prompt"); // Test API key first
                 this.openGeminiModal('✨ AIによる損傷分析', `<div class="flex justify-center items-center py-8"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>`);
                 const prompt = "あなたは土木技術者です。この構造物点検写真から、コンクリートのひび割れ、剥離、鉄筋露出、漏水、錆などの損傷の可能性を分析し、発見事項を箇条書きで簡潔に説明してください。損傷が見られない場合は「特筆すべき損傷は見当たりません。」と回答してください。日本語で回答してください。";
-                const analysisText = await this.callGeminiApi(prompt, dataUrl);
+                const analysisText = await this.callGeminiApi(prompt, photoData.dataUrl);
                 const contentHtml = `<h4 class="text-xl font-semibold">分析結果</h4><div class="mt-2 p-4 bg-gray-900 rounded-lg">${analysisText.replace(/\n/g, '<br>')}</div>
                     <button id="generate-report-btn" class="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">📄 報告書(案)を作成</button>`;
                 this.elements['gemini-modal-content'].innerHTML = contentHtml;
@@ -732,7 +754,6 @@
                 return;
             }
             try {
-                await this.callGeminiApi("Test prompt"); // Test API key first
                 this.openGeminiModal('✨ AI撮影アシスタント', `<div class="flex justify-center items-center py-8"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>`);
                 const prompt = `あなたは経験豊富な土木技術者です。この写真は過去の点検で撮影されたものです。\n1. この写真に写っている構造物や部材が何か、専門用語を使いつつ簡潔に説明してください。\n2. 新人技術者が同じ写真を再現撮影するための、具体的で分かりやすいアドバイスをしてください。\n\n現在地情報（緯度: ${this.sensorData.latitude || '不明'}, 経度: ${this.sensorData.longitude || '不明'}）も参考にしてください。`;
                 const assistantText = await this.callGeminiApi(prompt, this.targetImageDataUrl);
@@ -743,7 +764,7 @@
         handleGeminiError(error, elementId = 'gemini-modal-content') {
             console.error("Gemini Error:", error);
             const errorMessage = `<p class="text-red-400">エラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${error.message}</p>
-                <button onclick="App.initApiKeyModal()" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
+                <button id="reconfigure-api-key-from-error" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
             this.elements[elementId].innerHTML = errorMessage;
         },
         
@@ -840,14 +861,63 @@
         },
 
         // 初期化とイベントリスナー
-        initEventListeners() {
-            // API
-            this.elements['reconfigure-api-key-btn'].addEventListener('click', () => this.initApiKeyModal());
-            this.elements['save-api-key-btn'].addEventListener('click', () => this.saveApiKey());
-            this.elements['clear-api-key-btn'].addEventListener('click', () => this.clearApiKey());
-            this.elements['close-api-key-modal-btn'].addEventListener('click', () => this.elements['api-key-modal'].classList.add('hidden'));
+        setupEventListeners() {
+            document.body.addEventListener('click', (e) => {
+                const target = e.target;
+                const button = target.closest('button');
+                if (!button) return;
 
-            // PDF
+                const action = button.dataset.action || button.id;
+                const photoItem = target.closest('[data-photo-id]');
+                const photoId = photoItem ? parseInt(photoItem.dataset.photoId, 10) : null;
+                
+                switch(action) {
+                    // API Modal
+                    case 'reconfigure-api-key-btn': this.initApiKeyModal(); break;
+                    case 'save-api-key-btn': this.saveApiKey(); break;
+                    case 'clear-api-key-btn': this.clearApiKey(); break;
+                    case 'close-api-key-modal-btn': this.elements['api-key-modal'].classList.add('hidden'); break;
+                    case 'reconfigure-api-key-from-error': this.initApiKeyModal(); break;
+
+                    // PDF
+                    case 'prev-page': if (this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); break;
+                    case 'next-page': if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); break;
+
+                    // Camera
+                    case 'capture-btn': this.takePicture(); break;
+                    case 'fullscreen-capture-btn': this.takePicture(); break;
+
+                    // Compare Mode
+                    case 'toggle-compare-btn': if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); break;
+                    
+                    // Fullscreen Buttons
+                    case 'close-fullscreen-camera-btn': this.resetCompareMode(); break;
+                    case 'fullscreen-ai-assistant-btn': this.getAiShootingAssistant(); break;
+                    case 'fullscreen-show-album-btn': this.elements['album-modal'].classList.remove('hidden'); break;
+
+                    // Zoom
+                    case 'zoom-in-btn': this.updateZoom(this.zoomLevel + 0.2); break;
+                    case 'zoom-out-btn': this.updateZoom(this.zoomLevel - 0.2); break;
+                    case 'zoom-reset-btn': this.updateZoom(1.0); break;
+
+                    // Album
+                    case 'open-album-btn': this.elements['album-modal'].classList.remove('hidden'); break;
+                    case 'close-album-btn': this.elements['album-modal'].classList.add('hidden'); break;
+                    case 'download-all-btn': this.downloadAllPhotos(); break;
+                    case 'ai-analyze': if(photoId) this.analyzeImageWithGemini(photoId); break;
+                    case 'download-single': if(photoId) this.downloadSinglePhoto(photoId); break;
+                    
+                    // Gemini Modal
+                    case 'close-modal-btn': this.elements['gemini-modal'].classList.add('hidden'); break;
+                    case 'copy-report-btn': 
+                        navigator.clipboard.writeText(this.elements['report-content'].textContent)
+                            .then(() => this.showNotification('報告書をコピーしました', 'success'))
+                            .catch(() => this.showNotification('コピーに失敗しました', 'error'));
+                        break;
+                }
+            });
+
+            // File and other non-click events
             this.elements['pdf-upload'].addEventListener('change', e => {
                 const file = e.target.files[0];
                 if (!file || file.type !== 'application/pdf') return;
@@ -865,43 +935,9 @@
                 };
                 fileReader.readAsArrayBuffer(file);
             });
-            this.elements['prev-page'].addEventListener('click', () => { if (this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); });
-            this.elements['next-page'].addEventListener('click', () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); });
 
-            // カメラ
-            this.elements['capture-btn'].addEventListener('click', () => this.takePicture());
-            this.elements['fullscreen-capture-btn'].addEventListener('click', () => this.takePicture());
-
-            // 比較モード
-            this.elements['toggle-compare-btn'].addEventListener('click', () => {
-                if (this.isCompareMode) this.resetCompareMode();
-                else this.toggleCompareMode();
-            });
             this.elements['pdf-viewer'].addEventListener('click', e => this.handlePdfTap(e));
             this.elements['pdf-viewer'].addEventListener('touchstart', e => this.handlePdfTap(e), { passive: false });
-
-            // フルスクリーンボタン
-            this.elements['close-fullscreen-camera-btn'].addEventListener('click', () => this.resetCompareMode());
-            this.elements['fullscreen-ai-assistant-btn'].addEventListener('click', () => this.getAiShootingAssistant());
-            this.elements['fullscreen-show-album-btn'].addEventListener('click', () => this.elements['album-modal'].classList.remove('hidden'));
-
-            // ズーム
-            this.elements['zoom-in-btn'].addEventListener('click', () => this.updateZoom(this.zoomLevel + 0.2));
-            this.elements['zoom-out-btn'].addEventListener('click', () => this.updateZoom(this.zoomLevel - 0.2));
-            this.elements['zoom-reset-btn'].addEventListener('click', () => this.updateZoom(1.0));
-
-            // アルバム
-            this.elements['open-album-btn'].addEventListener('click', () => this.elements['album-modal'].classList.remove('hidden'));
-            this.elements['close-album-btn'].addEventListener('click', () => this.elements['album-modal'].classList.add('hidden'));
-            this.elements['download-all-btn'].addEventListener('click', () => this.downloadAllPhotos());
-
-            // Geminiモーダル
-            this.elements['close-modal-btn'].addEventListener('click', () => this.elements['gemini-modal'].classList.add('hidden'));
-            this.elements['copy-report-btn'].addEventListener('click', () => {
-                navigator.clipboard.writeText(this.elements['report-content'].textContent)
-                    .then(() => this.showNotification('報告書をコピーしました', 'success'))
-                    .catch(() => this.showNotification('コピーに失敗しました', 'error'));
-            });
         },
 
         init() {
@@ -924,14 +960,19 @@
                 const el = document.getElementById(id);
                 if (el) {
                     this.elements[id] = el;
+                    // Add data-action for buttons that don't have it
+                    if (el.tagName === 'BUTTON' && !el.dataset.action) {
+                        el.dataset.action = id;
+                    }
                 } else {
                     console.warn(`Element with id "${id}" not found.`);
                 }
             });
             
-            this.loadApiKey();
-            this.initEventListeners();
-            this.initApiKeyModal(); // 初期状態でキーがなければ表示
+            this.setupEventListeners();
+            if (!this.loadApiKey()) {
+                this.initApiKeyModal();
+            }
             this.initCamera();
             this.initSensors();
             console.log('構造物点検カメラアプリ 初期化完了');
