@@ -51,6 +51,11 @@
         .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
         #camera-stream, #fullscreen-camera-stream { width: 100%; height: 100%; object-fit: contain; transform-origin: center; transition: transform 0.2s ease-out; }
         
+        .top-controls {
+            z-index: 10;
+            position: relative;
+        }
+
         /* 全画面カメラの右側コントロールパネル */
         .fullscreen-control-panel {
             position: fixed;
@@ -120,7 +125,7 @@
     <div id="app-container" class="relative h-full">
         <!-- 左セクション: PDFビューア -->
         <div id="pdf-section" class="section p-2 bg-gray-800">
-            <div class="flex-shrink-0">
+            <div class="flex-shrink-0 top-controls">
                  <div class="flex flex-wrap gap-2 mb-2">
                     <label for="pdf-upload" class="flex-grow text-center cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm">PDF選択</label>
                     <button data-action="toggle-compare" class="flex-grow text-center bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🖼️ 比較撮影</button>
@@ -513,7 +518,7 @@
                 return;
             }
 
-            const captureBtn = this.isCompareMode ? this.elements['fullscreen-capture-btn'] : document.getElementById('capture-btn');
+            const captureBtn = this.isCompareMode ? document.querySelector('[data-action="take-picture-fullscreen"]') : document.getElementById('capture-btn');
             captureBtn.classList.add('ping-animation');
             setTimeout(() => captureBtn.classList.remove('ping-animation'), 500);
 
@@ -863,63 +868,47 @@
         // 初期化とイベントリスナー
         setupEventListeners() {
             document.body.addEventListener('click', (e) => {
-                const target = e.target.closest('button');
+                const target = e.target.closest('[data-action]');
                 if (!target) return;
-
-                const id = target.id;
+        
                 const action = target.dataset.action;
-
-                // Album grid actions
-                if (action === 'ai-analyze' || action === 'download-single') {
-                    const photoItem = target.closest('[data-photo-id]');
-                    if (photoItem) {
-                        const photoId = parseInt(photoItem.dataset.photoId, 10);
-                        if (action === 'ai-analyze') this.analyzeImageWithGemini(photoId);
-                        if (action === 'download-single') this.downloadSinglePhoto(photoId);
-                    }
-                    return;
-                }
-
-                // Gemini modal actions
-                if (action === 'generate-report') {
-                    const analysisText = this.elements['gemini-modal-content'].querySelector('div').innerHTML.replace(/<br>/g, '\n');
-                    this.generateReportFromAnalysis(analysisText);
-                    return;
-                }
-                if (action === 'reconfigure-api-key-from-error') {
-                     this.openApiKeyModal();
-                     return;
-                }
-
-                // General buttons by ID
-                switch(id) {
-                    case 'reconfigure-api-key-btn': this.openApiKeyModal(); break;
-                    case 'save-api-key-btn': this.saveApiKey(); break;
-                    case 'clear-api-key-btn': this.clearApiKey(); break;
-                    case 'close-api-key-modal-btn': this.elements['api-key-modal'].classList.add('hidden'); break;
+                const photoItem = target.closest('[data-photo-id]');
+                const photoId = photoItem ? parseInt(photoItem.dataset.photoId, 10) : null;
+        
+                switch (action) {
+                    case 'open-api-modal': this.openApiKeyModal(); break;
+                    case 'save-api-key': this.saveApiKey(); break;
+                    case 'clear-api-key': this.clearApiKey(); break;
+                    case 'close-api-modal': this.elements['api-key-modal'].classList.add('hidden'); break;
+                    case 'reconfigure-api-key-from-error': this.openApiKeyModal(); break;
                     case 'prev-page': if (this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); break;
                     case 'next-page': if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); break;
-                    case 'capture-btn': this.takePicture(); break;
-                    case 'fullscreen-capture-btn': this.takePicture(); break;
-                    case 'toggle-compare-btn': if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); break;
-                    case 'close-fullscreen-camera-btn': this.resetCompareMode(); break;
-                    case 'fullscreen-ai-assistant-btn': this.getAiShootingAssistant(); break;
-                    case 'fullscreen-show-album-btn': this.elements['album-modal'].classList.remove('hidden'); break;
-                    case 'zoom-in-btn': this.updateZoom(this.zoomLevel + 0.2); break;
-                    case 'zoom-out-btn': this.updateZoom(this.zoomLevel - 0.2); break;
-                    case 'zoom-reset-btn': this.updateZoom(1.0); break;
-                    case 'open-album-btn': this.elements['album-modal'].classList.remove('hidden'); break;
-                    case 'close-album-btn': this.elements['album-modal'].classList.add('hidden'); break;
-                    case 'download-all-btn': this.downloadAllPhotos(); break;
-                    case 'close-modal-btn': this.elements['gemini-modal'].classList.add('hidden'); break;
-                    case 'copy-report-btn': 
+                    case 'take-picture': this.takePicture(); break;
+                    case 'take-picture-fullscreen': this.takePicture(); break;
+                    case 'toggle-compare': if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); break;
+                    case 'reset-compare-mode': this.resetCompareMode(); break;
+                    case 'ai-assistant': this.getAiShootingAssistant(); break;
+                    case 'open-album': this.elements['album-modal'].classList.remove('hidden'); break;
+                    case 'close-album': this.elements['album-modal'].classList.add('hidden'); break;
+                    case 'zoom-in': this.updateZoom(this.zoomLevel + 0.2); break;
+                    case 'zoom-out': this.updateZoom(this.zoomLevel - 0.2); break;
+                    case 'zoom-reset': this.updateZoom(1.0); break;
+                    case 'download-all': this.downloadAllPhotos(); break;
+                    case 'ai-analyze': if (photoId) this.analyzeImageWithGemini(photoId); break;
+                    case 'download-single': if (photoId) this.downloadSinglePhoto(photoId); break;
+                    case 'close-gemini-modal': this.elements['gemini-modal'].classList.add('hidden'); break;
+                    case 'copy-report':
                         navigator.clipboard.writeText(this.elements['report-content'].textContent)
                             .then(() => this.showNotification('報告書をコピーしました', 'success'))
                             .catch(() => this.showNotification('コピーに失敗しました', 'error'));
                         break;
+                    case 'generate-report':
+                        const analysisText = this.elements['gemini-modal-content'].querySelector('div').innerHTML.replace(/<br>/g, '\n');
+                        this.generateReportFromAnalysis(analysisText);
+                        break;
                 }
             });
-
+        
             this.elements['pdf-upload'].addEventListener('change', e => {
                 const file = e.target.files[0];
                 if (!file || file.type !== 'application/pdf') return;
@@ -937,7 +926,7 @@
                 };
                 fileReader.readAsArrayBuffer(file);
             });
-
+        
             this.elements['pdf-viewer'].addEventListener('click', e => this.handlePdfTap(e));
             this.elements['pdf-viewer'].addEventListener('touchstart', e => this.handlePdfTap(e), { passive: false });
         },
@@ -979,4 +968,3 @@
     </script>
 </body>
 </html>
-
