@@ -51,11 +51,6 @@
         .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
         #camera-stream, #fullscreen-camera-stream { width: 100%; height: 100%; object-fit: contain; transform-origin: center; transition: transform 0.2s ease-out; }
         
-        .top-controls {
-            z-index: 10;
-            position: relative;
-        }
-
         /* 全画面カメラの右側コントロールパネル */
         .fullscreen-control-panel {
             position: fixed;
@@ -125,7 +120,7 @@
     <div id="app-container" class="relative h-full">
         <!-- 左セクション: PDFビューア -->
         <div id="pdf-section" class="section p-2 bg-gray-800">
-            <div class="flex-shrink-0 top-controls">
+            <div class="flex-shrink-0">
                  <div class="flex flex-wrap gap-2 mb-2">
                     <label for="pdf-upload" class="flex-grow text-center cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm">PDF選択</label>
                     <button id="toggle-compare-btn" class="flex-grow text-center bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🖼️ 比較撮影</button>
@@ -155,7 +150,7 @@
                     <div><span id="gps-status-dot" class="status-dot bg-red-500"></span> GPS</div>
                     <div><span id="compass-status-dot" class="status-dot bg-red-500"></span> 方位</div>
                 </div>
-                <div class="absolute bottom-4 right-10 z-10">
+                <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
                     <button id="capture-btn" title="撮影"></button>
                 </div>
             </div>
@@ -247,8 +242,8 @@
                 </div>
             </div>
             
-            <!-- 下部右側：撮影ボタン -->
-            <div class="absolute bottom-8 right-28 z-51 safe-area-padding">
+            <!-- 下部中央：撮影ボタン -->
+            <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-51 safe-area-padding">
                 <button id="fullscreen-capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
                     <div class="w-16 h-16 bg-white rounded-full shadow-inner border-2 border-gray-200"></div>
                 </button>
@@ -518,7 +513,7 @@
                 return;
             }
 
-            const captureBtn = this.isCompareMode ? document.querySelector('[data-action="take-picture-fullscreen"]') : document.querySelector('[data-action="take-picture"]');
+            const captureBtn = this.isCompareMode ? this.elements['fullscreen-capture-btn'] : this.elements['capture-btn'];
             captureBtn.classList.add('ping-animation');
             setTimeout(() => captureBtn.classList.remove('ping-animation'), 500);
 
@@ -883,7 +878,7 @@
                     case 'clear-api-key': this.clearApiKey(); break;
                     case 'close-api-modal': this.elements['api-key-modal'].classList.add('hidden'); break;
                     case 'reconfigure-api-key-from-error': this.openApiKeyModal(); break;
-                    case 'prev-page': if (this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); break;
+                    case 'prev-page': if (this.pdfDoc && this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); break;
                     case 'next-page': if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); break;
                     case 'take-picture': this.takePicture(); break;
                     case 'take-picture-fullscreen': this.takePicture(); break;
@@ -938,7 +933,7 @@
             const ids = [
                 'app-container', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'page-num', 'page-count', 
                 'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder',
-                'photo-count-badge', 'api-key-modal', 'api-key-input', 
+                'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 
                 'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction',
                 'fullscreen-camera-modal', 'fullscreen-camera-stream', 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
                 'fullscreen-target-image', 'fullscreen-photo-count', 'fullscreen-zoom-level-display',
