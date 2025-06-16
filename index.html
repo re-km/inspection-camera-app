@@ -957,22 +957,36 @@
             requestAnimationFrame(() => this.comparisonLoop());
         },
 
-        // 修正されたPDFタップ処理
+        // 強化されたPDFタップ処理
         handlePdfTap(event) {
-            if (!this.isCompareMode || this.selectionState === 'completed') return;
+            console.log('=== handlePdfTap開始 ===');
+            console.log('isCompareMode:', this.isCompareMode);
+            console.log('selectionState:', this.selectionState);
+            
+            if (!this.isCompareMode || this.selectionState === 'completed') {
+                console.log('比較モードではないか、選択完了済みのためリターン');
+                return;
+            }
+            
             event.preventDefault();
             const rect = this.elements['pdf-viewer'].getBoundingClientRect();
             const x = (event.touches ? event.touches[0].clientX : event.clientX) - rect.left;
             const y = (event.touches ? event.touches[0].clientY : event.clientY) - rect.top;
             
+            console.log('タップ座標:', { x, y });
+            console.log('現在の選択状態:', this.selectionState);
+            
             if (this.selectionState === 'waiting_for_p1') {
+                console.log('左上タップ処理開始');
                 this.p1 = { x, y };
                 this.elements['selection-marker'].style.left = `${x}px`;
                 this.elements['selection-marker'].style.top = `${y}px`;
                 this.elements['selection-marker'].classList.remove('hidden');
                 this.showInstruction('右下をタップしてください');
                 this.selectionState = 'waiting_for_p2';
+                console.log('左上タップ処理完了 - 右下待ち状態');
             } else if (this.selectionState === 'waiting_for_p2') {
+                console.log('右下タップ処理開始');
                 const p2 = { x, y };
                 const selRect = { 
                     x: Math.min(this.p1.x, p2.x), 
@@ -980,111 +994,201 @@
                     width: Math.abs(this.p1.x - p2.x), 
                     height: Math.abs(this.p1.y - p2.y) 
                 };
+                
+                console.log('選択範囲:', selRect);
+                
                 if (selRect.width < 10 || selRect.height < 10) { 
+                    console.log('選択範囲が小さすぎるためリセット');
                     this.resetSelection(); 
                     return; 
                 }
+                
+                console.log('cropAndSetTarget呼び出し開始');
                 this.cropAndSetTarget(selRect);
+                console.log('右下タップ処理完了');
             }
+            console.log('=== handlePdfTap終了 ===');
         },
 
-        // 修正されたcropAndSetTarget関数
+        // 強化されたcropAndSetTarget関数
         cropAndSetTarget(rect) {
-            const pdfCanvas = this.elements['pdf-viewer'].querySelector('canvas');
-            if (!pdfCanvas) return;
+            console.log('=== cropAndSetTarget開始 ===');
+            console.log('受け取った範囲:', rect);
             
-            console.log('cropAndSetTarget開始:', rect);
+            const pdfCanvas = this.elements['pdf-viewer'].querySelector('canvas');
+            if (!pdfCanvas) {
+                console.error('PDFキャンバスが見つかりません');
+                return;
+            }
+            
+            console.log('PDFキャンバス取得成功');
             
             // 画像を切り取り
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = rect.width; 
             tempCanvas.height = rect.height;
-            tempCanvas.getContext('2d').drawImage(pdfCanvas, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height);
+            const ctx = tempCanvas.getContext('2d');
+            ctx.drawImage(pdfCanvas, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height);
             this.targetImageDataUrl = tempCanvas.toDataURL('image/png');
-            this.elements['target-image'].src = this.targetImageDataUrl;
+            
+            console.log('画像切り取り完了 - データURL長:', this.targetImageDataUrl.length);
+            
+            // ターゲット画像を設定
+            if (this.elements['target-image']) {
+                this.elements['target-image'].src = this.targetImageDataUrl;
+                console.log('ターゲット画像設定完了');
+            } else {
+                console.error('target-image要素が見つかりません');
+            }
             
             // 選択UI要素を非表示
+            console.log('選択UI非表示化');
             this.elements['selection-marker'].classList.add('hidden');
             this.elements['selection-instruction'].classList.add('hidden');
             
             // 状態を比較完了に変更
+            console.log('状態変更: 比較完了');
             this.selectionState = 'completed';
             this.isCompareMode = true;
             
             // 比較ボタンの状態を更新（カメラ表示前に実行）
+            console.log('比較ボタン状態更新');
             this.elements['toggle-compare-btn'].textContent = '🖼️ 比較終了';
             this.elements['toggle-compare-btn'].classList.remove('bg-red-600', 'bg-teal-600');
             this.elements['toggle-compare-btn'].classList.add('bg-purple-600');
             
-            // 確実にカメラを全画面表示
+            // 最重要：カメラ全画面表示を実行
+            console.log('🚀 showFullscreenCamera呼び出し開始');
             this.showFullscreenCamera();
+            console.log('🚀 showFullscreenCamera呼び出し完了');
             
-            console.log('cropAndSetTarget完了 - カメラ全画面表示実行');
+            console.log('=== cropAndSetTarget完了 ===');
         },
 
-        // より確実なカメラ全画面表示機能
+        // 超詳細デバッグ版カメラ全画面表示機能
         showFullscreenCamera() {
-            console.log('showFullscreenCamera開始');
+            console.log('🚀🚀🚀 showFullscreenCamera開始 🚀🚀🚀');
             
             const pdfSection = this.elements['pdf-section'];
             const cameraSection = this.elements['camera-section'];
             
-            // 直接スタイル操作で確実にレイアウト変更
-            console.log('直接スタイル操作でレイアウト変更...');
+            // 要素の存在確認
+            if (!pdfSection) {
+                console.error('❌ pdf-section要素が見つかりません');
+                return;
+            }
+            if (!cameraSection) {
+                console.error('❌ camera-section要素が見つかりません');
+                return;
+            }
             
-            // PDFセクションを完全に隠す
+            console.log('✅ 要素取得成功');
+            console.log('PDFセクション現在のスタイル:', {
+                display: window.getComputedStyle(pdfSection).display,
+                left: window.getComputedStyle(pdfSection).left,
+                width: window.getComputedStyle(pdfSection).width
+            });
+            console.log('カメラセクション現在のスタイル:', {
+                left: window.getComputedStyle(cameraSection).left,
+                width: window.getComputedStyle(cameraSection).width,
+                zIndex: window.getComputedStyle(cameraSection).zIndex
+            });
+            
+            // 段階1: PDFセクションを隠す
+            console.log('📴 段階1: PDFセクション非表示化');
             pdfSection.style.display = 'none';
             pdfSection.style.visibility = 'hidden';
             pdfSection.style.left = '-100vw';
+            console.log('PDFセクション設定後:', {
+                display: pdfSection.style.display,
+                visibility: pdfSection.style.visibility,
+                left: pdfSection.style.left
+            });
             
-            // カメラセクションを全画面に
+            // 段階2: カメラセクションを全画面化
+            console.log('📱 段階2: カメラセクション全画面化');
             cameraSection.style.left = '0';
             cameraSection.style.width = '100vw';
             cameraSection.style.position = 'absolute';
             cameraSection.style.zIndex = '20';
+            console.log('カメラセクション設定後:', {
+                left: cameraSection.style.left,
+                width: cameraSection.style.width,
+                position: cameraSection.style.position,
+                zIndex: cameraSection.style.zIndex
+            });
             
-            // 追加でCSSクラスも適用
+            // 段階3: CSSクラスも適用
+            console.log('🎨 段階3: CSSクラス適用');
             pdfSection.classList.add('pdf-hidden');
             cameraSection.classList.add('camera-fullscreen');
+            console.log('CSSクラス適用後:', {
+                pdfHasHiddenClass: pdfSection.classList.contains('pdf-hidden'),
+                cameraHasFullscreenClass: cameraSection.classList.contains('camera-fullscreen')
+            });
             
-            // 強制再描画
+            // 段階4: 強制再描画
+            console.log('🔄 段階4: 強制再描画');
             document.body.offsetHeight;
             cameraSection.offsetWidth;
             pdfSection.offsetHeight;
+            console.log('強制再描画完了');
             
-            // コントロールパネルを表示
-            console.log('コントロールパネル表示...');
-            this.elements['control-panel'].classList.remove('hidden');
-            this.elements['control-panel'].style.display = 'flex';
+            // 段階5: コントロールパネル表示
+            console.log('🎛️ 段階5: コントロールパネル表示');
+            if (this.elements['control-panel']) {
+                this.elements['control-panel'].classList.remove('hidden');
+                this.elements['control-panel'].style.display = 'flex';
+                console.log('コントロールパネル表示設定完了');
+            } else {
+                console.error('❌ control-panel要素が見つかりません');
+            }
             
-            // ターゲット画像コンテナを表示
-            console.log('ターゲット画像表示...');
-            this.elements['target-image-container'].classList.remove('hidden');
-            this.elements['target-image-container'].style.display = 'block';
+            // 段階6: ターゲット画像表示
+            console.log('🖼️ 段階6: ターゲット画像表示');
+            if (this.elements['target-image-container']) {
+                this.elements['target-image-container'].classList.remove('hidden');
+                this.elements['target-image-container'].style.display = 'block';
+                console.log('ターゲット画像表示設定完了');
+            } else {
+                console.error('❌ target-image-container要素が見つかりません');
+            }
             
-            // 撮影枚数を更新
-            this.elements['compare-photo-count'].textContent = `${this.photoCount}枚`;
+            // 段階7: 撮影枚数更新
+            console.log('📊 段階7: 撮影枚数更新');
+            if (this.elements['compare-photo-count']) {
+                this.elements['compare-photo-count'].textContent = `${this.photoCount}枚`;
+                console.log('撮影枚数更新完了:', this.photoCount);
+            }
             
-            // デバッグ用の視覚的確認（赤い境界線を一時的に追加）
-            cameraSection.style.border = '3px solid red';
+            // 段階8: 視覚的確認用（赤い境界線）
+            console.log('🔍 段階8: 視覚的確認');
+            cameraSection.style.border = '5px solid red';
+            cameraSection.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
             setTimeout(() => {
                 cameraSection.style.border = 'none';
-            }, 2000);
+                cameraSection.style.backgroundColor = '';
+                console.log('視覚的確認効果終了');
+            }, 3000);
             
-            // 最終確認ログ
+            // 最終確認ログ（500ms後）
             setTimeout(() => {
-                console.log('=== レイアウト最終確認 ===');
-                console.log('PDFセクション:');
-                console.log('- display:', window.getComputedStyle(pdfSection).display);
-                console.log('- left:', window.getComputedStyle(pdfSection).left);
-                console.log('- visibility:', window.getComputedStyle(pdfSection).visibility);
-                console.log('カメラセクション:');
-                console.log('- width:', window.getComputedStyle(cameraSection).width);
-                console.log('- left:', window.getComputedStyle(cameraSection).left);
-                console.log('- zIndex:', window.getComputedStyle(cameraSection).zIndex);
+                console.log('🔍🔍🔍 最終確認（500ms後） 🔍🔍🔍');
+                console.log('PDFセクション最終状態:', {
+                    display: window.getComputedStyle(pdfSection).display,
+                    left: window.getComputedStyle(pdfSection).left,
+                    visibility: window.getComputedStyle(pdfSection).visibility,
+                    width: window.getComputedStyle(pdfSection).width
+                });
+                console.log('カメラセクション最終状態:', {
+                    width: window.getComputedStyle(cameraSection).width,
+                    left: window.getComputedStyle(cameraSection).left,
+                    zIndex: window.getComputedStyle(cameraSection).zIndex,
+                    position: window.getComputedStyle(cameraSection).position
+                });
                 console.log('コントロールパネル表示:', !this.elements['control-panel'].classList.contains('hidden'));
-                console.log('=========================');
-            }, 300);
+                console.log('🔍🔍🔍 最終確認完了 🔍🔍🔍');
+            }, 500);
             
             // ピンチズーム初期化
             setTimeout(() => {
@@ -1092,7 +1196,7 @@
                 console.log('ピンチズーム初期化完了');
             }, 100);
             
-            console.log('showFullscreenCamera完了');
+            console.log('🚀🚀🚀 showFullscreenCamera完了 🚀🚀🚀');
         },
 
         resetSelection() {
