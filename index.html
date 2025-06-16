@@ -532,7 +532,7 @@
     </div>
 
     <!-- 全画面アルバムモーダル（修正版） -->
-    <div id="album-modal" class="hidden fixed inset-0 bg-gray-900 z-50 flex flex-col p-4">
+    <div id="album-modal" class="hidden fixed inset-0 bg-gray-900 z-50 flex flex-col p-4" style="display: none !important;">
         <div class="flex-shrink-0 flex justify-between items-center mb-4">
             <h2 class="text-2xl font-bold">アルバム（撮影写真一覧）</h2>
             <div class="flex items-center gap-2">
@@ -2111,6 +2111,48 @@
                 
                 this.initEventListeners();
                 this.initApiKeyModal();
+                
+                // 全てのモーダルを確実に非表示
+                document.querySelectorAll('.fixed.inset-0').forEach(modal => {
+                    modal.classList.add('hidden');
+                    modal.style.display = 'none';
+                });
+                
+                // APIキー設定モーダルのみ表示
+                if (!this.apiKey) {
+                    const apiModal = this.elements['api-key-modal'];
+                    if (apiModal) {
+                        apiModal.classList.remove('hidden');
+                        apiModal.style.display = 'flex';
+                    }
+                }
+                
+                // アプリの基本表示を確認
+                const appContainer = document.getElementById('app-container');
+                const pdfSection = document.getElementById('pdf-section');
+                const cameraSection = document.getElementById('camera-section');
+                
+                if (appContainer) {
+                    appContainer.style.display = 'block';
+                    console.log('📱 アプリコンテナ表示確認');
+                }
+                
+                if (pdfSection) {
+                    pdfSection.style.display = 'flex';
+                    console.log('📄 PDFセクション表示確認');
+                }
+                
+                if (cameraSection) {
+                    cameraSection.style.display = 'flex';
+                    console.log('📷 カメラセクション表示確認');
+                }
+                
+                // body要素の背景色を確実に設定
+                document.body.className = 'bg-gray-900 text-white';
+                document.body.style.background = '#111827';
+                document.body.style.color = '#ffffff';
+                
+                console.log('🎨 スタイル適用完了');
                 
                 // 非同期でカメラとセンサーを初期化
                 this.initCamera().catch(err => {
