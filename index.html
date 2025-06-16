@@ -363,7 +363,7 @@
                         <span>✨</span>
                         <span>AI補助</span>
                     </button>
-                    <button id="fullscreen-show-album-btn" class="control-btn">
+                    <button id="fullscreen-show-album-btn" class="control-btn" onclick="App.openAlbumModal(); console.log('📁 全画面アルバムボタン直接クリック');">
                         <span>📁</span>
                         <span>アルバム</span>
                     </button>
@@ -1132,13 +1132,77 @@
             }
         },
 
-        // 個別ダウンロード機能
+        // 個別ダウンロード機能（EXIF情報保持版）
         downloadSinglePhoto(photoData) {
             console.log(`📥 個別ダウンロード開始: ${photoData.fileName}`);
             
             try {
+                // EXIF情報を含む画像データを生成
+                let finalImageData = photoData.dataUrl;
+                
+                // EXIF情報の再埋め込み（ダウンロード用）
+                if (typeof piexif !== 'undefined' && photoData.gps.latitude && photoData.gps.longitude && photoData.gps.heading) {
+                    try {
+                        console.log('🔧 EXIF情報を再埋め込み中...');
+                        
+                        const zeroth = {};
+                        const exif = {};
+                        const gps = {};
+                        
+                        // 基本情報
+                        zeroth[piexif.ImageIFD.Make] = "InspectionCameraApp";
+                        zeroth[piexif.ImageIFD.Model] = "StructuralInspectionCamera";
+                        zeroth[piexif.ImageIFD.Software] = "WebInspectionApp_v1.0";
+                        
+                        // 撮影日時
+                        const dateStr = photoData.timestamp.toISOString().replace(/[-:]/g, '').replace('T', ' ').substring(0, 17);
+                        zeroth[piexif.ImageIFD.DateTime] = dateStr;
+                        exif[piexif.ExifIFD.DateTimeOriginal] = dateStr;
+                        exif[piexif.ExifIFD.DateTimeDigitized] = dateStr;
+                        
+                        // GPS情報
+                        gps[piexif.GPSIFD.GPSVersionID] = [2, 3, 0, 0];
+                        gps[piexif.GPSIFD.GPSLatitudeRef] = photoData.gps.latitude < 0 ? 'S' : 'N';
+                        gps[piexif.GPSIFD.GPSLatitude] = piexif.GPSHelper.degToDms(Math.abs(photoData.gps.latitude));
+                        gps[piexif.GPSIFD.GPSLongitudeRef] = photoData.gps.longitude < 0 ? 'W' : 'E';
+                        gps[piexif.GPSIFD.GPSLongitude] = piexif.GPSHelper.degToDms(Math.abs(photoData.gps.longitude));
+                        gps[piexif.GPSIFD.GPSImgDirectionRef] = "T";
+                        gps[piexif.GPSIFD.GPSImgDirection] = [Math.round(photoData.gps.heading), 1];
+                        gps[piexif.GPSIFD.GPSMapDatum] = "WGS-84";
+                        
+                        // EXIF構造体を作成
+                        const exifObj = {
+                            "0th": zeroth,
+                            "Exif": exif,
+                            "GPS": gps,
+                            "1st": {},
+                            "thumbnail": null
+                        };
+                        
+                        // EXIF情報をバイナリに変換
+                        const exifBytes = piexif.dump(exifObj);
+                        
+                        // 画像にEXIF情報を埋め込み
+                        finalImageData = piexif.insert(exifBytes, photoData.dataUrl);
+                        
+                        console.log('✅ EXIF情報埋め込み完了');
+                        console.log('  GPS:', `${photoData.gps.latitude}, ${photoData.gps.longitude}`);
+                        console.log('  方位:', `${photoData.gps.heading}°`);
+                        console.log('  撮影日時:', photoData.timestamp.toLocaleString());
+                        
+                    } catch (exifError) {
+                        console.warn('⚠️ EXIF埋め込みエラー:', exifError);
+                        finalImageData = photoData.dataUrl;
+                    }
+                } else {
+                    console.warn('⚠️ EXIF情報が不完全です:', {
+                        piexif: typeof piexif !== 'undefined',
+                        gps: photoData.gps
+                    });
+                }
+                
                 // データURLをBlobに変換
-                const byteCharacters = atob(photoData.dataUrl.split(',')[1]);
+                const byteCharacters = atob(finalImageData.split(',')[1]);
                 const byteNumbers = new Array(byteCharacters.length);
                 for (let i = 0; i < byteCharacters.length; i++) {
                     byteNumbers[i] = byteCharacters.charCodeAt(i);
@@ -1156,11 +1220,37 @@
                 document.body.removeChild(link);
                 URL.revokeObjectURL(url);
                 
-                console.log(`✅ 個別ダウンロード完了: ${photoData.fileName}`);
+                console.log(`✅ 個別ダウンロード完了: ${photoData.fileName}（EXIF情報付き）`);
+                
+                // ダウンロード完了通知
+                this.showDownloadSuccess(photoData.fileName);
+                
             } catch (error) {
                 console.error(`❌ 個別ダウンロードエラー: ${photoData.fileName}`, error);
-                alert(`ダウンロードに失敗しました: ${photoData.fileName}`);
+                alert(`ダウンロードに失敗しました: ${photoData.fileName}\nエラー: ${error.message}`);
             }
+        },
+
+        showDownloadSuccess(fileName) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'fixed top-4 right-4 bg-green-600 text-white p-3 rounded-lg shadow-lg z-[95] max-w-sm';
+            alertDiv.innerHTML = `
+                <div class="flex items-start gap-2">
+                    <div class="text-lg">📥</div>
+                    <div>
+                        <div class="font-bold text-sm">ダウンロード完了</div>
+                        <div class="text-xs">${fileName}</div>
+                        <div class="text-xs opacity-75">EXIF情報付き</div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                if (alertDiv.parentElement) {
+                    alertDiv.remove();
+                }
+            }, 3000);
         },
 
         // 一括ダウンロード機能
@@ -1582,6 +1672,35 @@
                     btn.style.opacity = '1';
                     btn.style.pointerEvents = 'auto';
                     
+                    // アルバムボタンの特別処理
+                    if (btn.id === 'fullscreen-show-album-btn') {
+                        console.log('📁 アルバムボタンの特別設定開始');
+                        
+                        // 既存のイベントリスナーをクリアして再設定
+                        const newBtn = btn.cloneNode(true);
+                        btn.parentNode.replaceChild(newBtn, btn);
+                        
+                        // 複数の方法でイベントを設定
+                        newBtn.addEventListener('click', (e) => {
+                            console.log('📁 アルバムボタンクリック（ensureRightPanelVisible）');
+                            e.preventDefault();
+                            e.stopPropagation();
+                            this.openAlbumModal();
+                        });
+                        
+                        newBtn.addEventListener('touchend', (e) => {
+                            console.log('📁 アルバムボタンタッチ（ensureRightPanelVisible）');
+                            e.preventDefault();
+                            e.stopPropagation();
+                            this.openAlbumModal();
+                        });
+                        
+                        // onclick属性も直接設定（フォールバック）
+                        newBtn.setAttribute('onclick', 'console.log("📁 onclick直接実行"); App.openAlbumModal();');
+                        
+                        console.log('✅ アルバムボタンの特別設定完了');
+                    }
+                    
                     // ボタンの点滅効果で確認（2秒間）
                     btn.style.border = '2px solid #00ff00';
                     setTimeout(() => {
@@ -1600,20 +1719,41 @@
                     console.log('✅ ズームコントロール表示強制適用');
                 }
                 
-                // 5秒後に最終確認
+                // 10秒後に最終確認とアルバムボタンテスト
                 setTimeout(() => {
-                    const finalCheck = document.querySelector('#fullscreen-camera-modal .fullscreen-control-panel');
-                    if (finalCheck && window.getComputedStyle(finalCheck).display !== 'none') {
-                        console.log('🎉 右側パネル表示成功確認');
-                    } else {
-                        console.error('❌ 右側パネル表示失敗');
-                        this.showRightPanelDebugInfo();
-                    }
-                }, 5000);
+                    this.testAlbumButtonAfterDelay();
+                }, 10000);
                 
             } else {
                 console.error('❌ 右側パネル要素が見つかりません');
                 this.showRightPanelDebugInfo();
+            }
+        },
+
+        testAlbumButtonAfterDelay() {
+            console.log('🧪 アルバムボタン最終テスト開始');
+            
+            const albumBtn = document.getElementById('fullscreen-show-album-btn');
+            if (albumBtn) {
+                console.log('📁 アルバムボタン最終確認:');
+                console.log('  要素存在: はい');
+                console.log('  display:', window.getComputedStyle(albumBtn).display);
+                console.log('  visibility:', window.getComputedStyle(albumBtn).visibility);
+                console.log('  pointer-events:', window.getComputedStyle(albumBtn).pointerEvents);
+                console.log('  位置:', albumBtn.getBoundingClientRect());
+                
+                // ボタンのハイライト（最終確認用）
+                albumBtn.style.backgroundColor = '#ff6600';
+                albumBtn.style.transform = 'scale(1.2)';
+                setTimeout(() => {
+                    albumBtn.style.backgroundColor = '';
+                    albumBtn.style.transform = '';
+                }, 3000);
+                
+                console.log('🎉 アルバムボタン最終テスト完了');
+            } else {
+                console.error('❌ アルバムボタン最終テスト失敗');
+                this.createEmergencyRightPanel();
             }
         },
 
@@ -2010,7 +2150,7 @@
                 });
             }
             
-            // アルバム表示ボタン（修正版）
+            // アルバム表示ボタン（強化版・デバッグ付き）
             console.log('📁 アルバム関連ボタン設定開始');
             
             if (this.elements['show-album-btn']) {
@@ -2021,14 +2161,68 @@
                 console.log('✅ 通常モードアルバムボタン設定完了');
             }
             
+            // 全画面アルバムボタンの強化設定
             if (this.elements['fullscreen-show-album-btn']) {
-                this.elements['fullscreen-show-album-btn'].addEventListener('click', (e) => {
-                    console.log('📁 アルバム表示ボタンクリック（全画面モード）');
-                    e.preventDefault();
-                    e.stopPropagation();
-                    this.openAlbumModal();
-                });
-                console.log('✅ 全画面モードアルバムボタン設定完了');
+                console.log('🔍 全画面アルバムボタンの設定開始');
+                
+                // 既存のイベントリスナーをクリア
+                this.elements['fullscreen-show-album-btn'].replaceWith(this.elements['fullscreen-show-album-btn'].cloneNode(true));
+                const newFullscreenAlbumBtn = document.getElementById('fullscreen-show-album-btn');
+                
+                if (newFullscreenAlbumBtn) {
+                    // クリックイベント
+                    newFullscreenAlbumBtn.addEventListener('click', (e) => {
+                        console.log('📁 全画面アルバムボタンクリック検出（addEventListener）');
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.openAlbumModal();
+                    });
+                    
+                    // タッチイベント
+                    newFullscreenAlbumBtn.addEventListener('touchend', (e) => {
+                        console.log('📁 全画面アルバムボタンタッチ検出（addEventListener）');
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.openAlbumModal();
+                    });
+                    
+                    // mousedownイベント（フォールバック）
+                    newFullscreenAlbumBtn.addEventListener('mousedown', (e) => {
+                        console.log('📁 全画面アルバムボタンマウスダウン検出');
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.openAlbumModal();
+                    });
+                    
+                    console.log('✅ 全画面アルバムボタンのイベントリスナー設定完了');
+                    
+                    // ボタンテスト機能（5秒後に実行）
+                    setTimeout(() => {
+                        console.log('🧪 全画面アルバムボタンテスト実行');
+                        const testBtn = document.getElementById('fullscreen-show-album-btn');
+                        if (testBtn) {
+                            console.log('  ボタン存在: はい');
+                            console.log('  ボタン表示状態:', window.getComputedStyle(testBtn).display);
+                            console.log('  ボタン可視性:', window.getComputedStyle(testBtn).visibility);
+                            console.log('  ボタン位置:', testBtn.getBoundingClientRect());
+                            
+                            // ボタンのハイライト（確認用）
+                            testBtn.style.border = '3px solid #ff0000';
+                            testBtn.style.backgroundColor = '#ff0000';
+                            setTimeout(() => {
+                                testBtn.style.border = '';
+                                testBtn.style.backgroundColor = '';
+                            }, 2000);
+                        } else {
+                            console.error('❌ 全画面アルバムボタンが見つかりません');
+                        }
+                    }, 5000);
+                    
+                } else {
+                    console.error('❌ 全画面アルバムボタンの再取得に失敗');
+                }
+            } else {
+                console.error('❌ 全画面アルバムボタンの初期取得に失敗');
             }
             
             if (this.elements['open-album-btn']) {
