@@ -732,9 +732,9 @@
                 const prompt = "あなたは土木技術者です。この構造物点検写真から、コンクリートのひび割れ、剥離、鉄筋露出、漏水、錆などの損傷の可能性を分析し、発見事項を箇条書きで簡潔に説明してください。損傷が見られない場合は「特筆すべき損傷は見当たりません。」と回答してください。日本語で回答してください。";
                 const analysisText = await this.callGeminiApi(prompt, photoData.dataUrl);
                 const contentHtml = `<h4 class="text-xl font-semibold">分析結果</h4><div class="mt-2 p-4 bg-gray-900 rounded-lg">${analysisText.replace(/\n/g, '<br>')}</div>
-                    <button id="generate-report-btn" class="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">📄 報告書(案)を作成</button>`;
+                    <button data-action="generate-report" class="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">📄 報告書(案)を作成</button>`;
                 this.elements['gemini-modal-content'].innerHTML = contentHtml;
-                document.getElementById('generate-report-btn').onclick = () => this.generateReportFromAnalysis(analysisText);
+                this.elements['gemini-modal-content'].querySelector('[data-action="generate-report"]').onclick = () => this.generateReportFromAnalysis(analysisText);
             } catch (error) { this.handleGeminiError(error); }
         },
 
@@ -764,7 +764,7 @@
         handleGeminiError(error, elementId = 'gemini-modal-content') {
             console.error("Gemini Error:", error);
             const errorMessage = `<p class="text-red-400">エラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${error.message}</p>
-                <button id="reconfigure-api-key-from-error" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
+                <button data-action="reconfigure-api-key-from-error" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
             this.elements[elementId].innerHTML = errorMessage;
         },
         
@@ -863,51 +863,43 @@
         // 初期化とイベントリスナー
         setupEventListeners() {
             document.body.addEventListener('click', (e) => {
-                const target = e.target;
-                const button = target.closest('button');
+                const button = e.target.closest('button');
                 if (!button) return;
 
                 const action = button.dataset.action || button.id;
-                const photoItem = target.closest('[data-photo-id]');
-                const photoId = photoItem ? parseInt(photoItem.dataset.photoId, 10) : null;
                 
+                // アルバム内のボタンクリック
+                if (action === 'ai-analyze' || action === 'download-single') {
+                    const photoItem = button.closest('[data-photo-id]');
+                    if (photoItem) {
+                        const photoId = parseInt(photoItem.dataset.photoId, 10);
+                        if (action === 'ai-analyze') this.analyzeImageWithGemini(photoId);
+                        if (action === 'download-single') this.downloadSinglePhoto(photoId);
+                    }
+                    return; // 他のswitch文と重複しないようにreturn
+                }
+                
+                // その他のボタン
                 switch(action) {
-                    // API Modal
                     case 'reconfigure-api-key-btn': this.initApiKeyModal(); break;
                     case 'save-api-key-btn': this.saveApiKey(); break;
                     case 'clear-api-key-btn': this.clearApiKey(); break;
                     case 'close-api-key-modal-btn': this.elements['api-key-modal'].classList.add('hidden'); break;
                     case 'reconfigure-api-key-from-error': this.initApiKeyModal(); break;
-
-                    // PDF
                     case 'prev-page': if (this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); break;
                     case 'next-page': if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); break;
-
-                    // Camera
                     case 'capture-btn': this.takePicture(); break;
                     case 'fullscreen-capture-btn': this.takePicture(); break;
-
-                    // Compare Mode
                     case 'toggle-compare-btn': if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); break;
-                    
-                    // Fullscreen Buttons
                     case 'close-fullscreen-camera-btn': this.resetCompareMode(); break;
                     case 'fullscreen-ai-assistant-btn': this.getAiShootingAssistant(); break;
                     case 'fullscreen-show-album-btn': this.elements['album-modal'].classList.remove('hidden'); break;
-
-                    // Zoom
                     case 'zoom-in-btn': this.updateZoom(this.zoomLevel + 0.2); break;
                     case 'zoom-out-btn': this.updateZoom(this.zoomLevel - 0.2); break;
                     case 'zoom-reset-btn': this.updateZoom(1.0); break;
-
-                    // Album
                     case 'open-album-btn': this.elements['album-modal'].classList.remove('hidden'); break;
                     case 'close-album-btn': this.elements['album-modal'].classList.add('hidden'); break;
                     case 'download-all-btn': this.downloadAllPhotos(); break;
-                    case 'ai-analyze': if(photoId) this.analyzeImageWithGemini(photoId); break;
-                    case 'download-single': if(photoId) this.downloadSinglePhoto(photoId); break;
-                    
-                    // Gemini Modal
                     case 'close-modal-btn': this.elements['gemini-modal'].classList.add('hidden'); break;
                     case 'copy-report-btn': 
                         navigator.clipboard.writeText(this.elements['report-content'].textContent)
@@ -917,7 +909,6 @@
                 }
             });
 
-            // File and other non-click events
             this.elements['pdf-upload'].addEventListener('change', e => {
                 const file = e.target.files[0];
                 if (!file || file.type !== 'application/pdf') return;
@@ -958,15 +949,8 @@
             ];
             ids.forEach(id => {
                 const el = document.getElementById(id);
-                if (el) {
-                    this.elements[id] = el;
-                    // Add data-action for buttons that don't have it
-                    if (el.tagName === 'BUTTON' && !el.dataset.action) {
-                        el.dataset.action = id;
-                    }
-                } else {
-                    console.warn(`Element with id "${id}" not found.`);
-                }
+                if (el) this.elements[id] = el;
+                else console.warn(`Element with id "${id}" not found.`);
             });
             
             this.setupEventListeners();
