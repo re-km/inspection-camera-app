@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/piexifjs/1.0.6/piexif.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
     <style>
         html, body, #app-container { 
             height: 100%; 
@@ -1253,12 +1254,32 @@
             }, 3000);
         },
 
-        // 一括ダウンロード機能
+        // 一括ダウンロード機能（ZIP形式・EXIF情報保持版）
         async downloadAllPhotos() {
-            console.log('📥 一括ダウンロード開始');
+            console.log('📥 一括ダウンロード開始（ZIP形式）');
             
             if (this.photoDatabase.length === 0) {
                 alert('ダウンロードする写真がありません。');
+                return;
+            }
+            
+            // JSZipライブラリの確認
+            if (typeof JSZip === 'undefined') {
+                console.error('❌ JSZipライブラリが読み込まれていません');
+                alert('一括ダウンロード機能が利用できません。\nJSZipライブラリが読み込まれていません。');
+                // フォールバック：個別ダウンロード
+                return this.downloadAllPhotosIndividually();
+            }
+            
+            // ユーザーに確認（1回だけ）
+            const confirmMessage = `${this.photoDatabase.length}枚の写真をZIP形式で一括ダウンロードします。\n\n` +
+                                 `ファイル名: InspectionPhotos_${new Date().toISOString().slice(0, 19).replace(/[-:]/g, '')}.zip\n` +
+                                 `内容: Ip0001.jpg ～ Ip${this.photoDatabase.length.toString().padStart(4, '0')}.jpg\n` +
+                                 `EXIF情報: GPS・撮影日時・方位情報を含む\n\n` +
+                                 `ダウンロードを開始しますか？`;
+            
+            if (!confirm(confirmMessage)) {
+                console.log('📥 一括ダウンロードがキャンセルされました');
                 return;
             }
             
@@ -1266,22 +1287,231 @@
             this.showDownloadProgress();
             
             try {
+                console.log('📦 ZIP作成開始');
+                const zip = new JSZip();
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '');
+                
+                // 各写真をZIPに追加
                 for (let i = 0; i < this.photoDatabase.length; i++) {
                     const photoData = this.photoDatabase[i];
                     
                     // 進捗更新
-                    this.updateDownloadProgress(i + 1, this.photoDatabase.length);
+                    this.updateDownloadProgress(i + 1, this.photoDatabase.length, `${photoData.fileName}を処理中...`);
                     
-                    // 個別ダウンロード実行
-                    await this.downloadPhotoWithDelay(photoData, i);
+                    try {
+                        // EXIF情報を含む画像データを生成
+                        const imageWithExif = await this.createImageWithExif(photoData);
+                        
+                        // Base64データからバイナリデータに変換
+                        const base64Data = imageWithExif.split(',')[1];
+                        const binaryData = atob(base64Data);
+                        const uint8Array = new Uint8Array(binaryData.length);
+                        for (let j = 0; j < binaryData.length; j++) {
+                            uint8Array[j] = binaryData.charCodeAt(j);
+                        }
+                        
+                        // ZIPにファイルを追加
+                        zip.file(photoData.fileName, uint8Array);
+                        
+                        console.log(`✅ ZIP追加完了: ${photoData.fileName}`);
+                        
+                    } catch (error) {
+                        console.error(`❌ ${photoData.fileName}の処理エラー:`, error);
+                        // エラーが発生した写真はEXIF情報なしで追加
+                        const base64Data = photoData.dataUrl.split(',')[1];
+                        zip.file(photoData.fileName, base64Data, {base64: true});
+                    }
+                    
+                    // 処理間隔を調整（ブラウザのフリーズを防ぐ）
+                    if (i % 10 === 9) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
                 }
                 
-                console.log('✅ 一括ダウンロード完了');
+                // 追加情報ファイルを作成
+                const infoText = this.createInfoText();
+                zip.file('撮影情報.txt', infoText);
+                
+                console.log('📦 ZIP生成開始');
+                this.updateDownloadProgress(this.photoDatabase.length, this.photoDatabase.length, 'ZIPファイルを生成中...');
+                
+                // ZIPファイルを生成
+                const zipBlob = await zip.generateAsync({
+                    type: 'blob',
+                    compression: 'DEFLATE',
+                    compressionOptions: {
+                        level: 6
+                    }
+                });
+                
+                // ZIPファイルをダウンロード
+                const zipFileName = `InspectionPhotos_${timestamp}.zip`;
+                const url = URL.createObjectURL(zipBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = zipFileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
+                console.log('✅ 一括ダウンロード完了（ZIP形式）');
                 this.hideDownloadProgress();
-                alert(`${this.photoDatabase.length}枚の写真をダウンロードしました。`);
+                
+                // 成功通知
+                const successMessage = `📦 一括ダウンロード完了\n\n` +
+                                     `ファイル名: ${zipFileName}\n` +
+                                     `写真枚数: ${this.photoDatabase.length}枚\n` +
+                                     `EXIF情報: 含まれています\n` +
+                                     `ファイルサイズ: ${(zipBlob.size / 1024 / 1024).toFixed(1)}MB`;
+                
+                alert(successMessage);
                 
             } catch (error) {
                 console.error('❌ 一括ダウンロードエラー:', error);
+                this.hideDownloadProgress();
+                alert(`一括ダウンロード中にエラーが発生しました。\n\nエラー詳細: ${error.message}\n\n個別ダウンロードをお試しください。`);
+            }
+        },
+
+        // EXIF情報を含む画像データを非同期で作成
+        async createImageWithExif(photoData) {
+            return new Promise((resolve, reject) => {
+                try {
+                    let finalImageData = photoData.dataUrl;
+                    
+                    // EXIF情報の埋め込み
+                    if (typeof piexif !== 'undefined' && photoData.gps.latitude && photoData.gps.longitude && photoData.gps.heading) {
+                        console.log(`🔧 EXIF情報埋め込み中: ${photoData.fileName}`);
+                        
+                        const zeroth = {};
+                        const exif = {};
+                        const gps = {};
+                        
+                        // 基本情報
+                        zeroth[piexif.ImageIFD.Make] = "InspectionCameraApp";
+                        zeroth[piexif.ImageIFD.Model] = "StructuralInspectionCamera";
+                        zeroth[piexif.ImageIFD.Software] = "WebInspectionApp_v1.0";
+                        zeroth[piexif.ImageIFD.ImageDescription] = `Structural inspection photo ${photoData.id}`;
+                        
+                        // 撮影日時
+                        const dateStr = photoData.timestamp.toISOString().replace(/[-T:]/g, ' ').substring(0, 19);
+                        zeroth[piexif.ImageIFD.DateTime] = dateStr;
+                        exif[piexif.ExifIFD.DateTimeOriginal] = dateStr;
+                        exif[piexif.ExifIFD.DateTimeDigitized] = dateStr;
+                        
+                        // カメラ情報
+                        exif[piexif.ExifIFD.ColorSpace] = 1;
+                        exif[piexif.ExifIFD.ExifVersion] = "0232";
+                        
+                        // GPS情報
+                        gps[piexif.GPSIFD.GPSVersionID] = [2, 3, 0, 0];
+                        gps[piexif.GPSIFD.GPSLatitudeRef] = photoData.gps.latitude < 0 ? 'S' : 'N';
+                        gps[piexif.GPSIFD.GPSLatitude] = piexif.GPSHelper.degToDms(Math.abs(photoData.gps.latitude));
+                        gps[piexif.GPSIFD.GPSLongitudeRef] = photoData.gps.longitude < 0 ? 'W' : 'E';
+                        gps[piexif.GPSIFD.GPSLongitude] = piexif.GPSHelper.degToDms(Math.abs(photoData.gps.longitude));
+                        gps[piexif.GPSIFD.GPSImgDirectionRef] = "T";
+                        gps[piexif.GPSIFD.GPSImgDirection] = [Math.round(photoData.gps.heading), 1];
+                        gps[piexif.GPSIFD.GPSMapDatum] = "WGS-84";
+                        gps[piexif.GPSIFD.GPSTimeStamp] = [
+                            [photoData.timestamp.getUTCHours(), 1],
+                            [photoData.timestamp.getUTCMinutes(), 1],
+                            [photoData.timestamp.getUTCSeconds(), 1]
+                        ];
+                        
+                        // EXIF構造体を作成
+                        const exifObj = {
+                            "0th": zeroth,
+                            "Exif": exif,
+                            "GPS": gps,
+                            "1st": {},
+                            "thumbnail": null
+                        };
+                        
+                        // EXIF情報をバイナリに変換
+                        const exifBytes = piexif.dump(exifObj);
+                        
+                        // 画像にEXIF情報を埋め込み
+                        finalImageData = piexif.insert(exifBytes, photoData.dataUrl);
+                        
+                        console.log(`✅ EXIF埋め込み完了: ${photoData.fileName}`);
+                    } else {
+                        console.warn(`⚠️ EXIF情報が不完全: ${photoData.fileName}`, {
+                            piexif: typeof piexif !== 'undefined',
+                            gps: photoData.gps
+                        });
+                    }
+                    
+                    resolve(finalImageData);
+                    
+                } catch (error) {
+                    console.error(`❌ EXIF埋め込みエラー: ${photoData.fileName}`, error);
+                    resolve(photoData.dataUrl); // エラーが発生した場合は元のデータを返す
+                }
+            });
+        },
+
+        // 撮影情報テキストファイルを作成
+        createInfoText() {
+            const timestamp = new Date().toLocaleString('ja-JP');
+            let infoText = `構造物点検写真一覧\n`;
+            infoText += `生成日時: ${timestamp}\n`;
+            infoText += `写真枚数: ${this.photoDatabase.length}枚\n`;
+            infoText += `アプリ: 構造物点検カメラアプリ v1.0\n\n`;
+            
+            infoText += `写真詳細:\n`;
+            infoText += `${'No.'.padEnd(5)} ${'ファイル名'.padEnd(15)} ${'撮影日時'.padEnd(20)} ${'GPS座標'.padEnd(25)} ${'方位'.padEnd(8)}\n`;
+            infoText += `${'-'.repeat(80)}\n`;
+            
+            this.photoDatabase.forEach((photo, index) => {
+                const num = (index + 1).toString().padEnd(5);
+                const fileName = photo.fileName.padEnd(15);
+                const dateTime = photo.timestamp.toLocaleString('ja-JP').padEnd(20);
+                const gps = photo.gps.latitude && photo.gps.longitude 
+                    ? `${photo.gps.latitude.toFixed(6)}, ${photo.gps.longitude.toFixed(6)}`.padEnd(25)
+                    : '位置情報なし'.padEnd(25);
+                const heading = photo.gps.heading 
+                    ? `${photo.gps.heading.toFixed(1)}°`.padEnd(8)
+                    : '方位不明'.padEnd(8);
+                
+                infoText += `${num} ${fileName} ${dateTime} ${gps} ${heading}\n`;
+            });
+            
+            infoText += `\n注意事項:\n`;
+            infoText += `- EXIF情報には撮影地点のGPS座標と撮影方位が含まれています\n`;
+            infoText += `- ファイル名は撮影順の連番です\n`;
+            infoText += `- 写真の位置情報は WGS-84 測地系で記録されています\n`;
+            
+            return infoText;
+        },
+
+        // フォールバック：個別ダウンロード（JSZipが利用できない場合）
+        async downloadAllPhotosIndividually() {
+            console.log('📥 個別ダウンロード方式で一括ダウンロード開始');
+            
+            if (!confirm(`${this.photoDatabase.length}枚の写真を個別にダウンロードします。\n\nブラウザで${this.photoDatabase.length}回のダウンロード確認が表示される可能性があります。\n\n続行しますか？`)) {
+                return;
+            }
+            
+            this.showDownloadProgress();
+            
+            try {
+                for (let i = 0; i < this.photoDatabase.length; i++) {
+                    const photoData = this.photoDatabase[i];
+                    
+                    // 進捗更新
+                    this.updateDownloadProgress(i + 1, this.photoDatabase.length, `${photoData.fileName}をダウンロード中...`);
+                    
+                    // 個別ダウンロード実行（EXIF情報付き）
+                    await this.downloadPhotoWithDelay(photoData, i);
+                }
+                
+                console.log('✅ 個別方式一括ダウンロード完了');
+                this.hideDownloadProgress();
+                alert(`${this.photoDatabase.length}枚の写真をダウンロードしました。\n\nEXIF情報（GPS・撮影日時・方位）が含まれています。`);
+                
+            } catch (error) {
+                console.error('❌ 個別方式一括ダウンロードエラー:', error);
                 this.hideDownloadProgress();
                 alert('一括ダウンロード中にエラーが発生しました。');
             }
@@ -1296,7 +1526,7 @@
                     } catch (error) {
                         reject(error);
                     }
-                }, index * 500); // 500ms間隔でダウンロード
+                }, index * 300); // 300ms間隔でダウンロード（高速化）
             });
         },
 
@@ -1307,24 +1537,25 @@
             }
         },
 
-        updateDownloadProgress(current, total) {
-            const counter = document.getElementById('download-counter');
-            const progressBar = document.getElementById('download-progress-bar');
-            
-            if (counter) {
-                counter.textContent = `${current}/${total}`;
-            }
-            
-            if (progressBar) {
-                const percentage = (current / total) * 100;
-                progressBar.style.width = `${percentage}%`;
-            }
-        },
-
         hideDownloadProgress() {
             const progressDiv = document.getElementById('download-progress');
             if (progressDiv) {
                 progressDiv.classList.add('hidden');
+            }
+            
+            // 進捗表示をリセット
+            const counter = document.getElementById('download-counter');
+            const progressBar = document.getElementById('download-progress-bar');
+            const progressMsg = document.querySelector('#download-progress .text-white.font-bold');
+            
+            if (counter) {
+                counter.textContent = '0/0';
+            }
+            if (progressBar) {
+                progressBar.style.width = '0%';
+            }
+            if (progressMsg) {
+                progressMsg.textContent = 'ダウンロード進行中...';
             }
         },
 
