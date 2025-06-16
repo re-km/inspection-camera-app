@@ -111,9 +111,8 @@
         
         /* iPhone14Pro専用スタイル */
         @media screen and (max-width: 430px) and (min-height: 930px) {
-            /* iPhone14Pro向けの調整 */
             .slider-vertical {
-                height: 60px; /* 高さを縮小 */
+                height: 60px;
                 width: 6px;
             }
             
@@ -257,12 +256,6 @@
             <button id="reconfigure-api-key-btn" class="hidden w-full mt-3 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
                 🔧 APIキーを再設定
             </button>
-            
-            <!-- デバッグ用ステータス表示 -->
-            <div id="api-debug-status" class="hidden mt-2 p-2 bg-gray-700 rounded text-xs">
-                <div>ボタン状態: <span id="button-status">未確認</span></div>
-                <div>入力値: <span id="input-status">未確認</span></div>
-            </div>
         </div>
     </div>
 
@@ -417,7 +410,7 @@
         event.preventDefault();
     });
 
-    // 構造物点検カメラアプリ
+    // 構造物点検カメラアプリ（完全版）
     const App = {
         elements: {},
         pdfDoc: null, currentPageNum: 1, pageIsRendering: false, pageNumIsPending: null,
@@ -503,26 +496,18 @@
 
         // API設定関連 - 修正版
         initApiKeyModal() {
-            console.log('API設定モーダル初期化開始');
+            console.log('🔑 API設定モーダル初期化開始');
             
-            // デバッグ表示を有効化
-            const debugStatus = document.getElementById('api-debug-status');
-            if (debugStatus) {
-                debugStatus.classList.remove('hidden');
-                document.getElementById('button-status').textContent = '初期化中...';
-            }
-            
-            // APIキーが未設定の場合のみモーダルを表示
             if (!this.apiKey) {
-                const modal = document.getElementById('api-key-modal');
+                const modal = this.elements['api-key-modal'];
                 if (modal) {
                     modal.classList.remove('hidden');
-                    console.log('APIキー設定モーダルを表示しました');
+                    console.log('✅ APIキー設定モーダルを表示しました');
                 } else {
-                    console.error('APIキー設定モーダルが見つかりません');
+                    console.error('❌ APIキー設定モーダルが見つかりません');
                 }
             } else {
-                const modal = document.getElementById('api-key-modal');
+                const modal = this.elements['api-key-modal'];
                 if (modal) {
                     modal.classList.add('hidden');
                 }
@@ -533,13 +518,7 @@
             console.log('💾 saveApiKey メソッド呼び出し');
             
             try {
-                // デバッグ表示更新
-                const buttonStatus = document.getElementById('button-status');
-                if (buttonStatus) {
-                    buttonStatus.textContent = '保存処理中...';
-                }
-                
-                const keyInput = document.getElementById('api-key-input');
+                const keyInput = this.elements['api-key-input'];
                 console.log('📝 入力フィールド取得:', keyInput ? '成功' : '失敗');
                 
                 if (!keyInput) {
@@ -551,17 +530,11 @@
                 const key = keyInput.value.trim();
                 console.log('🔑 入力されたキー:', key ? `${key.length}文字` : '空');
                 
-                // デバッグ表示更新
-                const inputStatus = document.getElementById('input-status');
-                if (inputStatus) {
-                    inputStatus.textContent = key ? `${key.length}文字入力` : '未入力';
-                }
-                
                 if (key) {
                     this.apiKey = key;
                     console.log('✅ APIキーをメモリに保存しました');
                     
-                    const modal = document.getElementById('api-key-modal');
+                    const modal = this.elements['api-key-modal'];
                     if (modal) {
                         modal.classList.add('hidden');
                         console.log('📱 モーダルを非表示にしました');
@@ -570,11 +543,11 @@
                     this.showSuccessMessage('APIキーを設定しました。（このセッション中のみ有効）');
                     
                     // 再設定ボタンを表示
-                    const reconfigureBtn = document.getElementById('reconfigure-api-key-btn');
+                    const reconfigureBtn = this.elements['reconfigure-api-key-btn'];
                     if (reconfigureBtn) {
                         reconfigureBtn.classList.remove('hidden');
                     }
-                    const skipBtn = document.getElementById('skip-api-key-btn');
+                    const skipBtn = this.elements['skip-api-key-btn'];
                     if (skipBtn) {
                         skipBtn.classList.add('hidden');
                     }
@@ -583,28 +556,17 @@
                 } else {
                     console.warn('⚠️ 空のAPIキーが入力されました');
                     alert('有効なAPIキーを入力してください。');
-                    
-                    // デバッグ表示更新
-                    if (buttonStatus) {
-                        buttonStatus.textContent = 'エラー: 空の入力';
-                    }
                 }
             } catch (error) {
                 console.error('❌ saveApiKey でエラーが発生:', error);
                 alert(`APIキー保存中にエラーが発生しました: ${error.message}`);
-                
-                // デバッグ表示更新
-                const buttonStatus = document.getElementById('button-status');
-                if (buttonStatus) {
-                    buttonStatus.textContent = `エラー: ${error.message}`;
-                }
             }
         },
 
         skipApiKey() {
             console.log('⏭️ APIキー設定をスキップ');
             
-            const modal = document.getElementById('api-key-modal');
+            const modal = this.elements['api-key-modal'];
             if (modal) {
                 modal.classList.add('hidden');
             }
@@ -612,7 +574,7 @@
             this.showInfoMessage('AI機能は利用できません。後でAPIキーを設定できます。');
             
             // 再設定ボタンを表示
-            const reconfigureBtn = document.getElementById('reconfigure-api-key-btn');
+            const reconfigureBtn = this.elements['reconfigure-api-key-btn'];
             if (reconfigureBtn) {
                 reconfigureBtn.classList.remove('hidden');
             }
@@ -621,21 +583,15 @@
         reconfigureApiKey() {
             console.log('🔧 APIキー再設定');
             
-            const keyInput = document.getElementById('api-key-input');
+            const keyInput = this.elements['api-key-input'];
             if (keyInput) {
                 keyInput.value = '';
             }
             
-            const modal = document.getElementById('api-key-modal');
+            const modal = this.elements['api-key-modal'];
             if (modal) {
                 modal.classList.remove('hidden');
             }
-            
-            // デバッグ表示リセット
-            const buttonStatus = document.getElementById('button-status');
-            const inputStatus = document.getElementById('input-status');
-            if (buttonStatus) buttonStatus.textContent = '再設定中...';
-            if (inputStatus) inputStatus.textContent = '未入力';
         },
 
         showSuccessMessage(message) {
@@ -678,7 +634,7 @@
             }, 5000);
         },
 
-        // PDF関連（元のコードと同じ）
+        // PDF関連（完全版復活）
         renderPage(num) {
             if (typeof pdfjsLib === 'undefined') {
                 console.error('PDF.jsが読み込まれていません');
@@ -725,58 +681,88 @@
             else { this.renderPage(num); }
         },
 
-        // センサー関連（元のコードと同じ）
+        // センサー関連（完全版復活）
         async initSensors() {
+            console.log('🛰️ センサー初期化開始');
+            
             if ('geolocation' in navigator) {
                 try {
+                    console.log('📍 GPS位置取得開始...');
                     await new Promise((resolve, reject) => {
                         navigator.geolocation.getCurrentPosition(
                             (position) => {
                                 this.sensorData.latitude = position.coords.latitude;
                                 this.sensorData.longitude = position.coords.longitude;
+                                console.log('✅ GPS位置取得成功:', this.sensorData.latitude, this.sensorData.longitude);
+                                
+                                // GPS状態ドットを緑に変更
                                 if (this.elements['gps-status-dot']) {
                                     this.elements['gps-status-dot'].classList.replace('bg-red-500', 'bg-green-500');
+                                    console.log('🟢 GPSステータスを緑に変更');
                                 }
+                                if (this.elements['fullscreen-gps-status-dot']) {
+                                    this.elements['fullscreen-gps-status-dot'].classList.replace('bg-red-500', 'bg-green-500');
+                                }
+                                
                                 resolve(position);
                             },
                             (error) => {
-                                console.warn(`GPS許可が必要です: ${error.message}`);
+                                console.warn(`🔴 GPS許可が必要です: ${error.message}`);
                                 this.showPermissionAlert('GPS', 'このアプリは写真に位置情報を埋め込むためGPS許可が必要です。');
                                 reject(error);
                             },
-                            { enableHighAccuracy: true, timeout: 10000 }
+                            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
                         );
                     });
                     
+                    // GPS監視を開始
                     navigator.geolocation.watchPosition(
                         (p) => { 
                             this.sensorData.latitude = p.coords.latitude; 
                             this.sensorData.longitude = p.coords.longitude; 
+                            console.log('📍 GPS位置更新:', this.sensorData.latitude, this.sensorData.longitude);
+                            
                             if (this.elements['gps-status-dot']) {
                                 this.elements['gps-status-dot'].classList.replace('bg-red-500', 'bg-green-500'); 
                             }
+                            if (this.elements['fullscreen-gps-status-dot']) {
+                                this.elements['fullscreen-gps-status-dot'].classList.replace('bg-red-500', 'bg-green-500'); 
+                            }
                         },
                         (e) => { 
-                            console.warn(`GPS監視エラー: ${e.message}`); 
+                            console.warn(`🔴 GPS監視エラー: ${e.message}`); 
                             if (this.elements['gps-status-dot']) {
                                 this.elements['gps-status-dot'].classList.replace('bg-green-500', 'bg-red-500'); 
                             }
+                            if (this.elements['fullscreen-gps-status-dot']) {
+                                this.elements['fullscreen-gps-status-dot'].classList.replace('bg-green-500', 'bg-red-500'); 
+                            }
                         },
-                        { enableHighAccuracy: true }
+                        { enableHighAccuracy: true, maximumAge: 60000 }
                     );
                 } catch (error) {
+                    console.error('❌ GPS初期化エラー:', error);
                     if (this.elements['gps-status-dot']) {
                         this.elements['gps-status-dot'].classList.replace('bg-green-500', 'bg-red-500');
                     }
                 }
+            } else {
+                console.warn('⚠️ このブラウザはGPSをサポートしていません');
             }
             
+            // 方位センサー初期化
             try {
+                console.log('🧭 方位センサー初期化開始...');
                 const handleOrientation = (event) => {
                     if (event.alpha !== null) { 
                         this.sensorData.heading = event.alpha; 
+                        console.log('🧭 方位更新:', this.sensorData.heading);
+                        
                         if (this.elements['compass-status-dot']) {
                             this.elements['compass-status-dot'].classList.replace('bg-red-500', 'bg-green-500'); 
+                        }
+                        if (this.elements['fullscreen-compass-status-dot']) {
+                            this.elements['fullscreen-compass-status-dot'].classList.replace('bg-red-500', 'bg-green-500'); 
                         }
                     }
                 };
@@ -785,62 +771,282 @@
                     const permission = await DeviceOrientationEvent.requestPermission();
                     if (permission === 'granted') {
                         window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+                        console.log('✅ 方位センサー許可取得済み');
+                    } else {
+                        console.warn('🔴 方位センサー許可が拒否されました');
                     }
                 } else { 
-                    window.addEventListener('deviceorientationabsolute', handleOrientation, true); 
+                    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+                    console.log('✅ 方位センサーイベントリスナー設定済み'); 
                 }
             } catch (error) {
-                console.warn(`方位センサーエラー: ${error.message}`);
+                console.warn(`❌ 方位センサーエラー: ${error.message}`);
             }
+            
+            console.log('✅ センサー初期化完了');
         },
 
-        // カメラ関連（簡略化）
+        // カメラ関連（完全版復活）
         async initCamera() {
+            console.log('📷 カメラ初期化開始');
+            
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment' }, 
-                    audio: false 
-                });
-                this.elements['camera-stream'].srcObject = stream;
-                console.log('カメラに接続しました');
+                const permissions = await navigator.permissions.query({ name: 'camera' });
+                if (permissions.state === 'denied') {
+                    this.showPermissionAlert('カメラ', 'カメラへのアクセスが拒否されています。設定でカメラアクセスを許可してください。');
+                    return;
+                }
+                
+                try {
+                    console.log('📷 高解像度カメラアクセス試行...');
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { 
+                            facingMode: 'environment', 
+                            width: { ideal: 4032 }, 
+                            height: { ideal: 3024 }, 
+                            aspectRatio: { ideal: 4 / 3 } 
+                        }, 
+                        audio: false 
+                    });
+                    this.elements['camera-stream'].srcObject = stream;
+                    console.log('✅ 高解像度4:3カメラに接続しました');
+                } catch (highResError) {
+                    console.warn("⚠️ 4:3高解像度カメラへのアクセスに失敗、標準カメラで試行します");
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: 'environment' }, 
+                        audio: false 
+                    });
+                    this.elements['camera-stream'].srcObject = stream;
+                    console.log('✅ 標準カメラに接続しました');
+                }
             } catch (err) {
-                console.error("カメラアクセスエラー:", err);
-                this.showPermissionAlert('カメラエラー', 'カメラにアクセスできませんでした。');
+                console.error("❌ カメラアクセスエラー:", err);
+                let errorMessage = 'カメラにアクセスできませんでした。';
+                
+                switch (err.name) {
+                    case 'NotAllowedError':
+                        errorMessage = 'カメラの使用が許可されていません。ブラウザの設定でカメラアクセスを許可してください。';
+                        break;
+                    case 'NotFoundError':
+                        errorMessage = 'カメラが見つかりません。';
+                        break;
+                    case 'SecurityError':
+                        errorMessage = 'セキュリティ上の理由でカメラにアクセスできません。HTTPSで接続しているか確認してください。';
+                        break;
+                }
+                
+                this.showPermissionAlert('カメラエラー', errorMessage);
             }
         },
 
         async takePicture() {
-            console.log('📸 写真撮影開始');
-            // 簡略化された撮影処理
+            try {
+                console.log('📸 写真撮影開始');
+                
+                // 全画面モーダル表示中かどうかで使用する要素を選択
+                const isFullscreenModalOpen = !this.elements['fullscreen-camera-modal'].classList.contains('hidden');
+                
+                let captureBtn, video;
+                if (isFullscreenModalOpen) {
+                    captureBtn = this.elements['fullscreen-capture-btn'];
+                    video = this.elements['fullscreen-camera-stream'];
+                } else {
+                    captureBtn = this.isCompareMode && !this.elements['control-panel'].classList.contains('hidden') 
+                        ? this.elements['compare-capture-btn'] 
+                        : this.elements['capture-btn'];
+                    video = this.elements['camera-stream'];
+                }
+                
+                if (captureBtn) {
+                    captureBtn.classList.add('ping-animation');
+                    setTimeout(() => captureBtn.classList.remove('ping-animation'), 500);
+                }
+
+                if (!video || !video.srcObject) {
+                    throw new Error('カメラが接続されていません');
+                }
+
+                const canvas = this.elements['capture-canvas'];
+                canvas.width = video.videoWidth; 
+                canvas.height = video.videoHeight;
+                const context = canvas.getContext('2d');
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageDataUrl = canvas.toDataURL('image/jpeg', 1.0);
+                
+                let finalImageDataUrl = imageDataUrl;
+                
+                // EXIFデータの追加
+                try {
+                    if (typeof piexif !== 'undefined' && this.sensorData.latitude !== null && this.sensorData.longitude !== null && this.sensorData.heading !== null) {
+                        const zeroth = {}; const gps = {};
+                        zeroth[piexif.ImageIFD.Make] = "Inspection_camera_app";
+                        gps[piexif.GPSIFD.GPSLatitudeRef] = this.sensorData.latitude < 0 ? 'S' : 'N';
+                        gps[piexif.GPSIFD.GPSLatitude] = piexif.GPSHelper.degToDms(Math.abs(this.sensorData.latitude));
+                        gps[piexif.GPSIFD.GPSLongitudeRef] = this.sensorData.longitude < 0 ? 'W' : 'E';
+                        gps[piexif.GPSIFD.GPSLongitude] = piexif.GPSHelper.degToDms(Math.abs(this.sensorData.longitude));
+                        gps[piexif.GPSIFD.GPSImgDirectionRef] = "T";
+                        gps[piexif.GPSIFD.GPSImgDirection] = [Math.round(this.sensorData.heading), 1];
+                        const exifObj = {"0th":zeroth, "Exif":{}, "GPS":gps, "1st":{}, "thumbnail":null};
+                        const exifbytes = piexif.dump(exifObj);
+                        finalImageDataUrl = piexif.insert(exifbytes, imageDataUrl);
+                        console.log('✅ EXIF情報を埋め込みました');
+                    }
+                } catch (exifError) {
+                    console.warn("⚠️ EXIF埋め込みエラー:", exifError);
+                    finalImageDataUrl = imageDataUrl;
+                }
+                
+                this.addToGallery(finalImageDataUrl);
+
+                this.photoCount++;
+                
+                // 撮影枚数の更新
+                const badge = this.elements['photo-count-badge'];
+                const compareCount = this.elements['compare-photo-count'];
+                const fullscreenCount = this.elements['fullscreen-photo-count'];
+                
+                if (badge) {
+                    badge.textContent = `${this.photoCount}枚`;
+                    badge.classList.remove('hidden');
+                }
+                if (compareCount) {
+                    compareCount.textContent = `${this.photoCount}枚`;
+                }
+                if (fullscreenCount) {
+                    fullscreenCount.textContent = `${this.photoCount}枚`;
+                }
+                
+                console.log('✅ 写真を撮影しました（枚数:', this.photoCount, '）');
+                
+            } catch (error) {
+                console.error('❌ 撮影エラー:', error);
+                this.showPermissionAlert('撮影エラー', `写真の撮影に失敗しました: ${error.message}`);
+            }
         },
 
-        // AI関連（簡略化）
+        addToGallery(dataUrl) {
+            this.elements['gallery-placeholder'].classList.add('hidden');
+            const previewWrapper = document.createElement('div');
+            previewWrapper.className = 'relative w-24 h-full flex-shrink-0 group';
+            const previewImg = document.createElement('img');
+            previewImg.src = dataUrl;
+            previewImg.className = 'w-full h-full object-cover rounded-md';
+            previewWrapper.appendChild(previewImg);
+            this.elements['photo-gallery'].appendChild(previewWrapper);
+            this.elements['photo-gallery'].scrollLeft = this.elements['photo-gallery'].scrollWidth;
+            
+            const albumItem = document.createElement('div');
+            albumItem.className = 'relative w-full aspect-4/3 group cursor-pointer';
+            const albumImg = document.createElement('img');
+            albumImg.src = dataUrl;
+            albumImg.className = 'w-full h-full object-cover rounded-lg';
+            albumItem.appendChild(albumImg);
+            const albumOverlay = document.createElement('div');
+            albumOverlay.className = 'absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity p-1';
+            const analyzeButton = document.createElement('button');
+            analyzeButton.innerHTML = `✨ AI分析`;
+            analyzeButton.className = 'text-white bg-purple-600 hover:bg-purple-700 font-bold py-2 px-3 rounded-lg text-xs';
+            analyzeButton.onclick = (e) => { e.stopPropagation(); this.analyzeImageWithGemini(dataUrl); };
+            albumOverlay.appendChild(analyzeButton);
+            albumItem.appendChild(albumOverlay);
+            this.elements['album-grid'].appendChild(albumItem);
+        },
+
+        // AI関連（完全版復活）
         async callGeminiApi(prompt, imageDataUrl = null) {
             if (!this.apiKey) {
                 throw new Error('APIキーが設定されていません。設定画面でAPIキーを入力してください。');
             }
             
-            // 簡略化されたAPI呼び出し
-            console.log('🤖 Gemini API呼び出し:', prompt.substring(0, 50) + '...');
-            return 'サンプル応答';
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.apiKey}`;
+            const parts = [{ text: prompt }];
+            if (imageDataUrl) {
+                const base64ImageData = imageDataUrl.split(',')[1];
+                parts.push({ inlineData: { mimeType: "image/jpeg", data: base64ImageData } });
+            }
+            const payload = { contents: [{ role: "user", parts: parts }] };
+            
+            try {
+                const response = await fetch(apiUrl, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify(payload) 
+                });
+                
+                if (!response.ok) {
+                    const errorBody = await response.json();
+                    console.error("API Error:", errorBody);
+                    if (response.status === 400 && errorBody.error?.message?.includes('API_KEY_INVALID')) {
+                        throw new Error('APIキーが無効です。正しいAPIキーを設定してください。');
+                    }
+                    throw new Error(`APIエラー: ${response.status} ${errorBody.error?.message || response.statusText}`);
+                }
+                
+                const result = await response.json();
+                if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+                    return result.candidates[0].content.parts[0].text;
+                } else {
+                    throw new Error("AIからの有効な応答がありませんでした。");
+                }
+            } catch (error) {
+                if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    throw new Error('ネットワークエラーが発生しました。インターネット接続を確認してください。');
+                }
+                throw error;
+            }
         },
 
-        // イベントリスナーと初期化 - 修正版
+        async analyzeImageWithGemini(dataUrl) {
+            if (!this.apiKey) {
+                this.showPermissionAlert('API設定', 'AI機能を使用するにはAPIキーの設定が必要です。');
+                this.reconfigureApiKey();
+                return;
+            }
+            
+            try {
+                this.elements['modal-title'].innerHTML = `<span class="text-2xl mr-2">✨</span> AIによる損傷分析`;
+                this.elements['gemini-modal'].classList.remove('hidden');
+                this.elements['report-generation-area'].classList.add('hidden'); 
+                this.elements['gemini-modal-content'].innerHTML = `<div class="flex flex-col justify-center items-center py-8"><div class="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div><p class="text-center mt-4">AIが分析中です...</p></div>`;
+                
+                const prompt = "この画像は構造物の点検時に撮影されたものです。コンクリートのひび割れ、剥離、鉄筋の露出、漏水、錆などの損傷の可能性を分析し、発見した点を箇条書きで簡潔に説明してください。損傷が見られない場合は「特に問題は見つかりませんでした。」と回答してください。日本語で回答してください。";
+                const analysisText = await this.callGeminiApi(prompt, dataUrl);
+                this.elements['gemini-modal-content'].innerHTML = `<h4 class="text-xl font-semibold">分析結果</h4><div id="gemini-modal-result" class="mt-2 p-4 bg-gray-900 rounded-lg">${analysisText.replace(/\n/g, '<br>')}</div>`;
+                const generateBtn = document.createElement('button');
+                generateBtn.innerHTML = `✨ 報告書を作成`;
+                generateBtn.className = 'mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg';
+                generateBtn.onclick = () => this.generateReportFromAnalysis(analysisText);
+                this.elements['gemini-modal-content'].appendChild(generateBtn);
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                let errorMessage = error.message;
+                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">分析中にエラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${errorMessage}</p><button onclick="App.reconfigureApiKey()" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
+            }
+        },
+
+        async generateReportFromAnalysis(analysisText) {
+            this.elements['report-generation-area'].classList.remove('hidden');
+            this.elements['report-content'].innerHTML = `<div class="flex items-center justify-center h-full"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div><p class="ml-4">報告書を作成中...</p></div>`;
+            try {
+                const prompt = `あなたは土木技術の専門家として、構造物の点検報告書を作成しています。以下の写真分析結果に基づき、所見、評価、および推奨される次のステップを含む、詳細で専門的な報告書の文章を作成してください。\n\n### 分析結果\n${analysisText}\n\n### 報告書（案）\n`;
+                const reportText = await this.callGeminiApi(prompt);
+                this.elements['report-content'].textContent = reportText;
+            } catch (error) {
+                console.error("Report Generation Error:", error);
+                this.elements['report-content'].innerHTML = `<p class="text-red-400">報告書の作成中にエラーが発生しました：${error.message}</p><button onclick="App.reconfigureApiKey()" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
+            }
+        },
+
+        // イベントリスナーと初期化（完全版）
         initEventListeners() {
             console.log('🎯 イベントリスナー初期化開始');
             
-            // API設定関連のイベントリスナー（強化版）
-            const saveBtn = document.getElementById('save-api-key-btn');
-            const skipBtn = document.getElementById('skip-api-key-btn');
-            const reconfigureBtn = document.getElementById('reconfigure-api-key-btn');
-            
-            console.log('🔍 API関連ボタン確認:');
-            console.log('  保存ボタン:', saveBtn ? '✅ 存在' : '❌ 存在しない');
-            console.log('  スキップボタン:', skipBtn ? '✅ 存在' : '❌ 存在しない');
-            console.log('  再設定ボタン:', reconfigureBtn ? '✅ 存在' : '❌ 存在しない');
+            // API設定関連のイベントリスナー（修正版）
+            const saveBtn = this.elements['save-api-key-btn'];
+            const skipBtn = this.elements['skip-api-key-btn'];
+            const reconfigureBtn = this.elements['reconfigure-api-key-btn'];
             
             if (saveBtn) {
-                // 既存のイベントリスナーを削除（重複防止）
                 saveBtn.replaceWith(saveBtn.cloneNode(true));
                 const newSaveBtn = document.getElementById('save-api-key-btn');
                 
@@ -851,7 +1057,6 @@
                     this.saveApiKey();
                 });
                 
-                // タッチイベントも追加（モバイル対応）
                 newSaveBtn.addEventListener('touchend', (e) => {
                     console.log('👆 保存ボタンタッチ検出');
                     e.preventDefault();
@@ -860,14 +1065,6 @@
                 });
                 
                 console.log('✅ 保存ボタンのイベントリスナー設定完了');
-                
-                // デバッグ表示更新
-                const buttonStatus = document.getElementById('button-status');
-                if (buttonStatus) {
-                    buttonStatus.textContent = 'イベントリスナー設定済み';
-                }
-            } else {
-                console.error('❌ 保存ボタンが見つからないため、イベントリスナーを設定できません');
             }
             
             if (skipBtn) {
@@ -875,72 +1072,151 @@
                 const newSkipBtn = document.getElementById('skip-api-key-btn');
                 
                 newSkipBtn.addEventListener('click', (e) => {
-                    console.log('🖱️ スキップボタンクリック検出');
                     e.preventDefault();
                     e.stopPropagation();
                     this.skipApiKey();
                 });
                 
                 newSkipBtn.addEventListener('touchend', (e) => {
-                    console.log('👆 スキップボタンタッチ検出');
                     e.preventDefault();
                     e.stopPropagation();
                     this.skipApiKey();
                 });
-                
-                console.log('✅ スキップボタンのイベントリスナー設定完了');
             }
             
             if (reconfigureBtn) {
                 reconfigureBtn.addEventListener('click', (e) => {
-                    console.log('🖱️ 再設定ボタンクリック検出');
                     e.preventDefault();
                     e.stopPropagation();
                     this.reconfigureApiKey();
                 });
-                
-                reconfigureBtn.addEventListener('touchend', (e) => {
-                    console.log('👆 再設定ボタンタッチ検出');
-                    e.preventDefault();
-                    e.stopPropagation();
-                    this.reconfigureApiKey();
-                });
-                
-                console.log('✅ 再設定ボタンのイベントリスナー設定完了');
             }
             
-            // 他のイベントリスナーも設定
-            const captureBtn = document.getElementById('capture-btn');
-            if (captureBtn) {
-                captureBtn.addEventListener('click', () => this.takePicture());
+            // 撮影ボタン
+            this.elements['capture-btn'].addEventListener('click', () => this.takePicture());
+            if (this.elements['compare-capture-btn']) {
+                this.elements['compare-capture-btn'].addEventListener('click', () => this.takePicture());
+            }
+            if (this.elements['fullscreen-capture-btn']) {
+                this.elements['fullscreen-capture-btn'].addEventListener('click', () => this.takePicture());
             }
             
-            // デバッグ用：すべてのボタンの状態を確認
-            setTimeout(() => {
-                console.log('🔍 5秒後のボタン状態確認:');
-                const currentSaveBtn = document.getElementById('save-api-key-btn');
-                const currentSkipBtn = document.getElementById('skip-api-key-btn');
-                const currentReconfigureBtn = document.getElementById('reconfigure-api-key-btn');
-                
-                console.log('  保存ボタン:', currentSaveBtn ? '存在' : '存在しない');
-                console.log('  スキップボタン:', currentSkipBtn ? '存在' : '存在しない');
-                console.log('  再設定ボタン:', currentReconfigureBtn ? '存在' : '存在しない');
-                
-                if (currentSaveBtn) {
-                    console.log('  保存ボタンクリック可能:', currentSaveBtn.disabled ? 'いいえ' : 'はい');
-                    console.log('  保存ボタン表示:', getComputedStyle(currentSaveBtn).display !== 'none' ? 'はい' : 'いいえ');
+            // PDF関連のイベントリスナー（復活）
+            this.elements['pdf-upload'].addEventListener('change', (e) => {
+                console.log('📄 PDFファイル選択イベント検出');
+                try {
+                    const file = e.target.files[0];
+                    if (!file || file.type !== 'application/pdf') {
+                        this.showPermissionAlert('ファイルエラー', 'PDFファイルを選択してください。');
+                        return;
+                    }
+                    
+                    if (typeof pdfjsLib === 'undefined') {
+                        this.showPermissionAlert('PDF機能エラー', 'PDF.jsライブラリが読み込まれていません。');
+                        return;
+                    }
+                    
+                    console.log('📄 PDFファイル読み込み開始:', file.name);
+                    const fileReader = new FileReader();
+                    fileReader.onload = () => {
+                        try {
+                            const typedarray = new Uint8Array(fileReader.result);
+                            pdfjsLib.getDocument(typedarray).promise.then(pdf => {
+                                this.pdfDoc = pdf;
+                                this.elements['page-count'].textContent = this.pdfDoc.numPages;
+                                this.currentPageNum = 1;
+                                this.renderPage(this.currentPageNum);
+                                this.elements['pdf-controls'].classList.remove('hidden');
+                                this.elements['pdf-placeholder'].classList.add('hidden');
+                                console.log(`✅ PDFを読み込みました: ${this.pdfDoc.numPages}ページ`);
+                            }).catch(pdfError => {
+                                console.error('❌ PDF読み込みエラー:', pdfError);
+                                this.showPermissionAlert('PDF読み込みエラー', 'PDFファイルの読み込みに失敗しました。');
+                            });
+                        } catch (parseError) {
+                            console.error('❌ PDFパースエラー:', parseError);
+                            this.showPermissionAlert('PDF解析エラー', 'PDFファイルの解析に失敗しました。');
+                        }
+                    };
+                    fileReader.readAsArrayBuffer(file);
+                } catch (error) {
+                    console.error('❌ PDFアップロード処理エラー:', error);
+                    this.showPermissionAlert('アップロードエラー', 'ファイルアップロード処理中にエラーが発生しました。');
                 }
-            }, 5000);
+            });
             
-            console.log('🎯 イベントリスナー初期化完了');
+            // PDF操作ボタン
+            this.elements['prev-page'].addEventListener('click', () => { 
+                if (this.currentPageNum > 1) { 
+                    this.currentPageNum--; 
+                    this.queueRenderPage(this.currentPageNum); 
+                } 
+            });
+            this.elements['next-page'].addEventListener('click', () => { 
+                if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) { 
+                    this.currentPageNum++; 
+                    this.queueRenderPage(this.currentPageNum); 
+                } 
+            });
+            
+            // その他のボタン
+            this.elements['open-album-btn'].addEventListener('click', () => { 
+                this.elements['album-modal'].classList.remove('hidden'); 
+            });
+            this.elements['close-album-btn'].addEventListener('click', () => { 
+                this.elements['album-modal'].classList.add('hidden'); 
+            });
+            this.elements['close-modal-btn'].addEventListener('click', () => this.elements['gemini-modal'].classList.add('hidden'));
+            this.elements['copy-report-btn'].addEventListener('click', () => {
+                const textToCopy = this.elements['report-content'].textContent;
+                const textArea = document.createElement('textarea');
+                textArea.value = textToCopy;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try { 
+                    document.execCommand('copy'); 
+                    this.elements['copy-report-btn'].textContent = 'コピー完了'; 
+                    setTimeout(() => { this.elements['copy-report-btn'].textContent = '文章をコピー'; }, 2000); 
+                } catch (err) { 
+                    console.error('コピー失敗', err); 
+                }
+                document.body.removeChild(textArea);
+            });
+            
+            console.log('✅ イベントリスナー初期化完了');
         },
 
         async init() {
             try {
                 console.log('🚀 アプリ初期化開始...');
                 
-                // 要素の取得
-                const ids = ['save-api-key-btn', 'skip-api-key-btn', 'reconfigure-api-key-btn', 'api-key-input', 'api-key-modal', 'camera-stream', 'capture-btn'];
+                // セキュリティチェック
+                try {
+                    if (!this.checkSecureContext()) {
+                        console.warn('⚠️ セキュアコンテキストではありません');
+                    }
+                } catch (securityError) {
+                    console.warn('⚠️ セキュリティチェックエラー:', securityError);
+                }
+                
+                // 要素の取得（完全版）
+                const ids = [
+                    'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 
+                    'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 
+                    'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'target-image-container', 
+                    'target-image', 'camera-frame', 'match-indicator', 'gps-status-dot', 'compass-status-dot', 
+                    'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 
+                    'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 
+                    'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn', 'api-key-modal', 
+                    'api-key-input', 'save-api-key-btn', 'skip-api-key-btn', 'reconfigure-api-key-btn', 'control-panel', 
+                    'close-compare-btn', 'show-album-btn', 'zoom-slider', 'zoom-level-display', 'compare-photo-count', 
+                    'compare-capture-btn', 'comparison-match-rate', 'fullscreen-camera-modal', 'fullscreen-camera-stream', 
+                    'fullscreen-target-image', 'fullscreen-match-indicator', 'close-fullscreen-camera-btn', 
+                    'fullscreen-ai-assistant-btn', 'fullscreen-show-album-btn', 'fullscreen-zoom-slider', 
+                    'fullscreen-zoom-level-display', 'fullscreen-photo-count', 'fullscreen-capture-btn', 
+                    'fullscreen-success-message', 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot', 
+                    'zoom-in-btn', 'zoom-out-btn', 'zoom-reset-btn'
+                ];
                 
                 ids.forEach(id => { 
                     const element = document.getElementById(id);
@@ -955,12 +1231,13 @@
                 this.initEventListeners();
                 this.initApiKeyModal();
                 
+                // 非同期でカメラとセンサーを初期化
                 this.initCamera().catch(err => {
-                    console.error('カメラ初期化エラー:', err);
+                    console.error('❌ カメラ初期化エラー:', err);
                 });
                 
                 this.initSensors().catch(err => {
-                    console.error('センサー初期化エラー:', err);
+                    console.error('❌ センサー初期化エラー:', err);
                 });
                 
                 console.log('✅ 構造物点検カメラアプリ初期化完了');
