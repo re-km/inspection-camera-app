@@ -61,7 +61,7 @@
         .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
         #camera-stream { width: 100%; height: 100%; object-fit: contain; }
         
-        /* ズームスライダーのスタイル */
+        /* ズームスライダーのスタイル（iPhone14Pro対応） */
         .slider-vertical {
             writing-mode: bt-lr; /* IE */
             -webkit-appearance: slider-vertical; /* WebKit */
@@ -107,6 +107,31 @@
             height: 120px;
             background: #ddd;
             border-radius: 4px;
+        }
+        
+        /* iPhone14Pro専用スタイル */
+        @media screen and (max-width: 430px) and (min-height: 930px) {
+            /* iPhone14Pro向けの調整 */
+            .slider-vertical {
+                height: 60px; /* 高さを縮小 */
+                width: 6px;
+            }
+            
+            .slider-vertical::-webkit-slider-thumb {
+                width: 16px;
+                height: 16px;
+            }
+        }
+        
+        /* Safe Area対応 */
+        @supports (padding: max(0px)) {
+            .safe-area-top {
+                padding-top: max(12px, env(safe-area-inset-top));
+            }
+            
+            .safe-area-bottom {
+                padding-bottom: max(8px, env(safe-area-inset-bottom));
+            }
         }
     </style>
 </head>
@@ -235,16 +260,16 @@
         </div>
     </div>
 
-    <!-- 全画面カメラモーダル（確実な実装） -->
+    <!-- 全画面カメラモーダル（iPhone14Pro対応） -->
     <div id="fullscreen-camera-modal" class="hidden fixed inset-0 bg-black z-[90] flex flex-col">
         <!-- カメラ映像エリア -->
         <div class="flex-grow relative bg-black overflow-hidden">
             <video id="fullscreen-camera-stream" autoplay playsinline class="w-full h-full object-contain"></video>
             
-            <!-- 左上：センサー情報と比較画像 -->
-            <div class="absolute top-4 left-4 flex flex-col gap-4 z-30">
+            <!-- 左上：センサー情報と比較画像（Safe Area対応） -->
+            <div class="absolute top-12 left-4 flex flex-col gap-3 z-30" style="padding-top: env(safe-area-inset-top);">
                 <!-- センサー情報 -->
-                <div class="bg-black bg-opacity-70 p-3 rounded-lg text-xs text-white">
+                <div class="bg-black bg-opacity-70 p-2 rounded-lg text-xs text-white">
                     <div class="flex items-center gap-2 mb-1">
                         <span id="fullscreen-gps-status-dot" class="status-dot bg-red-500"></span> 
                         <span>GPS</span>
@@ -258,32 +283,41 @@
                 <!-- 比較画像 -->
                 <div class="bg-black bg-opacity-70 p-2 rounded-lg">
                     <div class="text-xs text-white mb-1">比較画像</div>
-                    <img id="fullscreen-target-image" class="w-32 h-24 border-2 border-teal-500 rounded object-cover">
+                    <img id="fullscreen-target-image" class="w-24 h-18 border-2 border-teal-500 rounded object-cover">
                     <div id="fullscreen-match-indicator" class="text-xs text-center text-white mt-1">一致率: --</div>
                 </div>
             </div>
             
-            <!-- 右側：コントロールパネル -->
-            <div class="absolute top-4 right-4 bottom-4 flex flex-col justify-between z-40">
+            <!-- 右側：コントロールパネル（iPhone14Pro最適化） -->
+            <div class="absolute right-2 z-40 flex flex-col h-full justify-between py-4" style="padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);">
                 <!-- 上部ボタン群 -->
                 <div class="flex flex-col gap-2">
-                    <button id="close-fullscreen-camera-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg">
-                        ✖<br><span class="text-xs">戻る</span>
+                    <button id="close-fullscreen-camera-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-lg shadow-lg text-xs">
+                        ✖<br>戻る
                     </button>
-                    <button id="fullscreen-ai-assistant-btn" class="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg">
-                        ✨<br><span class="text-xs">撮影補助</span>
+                    <button id="fullscreen-ai-assistant-btn" class="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-2 px-3 rounded-lg shadow-lg text-xs">
+                        ✨<br>AI補助
                     </button>
-                    <button id="fullscreen-show-album-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg">
-                        📁<br><span class="text-xs">アルバム</span>
+                    <button id="fullscreen-show-album-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg shadow-lg text-xs">
+                        📁<br>アルバム
                     </button>
                 </div>
                 
-                <!-- 中央：ズームスライダー -->
-                <div class="bg-black bg-opacity-70 p-4 rounded-lg flex flex-col items-center gap-2">
+                <!-- 中央：ズームコントロール（高さ調整） -->
+                <div class="bg-black bg-opacity-70 p-3 rounded-lg flex flex-col items-center gap-2 max-h-48">
                     <div class="text-white text-xs font-bold">ズーム</div>
-                    <div id="fullscreen-zoom-level-display" class="text-white text-sm font-bold mb-2">1.0x</div>
-                    <div class="flex flex-col items-center gap-2">
-                        <span class="text-white text-xs">3.0x</span>
+                    <div id="fullscreen-zoom-level-display" class="text-white text-sm font-bold">1.0x</div>
+                    
+                    <!-- ズームボタン（スライダー代替） -->
+                    <div class="flex flex-col gap-2">
+                        <button id="zoom-in-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded text-xs">+</button>
+                        <button id="zoom-reset-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-2 rounded text-xs">1x</button>
+                        <button id="zoom-out-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded text-xs">-</button>
+                    </div>
+                    
+                    <!-- 従来のスライダー（小さく） -->
+                    <div class="flex flex-col items-center gap-1 mt-2">
+                        <span class="text-white text-xs">3x</span>
                         <input type="range" 
                                id="fullscreen-zoom-slider" 
                                min="0.5" 
@@ -291,18 +325,22 @@
                                step="0.1" 
                                value="1.0"
                                orient="vertical"
-                               class="slider-vertical">
+                               class="h-16 w-2 bg-gray-300 rounded-lg appearance-none cursor-pointer">
                         <span class="text-white text-xs">0.5x</span>
                     </div>
                 </div>
                 
-                <!-- 下部：撮影ボタンと撮影数 -->
-                <div class="flex flex-col items-center gap-3">
-                    <span id="fullscreen-photo-count" class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full">0枚</span>
-                    <button id="fullscreen-capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
-                        <div class="w-16 h-16 bg-white rounded-full shadow-inner border-2 border-gray-200"></div>
-                    </button>
+                <!-- 下部：撮影エリア -->
+                <div class="flex flex-col items-center gap-2">
+                    <span id="fullscreen-photo-count" class="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full">0枚</span>
                 </div>
+            </div>
+            
+            <!-- 下部中央：撮影ボタン（確実に表示） -->
+            <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-50" style="padding-bottom: env(safe-area-inset-bottom);">
+                <button id="fullscreen-capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
+                    <div class="w-16 h-16 bg-white rounded-full shadow-inner border-2 border-gray-200"></div>
+                </button>
             </div>
             
             <!-- 成功メッセージ表示エリア -->
@@ -920,7 +958,7 @@
             }
         },
 
-        // ズーム機能
+        // ズーム機能（iPhone14Pro対応版）
         updateZoom() {
             const video = this.elements['camera-stream'];
             const zoomDisplay = this.elements['zoom-level-display'];
@@ -943,11 +981,47 @@
                 if (!isNaN(newZoom) && newZoom >= this.minZoom && newZoom <= this.maxZoom) {
                     this.zoomLevel = newZoom;
                     this.updateZoom();
+                    // 全画面モーダルが開いている場合は同期
+                    if (!this.elements['fullscreen-camera-modal'].classList.contains('hidden')) {
+                        this.updateFullscreenZoom();
+                    }
                 }
             }
         },
         
-        // ピンチズーム対応（全画面モーダル対応）
+        // ズームボタン機能
+        zoomIn() {
+            if (this.zoomLevel < this.maxZoom) {
+                this.zoomLevel = Math.min(this.zoomLevel + 0.2, this.maxZoom);
+                this.updateZoom();
+                // 全画面モーダルが開いている場合は同期
+                if (!this.elements['fullscreen-camera-modal'].classList.contains('hidden')) {
+                    this.updateFullscreenZoom();
+                }
+            }
+        },
+        
+        zoomOut() {
+            if (this.zoomLevel > this.minZoom) {
+                this.zoomLevel = Math.max(this.zoomLevel - 0.2, this.minZoom);
+                this.updateZoom();
+                // 全画面モーダルが開いている場合は同期
+                if (!this.elements['fullscreen-camera-modal'].classList.contains('hidden')) {
+                    this.updateFullscreenZoom();
+                }
+            }
+        },
+        
+        resetZoom() {
+            this.zoomLevel = 1.0;
+            this.updateZoom();
+            // 全画面モーダルが開いている場合は同期
+            if (!this.elements['fullscreen-camera-modal'].classList.contains('hidden')) {
+                this.updateFullscreenZoom();
+            }
+        },
+        
+        // ピンチズーム対応（iPhone14Pro全画面モーダル対応）
         initPinchZoom() {
             // 全画面モーダル表示中かどうかで使用する要素を選択
             const isFullscreenModalOpen = !this.elements['fullscreen-camera-modal'].classList.contains('hidden');
@@ -959,6 +1033,7 @@
             let initialZoom = 1.0;
             let isZooming = false;
             
+            // タッチイベントにパッシブリスナーを使用
             video.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 2) {
                     e.preventDefault();
@@ -988,7 +1063,11 @@
                 if (e.touches.length < 2) {
                     isZooming = false;
                 }
-            });
+            }, { passive: false });
+            
+            video.addEventListener('touchcancel', (e) => {
+                isZooming = false;
+            }, { passive: false });
         },
         
         getDistance(touch1, touch2) {
@@ -1223,6 +1302,24 @@
                 setTimeout(() => {
                     modal.style.backgroundColor = 'black';
                 }, 2000);
+                
+                // iPhone14Pro用にシャッターボタンの存在確認
+                setTimeout(() => {
+                    const captureBtn = this.elements['fullscreen-capture-btn'];
+                    if (captureBtn) {
+                        captureBtn.style.border = '2px solid #00ff00';
+                        setTimeout(() => {
+                            captureBtn.style.border = '4px solid #d1d5db';
+                        }, 1000);
+                        console.log('✅ シャッターボタン確認完了');
+                    }
+                }, 500);
+                
+                // ピンチズーム初期化（全画面モーダル対応）
+                setTimeout(() => {
+                    this.initPinchZoom();
+                    console.log('✅ ピンチズーム初期化完了（全画面モーダル）');
+                }, 100);
             }
             
             console.log('🚀 モーダル方式カメラ全画面表示完了');
@@ -1300,7 +1397,7 @@
             }
         },
         
-        // 全画面でのズーム機能
+        // 全画面でのズーム機能（iPhone14Pro対応）
         updateFullscreenZoom() {
             const video = this.elements['fullscreen-camera-stream'];
             const zoomDisplay = this.elements['fullscreen-zoom-level-display'];
@@ -1314,6 +1411,21 @@
                     zoomSlider.value = this.zoomLevel.toString();
                 }
             }
+            
+            // ズームボタンのスタイル更新
+            const zoomInBtn = this.elements['zoom-in-btn'];
+            const zoomOutBtn = this.elements['zoom-out-btn'];
+            const zoomResetBtn = this.elements['zoom-reset-btn'];
+            
+            if (zoomInBtn) {
+                zoomInBtn.style.opacity = this.zoomLevel >= this.maxZoom ? '0.5' : '1';
+            }
+            if (zoomOutBtn) {
+                zoomOutBtn.style.opacity = this.zoomLevel <= this.minZoom ? '0.5' : '1';
+            }
+            if (zoomResetBtn) {
+                zoomResetBtn.style.backgroundColor = this.zoomLevel === 1.0 ? '#10B981' : '#6B7280';
+            }
         },
         
         setZoomFromFullscreenSlider() {
@@ -1323,6 +1435,8 @@
                 if (!isNaN(newZoom) && newZoom >= this.minZoom && newZoom <= this.maxZoom) {
                     this.zoomLevel = newZoom;
                     this.updateFullscreenZoom();
+                    // 通常のズーム表示も同期
+                    this.updateZoom();
                 }
             }
         },
@@ -1433,6 +1547,17 @@
                 this.elements['fullscreen-show-album-btn'].addEventListener('click', () => {
                     this.elements['album-modal'].classList.remove('hidden');
                 });
+            }
+            
+            // ズームボタン（iPhone14Pro対応）
+            if (this.elements['zoom-in-btn']) {
+                this.elements['zoom-in-btn'].addEventListener('click', () => this.zoomIn());
+            }
+            if (this.elements['zoom-out-btn']) {
+                this.elements['zoom-out-btn'].addEventListener('click', () => this.zoomOut());
+            }
+            if (this.elements['zoom-reset-btn']) {
+                this.elements['zoom-reset-btn'].addEventListener('click', () => this.resetZoom());
             }
             
             // ズームスライダー
@@ -1560,7 +1685,7 @@
                 }
                 
                 // 要素の取得
-                const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'skip-api-key-btn', 'reconfigure-api-key-btn', 'control-panel', 'close-compare-btn', 'show-album-btn', 'zoom-slider', 'zoom-level-display', 'compare-photo-count', 'compare-capture-btn', 'comparison-match-rate', 'fullscreen-camera-modal', 'fullscreen-camera-stream', 'fullscreen-target-image', 'fullscreen-match-indicator', 'close-fullscreen-camera-btn', 'fullscreen-ai-assistant-btn', 'fullscreen-show-album-btn', 'fullscreen-zoom-slider', 'fullscreen-zoom-level-display', 'fullscreen-photo-count', 'fullscreen-capture-btn', 'fullscreen-success-message', 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot'];
+                const ids = ['pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'target-image-container', 'target-image', 'camera-frame', 'match-indicator', 'gps-status-dot', 'compass-status-dot', 'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'skip-api-key-btn', 'reconfigure-api-key-btn', 'control-panel', 'close-compare-btn', 'show-album-btn', 'zoom-slider', 'zoom-level-display', 'compare-photo-count', 'compare-capture-btn', 'comparison-match-rate', 'fullscreen-camera-modal', 'fullscreen-camera-stream', 'fullscreen-target-image', 'fullscreen-match-indicator', 'close-fullscreen-camera-btn', 'fullscreen-ai-assistant-btn', 'fullscreen-show-album-btn', 'fullscreen-zoom-slider', 'fullscreen-zoom-level-display', 'fullscreen-photo-count', 'fullscreen-capture-btn', 'fullscreen-success-message', 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot', 'zoom-in-btn', 'zoom-out-btn', 'zoom-reset-btn'];
                 
                 ids.forEach(id => { 
                     const element = document.getElementById(id);
