@@ -122,6 +122,65 @@
             }
         }
         
+        /* 全画面カメラの右側コントロールパネル強制表示 */
+        #fullscreen-camera-modal .fullscreen-control-panel {
+            position: fixed !important;
+            top: 0 !important;
+            right: 0 !important;
+            width: 80px !important;
+            height: 100vh !important;
+            z-index: 999 !important;
+            background: linear-gradient(to left, rgba(0,0,0,0.9), rgba(0,0,0,0.5)) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            padding: 20px 8px !important;
+            pointer-events: auto !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        
+        /* ボタンの基本スタイル強化 */
+        #fullscreen-camera-modal .control-btn {
+            background-color: rgba(59, 130, 246, 0.9) !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 8px !important;
+            padding: 8px 4px !important;
+            font-size: 10px !important;
+            font-weight: bold !important;
+            text-align: center !important;
+            line-height: 1.2 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+            cursor: pointer !important;
+            transition: background-color 0.2s !important;
+            min-height: 40px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        
+        #fullscreen-camera-modal .control-btn:hover {
+            background-color: rgba(59, 130, 246, 1) !important;
+        }
+        
+        #fullscreen-camera-modal .control-btn.red {
+            background-color: rgba(239, 68, 68, 0.9) !important;
+        }
+        
+        #fullscreen-camera-modal .control-btn.red:hover {
+            background-color: rgba(239, 68, 68, 1) !important;
+        }
+        
+        #fullscreen-camera-modal .control-btn.purple {
+            background-color: rgba(168, 85, 247, 0.9) !important;
+        }
+        
+        #fullscreen-camera-modal .control-btn.purple:hover {
+            background-color: rgba(168, 85, 247, 1) !important;
+        }
+        
         /* Safe Area対応 */
         @supports (padding: max(0px)) {
             .safe-area-top {
@@ -130,6 +189,11 @@
             
             .safe-area-bottom {
                 padding-bottom: max(8px, env(safe-area-inset-bottom));
+            }
+            
+            #fullscreen-camera-modal .fullscreen-control-panel {
+                padding-top: max(20px, env(safe-area-inset-top)) !important;
+                padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
             }
         }
     </style>
@@ -259,14 +323,14 @@
         </div>
     </div>
 
-    <!-- 全画面カメラモーダル（iPhone14Pro対応） -->
+    <!-- 全画面カメラモーダル（右側パネル強化版） -->
     <div id="fullscreen-camera-modal" class="hidden fixed inset-0 bg-black z-[90] flex flex-col">
         <!-- カメラ映像エリア -->
         <div class="flex-grow relative bg-black overflow-hidden">
             <video id="fullscreen-camera-stream" autoplay playsinline class="w-full h-full object-contain"></video>
             
-            <!-- 左上：センサー情報と比較画像（Safe Area対応） -->
-            <div class="absolute top-12 left-4 flex flex-col gap-3 z-30" style="padding-top: env(safe-area-inset-top);">
+            <!-- 左上：センサー情報と比較画像 -->
+            <div class="absolute top-4 left-4 flex flex-col gap-3 z-30">
                 <!-- センサー情報 -->
                 <div class="bg-black bg-opacity-70 p-2 rounded-lg text-xs text-white">
                     <div class="flex items-center gap-2 mb-1">
@@ -287,64 +351,68 @@
                 </div>
             </div>
             
-            <!-- 右側：コントロールパネル（iPhone14Pro最適化） -->
-            <div class="absolute right-2 z-40 flex flex-col h-full justify-between py-4" style="padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);">
+            <!-- 右側：確実に表示されるコントロールパネル -->
+            <div class="fullscreen-control-panel">
                 <!-- 上部ボタン群 -->
                 <div class="flex flex-col gap-2">
-                    <button id="close-fullscreen-camera-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-lg shadow-lg text-xs">
-                        ✖<br>戻る
+                    <button id="close-fullscreen-camera-btn" class="control-btn red">
+                        <span>✖</span>
+                        <span>戻る</span>
                     </button>
-                    <button id="fullscreen-ai-assistant-btn" class="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-2 px-3 rounded-lg shadow-lg text-xs">
-                        ✨<br>AI補助
+                    <button id="fullscreen-ai-assistant-btn" class="control-btn purple">
+                        <span>✨</span>
+                        <span>AI補助</span>
                     </button>
-                    <button id="fullscreen-show-album-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg shadow-lg text-xs">
-                        📁<br>アルバム
+                    <button id="fullscreen-show-album-btn" class="control-btn">
+                        <span>📁</span>
+                        <span>アルバム</span>
                     </button>
                 </div>
                 
-                <!-- 中央：ズームコントロール（高さ調整） -->
-                <div class="bg-black bg-opacity-70 p-3 rounded-lg flex flex-col items-center gap-2 max-h-48">
+                <!-- 中央：ズームコントロール -->
+                <div class="bg-black bg-opacity-80 p-2 rounded-lg flex flex-col items-center gap-2">
                     <div class="text-white text-xs font-bold">ズーム</div>
-                    <div id="fullscreen-zoom-level-display" class="text-white text-sm font-bold">1.0x</div>
+                    <div id="fullscreen-zoom-level-display" class="text-white text-xs font-bold">1.0x</div>
                     
-                    <!-- ズームボタン（スライダー代替） -->
-                    <div class="flex flex-col gap-2">
-                        <button id="zoom-in-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded text-xs">+</button>
-                        <button id="zoom-reset-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-2 rounded text-xs">1x</button>
-                        <button id="zoom-out-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded text-xs">-</button>
+                    <!-- ズームボタン -->
+                    <div class="flex flex-col gap-1">
+                        <button id="zoom-in-btn" class="control-btn" style="min-height: 30px !important; font-size: 14px !important;">+</button>
+                        <button id="zoom-reset-btn" class="control-btn" style="min-height: 25px !important; font-size: 8px !important;">1x</button>
+                        <button id="zoom-out-btn" class="control-btn" style="min-height: 30px !important; font-size: 14px !important;">-</button>
                     </div>
                     
-                    <!-- 従来のスライダー（小さく） -->
-                    <div class="flex flex-col items-center gap-1 mt-2">
-                        <span class="text-white text-xs">3x</span>
-                        <input type="range" 
-                               id="fullscreen-zoom-slider" 
-                               min="0.5" 
-                               max="3.0" 
-                               step="0.1" 
-                               value="1.0"
-                               orient="vertical"
-                               class="h-16 w-2 bg-gray-300 rounded-lg appearance-none cursor-pointer">
-                        <span class="text-white text-xs">0.5x</span>
-                    </div>
+                    <!-- 簡易スライダー -->
+                    <input type="range" 
+                           id="fullscreen-zoom-slider" 
+                           min="0.5" 
+                           max="3.0" 
+                           step="0.1" 
+                           value="1.0"
+                           class="w-12 h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer"
+                           style="writing-mode: bt-lr; height: 60px; width: 20px;">
                 </div>
                 
-                <!-- 下部：撮影エリア -->
+                <!-- 下部：撮影数表示 -->
                 <div class="flex flex-col items-center gap-2">
                     <span id="fullscreen-photo-count" class="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full">0枚</span>
                 </div>
             </div>
             
             <!-- 下部中央：撮影ボタン（確実に表示） -->
-            <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-50" style="padding-bottom: env(safe-area-inset-bottom);">
+            <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-50">
                 <button id="fullscreen-capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
                     <div class="w-16 h-16 bg-white rounded-full shadow-inner border-2 border-gray-200"></div>
                 </button>
             </div>
             
             <!-- 成功メッセージ表示エリア -->
-            <div id="fullscreen-success-message" class="hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-600 text-white p-4 rounded-lg text-center text-xl font-bold">
+            <div id="fullscreen-success-message" class="hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-600 text-white p-4 rounded-lg text-center text-xl font-bold z-40">
                 📱 カメラ全画面表示成功！
+            </div>
+            
+            <!-- デバッグ用：右側エリア確認 -->
+            <div id="debug-fullscreen-panel" class="hidden absolute top-0 right-0 w-20 h-full bg-yellow-500 bg-opacity-50 z-30 flex items-center justify-center">
+                <div class="text-black text-xs font-bold transform rotate-90">RIGHT PANEL</div>
             </div>
         </div>
     </div>
@@ -1197,7 +1265,7 @@
         },
 
         showFullscreenCamera() {
-            console.log('🚀 全画面カメラ表示');
+            console.log('🚀 全画面カメラ表示開始');
             
             // 成功メッセージを表示
             const successMessage = this.elements['fullscreen-success-message'];
@@ -1213,12 +1281,14 @@
             const fullscreenVideo = this.elements['fullscreen-camera-stream'];
             if (fullscreenVideo && currentStream) {
                 fullscreenVideo.srcObject = currentStream;
+                console.log('✅ カメラストリーム移動完了');
             }
             
             // ターゲット画像を設定
             const fullscreenTargetImage = this.elements['fullscreen-target-image'];
             if (fullscreenTargetImage && this.targetImageDataUrl) {
                 fullscreenTargetImage.src = this.targetImageDataUrl;
+                console.log('✅ ターゲット画像設定完了');
             }
             
             // センサー状態をコピー
@@ -1238,7 +1308,173 @@
             if (modal) {
                 modal.classList.remove('hidden');
                 console.log('✅ 全画面モーダル表示完了');
+                
+                // 右側コントロールパネルの強制表示確認
+                setTimeout(() => {
+                    this.ensureRightPanelVisible();
+                }, 500);
+                
+                // デバッグ用：右側エリアの表示確認（3秒間）
+                const debugPanel = document.getElementById('debug-fullscreen-panel');
+                if (debugPanel) {
+                    debugPanel.classList.remove('hidden');
+                    setTimeout(() => {
+                        debugPanel.classList.add('hidden');
+                    }, 3000);
+                }
             }
+            
+            console.log('✅ 全画面カメラ表示完了');
+        },
+
+        ensureRightPanelVisible() {
+            console.log('🔍 右側パネル表示確認開始');
+            
+            // 右側コントロールパネルを検索
+            const controlPanel = document.querySelector('#fullscreen-camera-modal .fullscreen-control-panel');
+            
+            if (controlPanel) {
+                console.log('✅ 右側パネル要素発見');
+                
+                // 強制的に表示状態にする
+                controlPanel.style.display = 'flex';
+                controlPanel.style.visibility = 'visible';
+                controlPanel.style.opacity = '1';
+                controlPanel.style.zIndex = '999';
+                controlPanel.style.position = 'fixed';
+                controlPanel.style.top = '0';
+                controlPanel.style.right = '0';
+                controlPanel.style.width = '80px';
+                controlPanel.style.height = '100vh';
+                controlPanel.style.background = 'linear-gradient(to left, rgba(0,0,0,0.9), rgba(0,0,0,0.5))';
+                controlPanel.style.flexDirection = 'column';
+                controlPanel.style.justifyContent = 'space-between';
+                controlPanel.style.padding = '20px 8px';
+                controlPanel.style.pointerEvents = 'auto';
+                
+                console.log('✅ 右側パネルのスタイルを強制適用');
+                
+                // ボタンの表示確認とスタイル強制適用
+                const buttons = controlPanel.querySelectorAll('.control-btn');
+                console.log(`🔍 コントロールボタン数: ${buttons.length}`);
+                
+                buttons.forEach((btn, index) => {
+                    btn.style.display = 'flex';
+                    btn.style.visibility = 'visible';
+                    btn.style.opacity = '1';
+                    btn.style.pointerEvents = 'auto';
+                    
+                    // ボタンの点滅効果で確認（2秒間）
+                    btn.style.border = '2px solid #00ff00';
+                    setTimeout(() => {
+                        btn.style.border = 'none';
+                    }, 2000);
+                    
+                    console.log(`✅ ボタン${index + 1} 表示強制適用: ${btn.id || btn.textContent}`);
+                });
+                
+                // ズームコントロールの表示確認
+                const zoomControl = controlPanel.querySelector('.bg-black.bg-opacity-80');
+                if (zoomControl) {
+                    zoomControl.style.display = 'flex';
+                    zoomControl.style.visibility = 'visible';
+                    zoomControl.style.opacity = '1';
+                    console.log('✅ ズームコントロール表示強制適用');
+                }
+                
+                // 5秒後に最終確認
+                setTimeout(() => {
+                    const finalCheck = document.querySelector('#fullscreen-camera-modal .fullscreen-control-panel');
+                    if (finalCheck && window.getComputedStyle(finalCheck).display !== 'none') {
+                        console.log('🎉 右側パネル表示成功確認');
+                    } else {
+                        console.error('❌ 右側パネル表示失敗');
+                        this.showRightPanelDebugInfo();
+                    }
+                }, 5000);
+                
+            } else {
+                console.error('❌ 右側パネル要素が見つかりません');
+                this.showRightPanelDebugInfo();
+            }
+        },
+
+        showRightPanelDebugInfo() {
+            console.log('🐛 右側パネルデバッグ情報:');
+            
+            // 全画面モーダルの存在確認
+            const modal = this.elements['fullscreen-camera-modal'];
+            console.log('  全画面モーダル存在:', modal ? 'はい' : 'いいえ');
+            if (modal) {
+                console.log('  全画面モーダル表示状態:', modal.classList.contains('hidden') ? '非表示' : '表示');
+            }
+            
+            // 右側パネル候補要素の検索
+            const panelCandidates = [
+                '.fullscreen-control-panel',
+                '#fullscreen-camera-modal .fullscreen-control-panel',
+                '[class*="control-panel"]'
+            ];
+            
+            panelCandidates.forEach(selector => {
+                const element = document.querySelector(selector);
+                console.log(`  ${selector}:`, element ? '存在' : '存在しない');
+                if (element) {
+                    const styles = window.getComputedStyle(element);
+                    console.log(`    display: ${styles.display}`);
+                    console.log(`    visibility: ${styles.visibility}`);
+                    console.log(`    opacity: ${styles.opacity}`);
+                    console.log(`    z-index: ${styles.zIndex}`);
+                }
+            });
+            
+            // 代替パネルの生成
+            this.createEmergencyRightPanel();
+        },
+
+        createEmergencyRightPanel() {
+            console.log('🚨 緊急代替右側パネル作成');
+            
+            const modal = this.elements['fullscreen-camera-modal'];
+            if (!modal) return;
+            
+            // 既存の緊急パネルを削除
+            const existingPanel = document.getElementById('emergency-right-panel');
+            if (existingPanel) {
+                existingPanel.remove();
+            }
+            
+            // 緊急代替パネルを作成
+            const emergencyPanel = document.createElement('div');
+            emergencyPanel.id = 'emergency-right-panel';
+            emergencyPanel.innerHTML = `
+                <div style="position: fixed; top: 0; right: 0; width: 80px; height: 100vh; z-index: 999; background: linear-gradient(to left, rgba(0,0,0,0.9), rgba(0,0,0,0.5)); display: flex; flex-direction: column; justify-content: space-between; padding: 20px 8px; pointer-events: auto;">
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <button onclick="App.hideFullscreenCamera()" style="background: rgba(239, 68, 68, 0.9); color: white; border: none; border-radius: 8px; padding: 8px 4px; font-size: 10px; font-weight: bold; text-align: center; cursor: pointer; min-height: 40px;">
+                            ✖<br>戻る
+                        </button>
+                        <button onclick="if(App.targetImageDataUrl) App.getAiShootingAssistant(App.targetImageDataUrl)" style="background: rgba(168, 85, 247, 0.9); color: white; border: none; border-radius: 8px; padding: 8px 4px; font-size: 10px; font-weight: bold; text-align: center; cursor: pointer; min-height: 40px;">
+                            ✨<br>AI補助
+                        </button>
+                        <button onclick="App.elements['album-modal'].classList.remove('hidden')" style="background: rgba(59, 130, 246, 0.9); color: white; border: none; border-radius: 8px; padding: 8px 4px; font-size: 10px; font-weight: bold; text-align: center; cursor: pointer; min-height: 40px;">
+                            📁<br>アルバム
+                        </button>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.8); padding: 8px; border-radius: 8px; text-align: center;">
+                        <div style="color: white; font-size: 10px; font-weight: bold;">ズーム</div>
+                        <div style="color: white; font-size: 10px; margin: 4px 0;">${this.zoomLevel.toFixed(1)}x</div>
+                        <button onclick="App.zoomIn()" style="background: rgba(59, 130, 246, 0.9); color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 14px; margin: 2px 0; width: 100%; cursor: pointer;">+</button>
+                        <button onclick="App.resetZoom()" style="background: rgba(107, 114, 128, 0.9); color: white; border: none; border-radius: 4px; padding: 2px 4px; font-size: 8px; margin: 2px 0; width: 100%; cursor: pointer;">1x</button>
+                        <button onclick="App.zoomOut()" style="background: rgba(59, 130, 246, 0.9); color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 14px; margin: 2px 0; width: 100%; cursor: pointer;">-</button>
+                    </div>
+                    <div style="text-align: center;">
+                        <span style="background: rgba(59, 130, 246, 1); color: white; font-size: 10px; font-weight: bold; padding: 4px 8px; border-radius: 12px;">${this.photoCount}枚</span>
+                    </div>
+                </div>
+            `;
+            
+            modal.appendChild(emergencyPanel);
+            console.log('✅ 緊急代替右側パネル作成完了');
         },
 
         hideFullscreenCamera() {
