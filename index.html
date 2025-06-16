@@ -1727,4 +1727,57 @@
                 // 要素の取得
                 const ids = [
                     'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 
+                    'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder', 
+                    'gemini-modal', 'gemini-modal-content', 'close-modal-btn', 'toggle-compare-btn', 'target-image-container', 
+                    'target-image', 'camera-frame', 'match-indicator', 'gps-status-dot', 'compass-status-dot', 
+                    'report-generation-area', 'report-content', 'copy-report-btn', 'pdf-viewer-wrapper', 'modal-title', 
+                    'ai-assistant-btn', 'selection-marker', 'selection-instruction', 'album-modal', 'album-grid', 
+                    'open-album-btn', 'close-album-btn', 'photo-count-badge', 'pdf-reselect-btn', 'api-key-modal', 
+                    'api-key-input', 'save-api-key-btn', 'skip-api-key-btn', 'control-panel', 
+                    'close-compare-btn', 'show-album-btn', 'zoom-slider', 'zoom-level-display', 'compare-photo-count', 
+                    'compare-capture-btn', 'comparison-match-rate', 'fullscreen-camera-modal', 'fullscreen-camera-stream', 
+                    'fullscreen-target-image', 'fullscreen-match-indicator', 'fullscreen-zoom-level-display', 
+                    'fullscreen-photo-count', 'fullscreen-capture-btn', 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot'
+                ];
+                
+                ids.forEach(id => { 
+                    const element = document.getElementById(id);
+                    if (element) {
+                        this.elements[id] = element;
+                        console.log(`✅ 要素取得成功: ${id}`);
+                    } else {
+                        console.warn(`❌ 要素が見つかりません: ${id}`);
+                    }
+                });
+                
+                this.initEventListeners();
+                this.initApiKeyModal();
+                
+                // 非同期でカメラとセンサーを初期化
+                this.initCamera().catch(err => {
+                    console.error('❌ カメラ初期化エラー:', err);
+                });
+                
+                this.initSensors().catch(err => {
+                    console.error('❌ センサー初期化エラー:', err);
+                });
+                
+                console.log('✅ 構造物点検カメラアプリ初期化完了');
+                
+            } catch (error) {
+                console.error('❌ アプリ初期化エラー:', error);
+                this.showPermissionAlert('初期化エラー', `アプリケーションの初期化に失敗しました: ${error.message}`);
+            }
+        }
+    };
+
+    // DOMContentLoaded後に初期化
+    window.addEventListener('DOMContentLoaded', () => {
+        console.log('📄 DOM読み込み完了 - アプリ初期化開始');
+        App.init();
+    });
+
+    </script>
+</body>
+</html> 
                     
