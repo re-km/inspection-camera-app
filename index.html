@@ -862,61 +862,63 @@
 
         // 初期化とイベントリスナー
         setupEventListeners() {
-            document.body.addEventListener('click', (e) => {
-                const target = e.target.closest('button');
-                if (!target) return;
+            const addListener = (id, callback, event = 'click') => {
+                const el = this.elements[id];
+                if (el) el.addEventListener(event, callback);
+            };
 
-                const id = target.id;
-                const action = target.dataset.action;
+            addListener('reconfigure-api-key-btn', () => this.openApiKeyModal());
+            addListener('save-api-key-btn', () => this.saveApiKey());
+            addListener('clear-api-key-btn', () => this.clearApiKey());
+            addListener('close-api-key-modal-btn', () => this.elements['api-key-modal'].classList.add('hidden'));
+            
+            addListener('prev-page', () => { if (this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); });
+            addListener('next-page', () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); });
+            
+            addListener('capture-btn', () => this.takePicture());
+            addListener('fullscreen-capture-btn', () => this.takePicture());
+            
+            addListener('toggle-compare-btn', () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); });
+            
+            addListener('close-fullscreen-camera-btn', () => this.resetCompareMode());
+            addListener('fullscreen-ai-assistant-btn', () => this.getAiShootingAssistant());
+            addListener('fullscreen-show-album-btn', () => this.elements['album-modal'].classList.remove('hidden'));
+            
+            addListener('zoom-in-btn', () => this.updateZoom(this.zoomLevel + 0.2));
+            addListener('zoom-out-btn', () => this.updateZoom(this.zoomLevel - 0.2));
+            addListener('zoom-reset-btn', () => this.updateZoom(1.0));
+            
+            addListener('open-album-btn', () => this.elements['album-modal'].classList.remove('hidden'));
+            addListener('close-album-btn', () => this.elements['album-modal'].classList.add('hidden'));
+            addListener('download-all-btn', () => this.downloadAllPhotos());
+            
+            addListener('close-modal-btn', () => this.elements['gemini-modal'].classList.add('hidden'));
+            addListener('copy-report-btn', () => {
+                navigator.clipboard.writeText(this.elements['report-content'].textContent)
+                    .then(() => this.showNotification('報告書をコピーしました', 'success'))
+                    .catch(() => this.showNotification('コピーに失敗しました', 'error'));
+            });
 
-                // Album grid actions
-                if (action === 'ai-analyze' || action === 'download-single') {
-                    const photoItem = target.closest('[data-photo-id]');
-                    if (photoItem) {
-                        const photoId = parseInt(photoItem.dataset.photoId, 10);
-                        if (action === 'ai-analyze') this.analyzeImageWithGemini(photoId);
-                        if (action === 'download-single') this.downloadSinglePhoto(photoId);
-                    }
-                    return;
-                }
+            this.elements['album-grid'].addEventListener('click', (e) => {
+                const button = e.target.closest('button[data-action]');
+                if (!button) return;
+                const action = button.dataset.action;
+                const photoItem = button.closest('[data-photo-id]');
+                if (!photoItem) return;
+                const photoId = parseInt(photoItem.dataset.photoId, 10);
+                if (action === 'ai-analyze') this.analyzeImageWithGemini(photoId);
+                if (action === 'download-single') this.downloadSinglePhoto(photoId);
+            });
 
-                // Gemini modal actions
+            this.elements['gemini-modal'].addEventListener('click', (e) => {
+                const button = e.target.closest('button[data-action]');
+                if (!button) return;
+                const action = button.dataset.action;
                 if (action === 'generate-report') {
                     const analysisText = this.elements['gemini-modal-content'].querySelector('div').innerHTML.replace(/<br>/g, '\n');
                     this.generateReportFromAnalysis(analysisText);
-                    return;
-                }
-                if (action === 'reconfigure-api-key-from-error') {
-                     this.openApiKeyModal();
-                     return;
-                }
-
-                // General buttons by ID
-                switch(id) {
-                    case 'reconfigure-api-key-btn': this.openApiKeyModal(); break;
-                    case 'save-api-key-btn': this.saveApiKey(); break;
-                    case 'clear-api-key-btn': this.clearApiKey(); break;
-                    case 'close-api-key-modal-btn': this.elements['api-key-modal'].classList.add('hidden'); break;
-                    case 'prev-page': if (this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); break;
-                    case 'next-page': if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); break;
-                    case 'capture-btn': this.takePicture(); break;
-                    case 'fullscreen-capture-btn': this.takePicture(); break;
-                    case 'toggle-compare-btn': if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); break;
-                    case 'close-fullscreen-camera-btn': this.resetCompareMode(); break;
-                    case 'fullscreen-ai-assistant-btn': this.getAiShootingAssistant(); break;
-                    case 'fullscreen-show-album-btn': this.elements['album-modal'].classList.remove('hidden'); break;
-                    case 'zoom-in-btn': this.updateZoom(this.zoomLevel + 0.2); break;
-                    case 'zoom-out-btn': this.updateZoom(this.zoomLevel - 0.2); break;
-                    case 'zoom-reset-btn': this.updateZoom(1.0); break;
-                    case 'open-album-btn': this.elements['album-modal'].classList.remove('hidden'); break;
-                    case 'close-album-btn': this.elements['album-modal'].classList.add('hidden'); break;
-                    case 'download-all-btn': this.downloadAllPhotos(); break;
-                    case 'close-modal-btn': this.elements['gemini-modal'].classList.add('hidden'); break;
-                    case 'copy-report-btn': 
-                        navigator.clipboard.writeText(this.elements['report-content'].textContent)
-                            .then(() => this.showNotification('報告書をコピーしました', 'success'))
-                            .catch(() => this.showNotification('コピーに失敗しました', 'error'));
-                        break;
+                } else if (action === 'reconfigure-api-key-from-error') {
+                    this.openApiKeyModal();
                 }
             });
 
