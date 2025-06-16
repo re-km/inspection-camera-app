@@ -1037,6 +1037,367 @@
             }
         },
 
+        async getAiShootingAssistant(dataUrl) {
+            if (!this.apiKey) {
+                this.showPermissionAlert('API設定', 'AI機能を使用するにはAPIキーの設定が必要です。');
+                this.reconfigureApiKey();
+                return;
+            }
+            
+            this.elements['modal-title'].innerHTML = `<span class="text-2xl mr-2">✨</span> AI撮影アシスタント`;
+            this.elements['gemini-modal'].classList.remove('hidden');
+            this.elements['report-generation-area'].classList.add('hidden');
+            this.elements['gemini-modal-content'].innerHTML = `<div class="flex flex-col justify-center items-center py-8"><div class="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div><p class="text-center mt-4">AIが写真を確認しています...</p></div>`;
+            try {
+                const prompt = `あなたは経験豊富な土木技術者です。この写真は過去の点検で撮影されたものです。\n1. この写真に写っている構造物や部材が何であるか、専門用語を使いつつ簡潔に説明してください。\n2. この後、新人技術者が同じ写真を撮影します。同じアングルや構図で撮影するための、具体的で分かりやすいアドバイスをしてください。\n\n現在地は日本の福井県越前市です。緯度は${this.sensorData.latitude || '不明'}、経度は${this.sensorData.longitude || '不明'}です。これらの情報も参考に、回答を作成してください。`;
+                const assistantText = await this.callGeminiApi(prompt, dataUrl);
+                this.elements['gemini-modal-content'].innerHTML = `<div class="prose prose-invert max-w-none">${assistantText.replace(/\n/g, '<br>')}</div>`;
+            } catch (error) {
+                console.error("AI Assistant Error:", error);
+                this.elements['gemini-modal-content'].innerHTML = `<p class="text-red-400">AIアシスタントの呼び出し中にエラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${error.message}</p><button onclick="App.reconfigureApiKey()" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
+            }
+        },
+
+        // 比較機能関連メソッド（完全版）
+        toggleCompareMode() {
+            console.log('🖼️ toggleCompareMode 呼び出し - 現在の状態:', this.selectionState);
+            
+            if (this.selectionState === 'completed') {
+                // 比較終了
+                console.log('📱 比較モード終了');
+                this.revertToSplitView();
+                return;
+            }
+            
+            this.isCompareMode = !this.isCompareMode;
+            console.log('🔄 比較モード切り替え:', this.isCompareMode ? 'ON' : 'OFF');
+            
+            if (this.isCompareMode) {
+                this.selectionState = 'waiting_for_p1';
+                this.elements['toggle-compare-btn'].textContent = '🖼️ 終了';
+                this.elements['toggle-compare-btn'].classList.remove('bg-teal-600');
+                this.elements['toggle-compare-btn'].classList.add('bg-red-600');
+                this.elements['pdf-viewer'].style.cursor = 'crosshair';
+                this.showInstruction('比較範囲の左上をタップ');
+                console.log('✅ 比較モード開始 - PDFから範囲を選択してください');
+            } else {
+                this.resetSelection();
+                this.elements['toggle-compare-btn'].textContent = '🖼️ 比較';
+                this.elements['toggle-compare-btn'].classList.remove('bg-red-600');
+                this.elements['toggle-compare-btn'].classList.add('bg-teal-600');
+                this.elements['pdf-viewer'].style.cursor = 'default';
+                console.log('✅ 比較モード終了');
+            }
+        },
+
+        handlePdfTap(event) {
+            console.log('📄 PDF タップ処理開始');
+            console.log('  比較モード:', this.isCompareMode);
+            console.log('  選択状態:', this.selectionState);
+            
+            if (!this.isCompareMode || this.selectionState === 'completed') {
+                console.log('  → 比較モードではないか選択完了済みのためリターン');
+                return;
+            }
+            
+            event.preventDefault();
+            const rect = this.elements['pdf-viewer'].getBoundingClientRect();
+            const x = (event.touches ? event.touches[0].clientX : event.clientX) - rect.left;
+            const y = (event.touches ? event.touches[0].clientY : event.clientY) - rect.top;
+            
+            console.log('  タップ座標:', { x, y });
+            
+            if (this.selectionState === 'waiting_for_p1') {
+                console.log('  → 左上点を設定');
+                this.p1 = { x, y };
+                this.elements['selection-marker'].style.left = `${x}px`;
+                this.elements['selection-marker'].style.top = `${y}px`;
+                this.elements['selection-marker'].classList.remove('hidden');
+                this.showInstruction('右下をタップしてください');
+                this.selectionState = 'waiting_for_p2';
+                console.log('  ✅ 左上点設定完了 - 右下点を待機中');
+            } else if (this.selectionState === 'waiting_for_p2') {
+                console.log('  → 右下点を設定');
+                const p2 = { x, y };
+                const selRect = { 
+                    x: Math.min(this.p1.x, p2.x), 
+                    y: Math.min(this.p1.y, p2.y), 
+                    width: Math.abs(this.p1.x - p2.x), 
+                    height: Math.abs(this.p1.y - p2.y) 
+                };
+                
+                console.log('  選択範囲:', selRect);
+                
+                if (selRect.width < 10 || selRect.height < 10) { 
+                    console.log('  → 選択範囲が小さすぎるためリセット');
+                    this.resetSelection(); 
+                    return; 
+                }
+                
+                console.log('  → 画像切り取りを実行');
+                this.cropAndSetTarget(selRect);
+            }
+        },
+
+        resetSelection() {
+            console.log('🔄 選択状態をリセット');
+            this.elements['selection-marker'].classList.add('hidden');
+            this.elements['selection-instruction'].classList.add('hidden');
+            this.selectionState = 'idle';
+        },
+
+        showInstruction(text) {
+            console.log('💬 指示表示:', text);
+            const instructionEl = this.elements['selection-instruction'];
+            instructionEl.textContent = text;
+            instructionEl.classList.remove('hidden');
+        },
+
+        cropAndSetTarget(rect) {
+            console.log('✂️ 画像切り取り開始');
+            console.log('  切り取り範囲:', rect);
+            
+            const pdfCanvas = this.elements['pdf-viewer'].querySelector('canvas');
+            if (!pdfCanvas) {
+                console.error('❌ PDFキャンバスが見つかりません');
+                return;
+            }
+            
+            // 画像を切り取り
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = rect.width; 
+            tempCanvas.height = rect.height;
+            const ctx = tempCanvas.getContext('2d');
+            ctx.drawImage(pdfCanvas, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height);
+            this.targetImageDataUrl = tempCanvas.toDataURL('image/png');
+            
+            console.log('✅ 画像切り取り完了');
+            
+            // ターゲット画像を設定
+            if (this.elements['target-image']) {
+                this.elements['target-image'].src = this.targetImageDataUrl;
+            }
+            
+            // 選択UI要素を非表示
+            this.elements['selection-marker'].classList.add('hidden');
+            this.elements['selection-instruction'].classList.add('hidden');
+            
+            // 状態を比較完了に変更
+            this.selectionState = 'completed';
+            this.isCompareMode = true;
+            
+            // 比較ボタンの状態を更新
+            this.elements['toggle-compare-btn'].textContent = '🖼️ 比較終了';
+            this.elements['toggle-compare-btn'].classList.remove('bg-red-600', 'bg-teal-600');
+            this.elements['toggle-compare-btn'].classList.add('bg-purple-600');
+            
+            // カメラ全画面表示を実行
+            console.log('🚀 全画面カメラ表示開始');
+            this.showFullscreenCamera();
+        },
+
+        showFullscreenCamera() {
+            console.log('🚀 全画面カメラ表示');
+            
+            // 成功メッセージを表示
+            const successMessage = this.elements['fullscreen-success-message'];
+            if (successMessage) {
+                successMessage.classList.remove('hidden');
+                setTimeout(() => {
+                    successMessage.classList.add('hidden');
+                }, 2000);
+            }
+            
+            // 現在のカメラストリームを全画面モーダルに移動
+            const currentStream = this.elements['camera-stream'].srcObject;
+            const fullscreenVideo = this.elements['fullscreen-camera-stream'];
+            if (fullscreenVideo && currentStream) {
+                fullscreenVideo.srcObject = currentStream;
+            }
+            
+            // ターゲット画像を設定
+            const fullscreenTargetImage = this.elements['fullscreen-target-image'];
+            if (fullscreenTargetImage && this.targetImageDataUrl) {
+                fullscreenTargetImage.src = this.targetImageDataUrl;
+            }
+            
+            // センサー状態をコピー
+            this.syncSensorStatus();
+            
+            // 撮影枚数を更新
+            const fullscreenPhotoCount = this.elements['fullscreen-photo-count'];
+            if (fullscreenPhotoCount) {
+                fullscreenPhotoCount.textContent = `${this.photoCount}枚`;
+            }
+            
+            // ズームレベルを同期
+            this.syncZoomLevel();
+            
+            // 全画面モーダルを表示
+            const modal = this.elements['fullscreen-camera-modal'];
+            if (modal) {
+                modal.classList.remove('hidden');
+                console.log('✅ 全画面モーダル表示完了');
+            }
+        },
+
+        hideFullscreenCamera() {
+            console.log('❌ 全画面カメラ終了');
+            
+            // カメラストリームを元に戻す
+            const fullscreenStream = this.elements['fullscreen-camera-stream'].srcObject;
+            const originalVideo = this.elements['camera-stream'];
+            if (originalVideo && fullscreenStream) {
+                originalVideo.srcObject = fullscreenStream;
+            }
+            
+            // 全画面モーダルを非表示
+            const modal = this.elements['fullscreen-camera-modal'];
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+            
+            // 比較機能を無効化
+            this.isCompareMode = false;
+            this.targetImageDataUrl = null;
+            this.selectionState = 'idle';
+            
+            // 比較ボタンの状態をリセット
+            this.elements['toggle-compare-btn'].textContent = '🖼️ 比較';
+            this.elements['toggle-compare-btn'].classList.remove('bg-red-600', 'bg-purple-600');
+            this.elements['toggle-compare-btn'].classList.add('bg-teal-600');
+            this.elements['pdf-viewer'].style.cursor = 'default';
+            
+            // カメラフレームのエフェクトをリセット
+            this.elements['camera-frame'].style.boxShadow = 'none';
+            
+            // 選択UI要素を非表示
+            this.elements['selection-marker'].classList.add('hidden');
+            this.elements['selection-instruction'].classList.add('hidden');
+            
+            // ズームをリセット
+            this.zoomLevel = 1.0;
+            this.updateZoom();
+        },
+
+        revertToSplitView() {
+            console.log('🔄 分割表示に戻る');
+            this.hideFullscreenCamera();
+        },
+
+        // センサー状態の同期
+        syncSensorStatus() {
+            const gpsStatus = this.elements['gps-status-dot'];
+            const compassStatus = this.elements['compass-status-dot'];
+            const fullscreenGpsStatus = this.elements['fullscreen-gps-status-dot'];
+            const fullscreenCompassStatus = this.elements['fullscreen-compass-status-dot'];
+            
+            if (gpsStatus && fullscreenGpsStatus) {
+                fullscreenGpsStatus.className = gpsStatus.className;
+            }
+            if (compassStatus && fullscreenCompassStatus) {
+                fullscreenCompassStatus.className = compassStatus.className;
+            }
+        },
+
+        // ズーム機能
+        updateZoom() {
+            const video = this.elements['camera-stream'];
+            const zoomDisplay = this.elements['zoom-level-display'];
+            const zoomSlider = this.elements['zoom-slider'];
+            
+            if (video && zoomDisplay) {
+                video.style.transform = `scale(${this.zoomLevel})`;
+                zoomDisplay.textContent = `${this.zoomLevel.toFixed(1)}x`;
+                
+                if (zoomSlider) {
+                    zoomSlider.value = this.zoomLevel.toString();
+                }
+            }
+        },
+
+        setZoomFromSlider() {
+            const zoomSlider = this.elements['zoom-slider'];
+            if (zoomSlider) {
+                const newZoom = parseFloat(zoomSlider.value);
+                if (!isNaN(newZoom) && newZoom >= this.minZoom && newZoom <= this.maxZoom) {
+                    this.zoomLevel = newZoom;
+                    this.updateZoom();
+                    if (!this.elements['fullscreen-camera-modal'].classList.contains('hidden')) {
+                        this.updateFullscreenZoom();
+                    }
+                }
+            }
+        },
+
+        zoomIn() {
+            if (this.zoomLevel < this.maxZoom) {
+                this.zoomLevel = Math.min(this.zoomLevel + 0.2, this.maxZoom);
+                this.updateZoom();
+                if (!this.elements['fullscreen-camera-modal'].classList.contains('hidden')) {
+                    this.updateFullscreenZoom();
+                }
+            }
+        },
+
+        zoomOut() {
+            if (this.zoomLevel > this.minZoom) {
+                this.zoomLevel = Math.max(this.zoomLevel - 0.2, this.minZoom);
+                this.updateZoom();
+                if (!this.elements['fullscreen-camera-modal'].classList.contains('hidden')) {
+                    this.updateFullscreenZoom();
+                }
+            }
+        },
+
+        resetZoom() {
+            this.zoomLevel = 1.0;
+            this.updateZoom();
+            if (!this.elements['fullscreen-camera-modal'].classList.contains('hidden')) {
+                this.updateFullscreenZoom();
+            }
+        },
+
+        // 全画面でのズーム機能
+        updateFullscreenZoom() {
+            const video = this.elements['fullscreen-camera-stream'];
+            const zoomDisplay = this.elements['fullscreen-zoom-level-display'];
+            const zoomSlider = this.elements['fullscreen-zoom-slider'];
+            
+            if (video && zoomDisplay) {
+                video.style.transform = `scale(${this.zoomLevel})`;
+                zoomDisplay.textContent = `${this.zoomLevel.toFixed(1)}x`;
+                
+                if (zoomSlider) {
+                    zoomSlider.value = this.zoomLevel.toString();
+                }
+            }
+        },
+
+        setZoomFromFullscreenSlider() {
+            const zoomSlider = this.elements['fullscreen-zoom-slider'];
+            if (zoomSlider) {
+                const newZoom = parseFloat(zoomSlider.value);
+                if (!isNaN(newZoom) && newZoom >= this.minZoom && newZoom <= this.maxZoom) {
+                    this.zoomLevel = newZoom;
+                    this.updateFullscreenZoom();
+                    this.updateZoom();
+                }
+            }
+        },
+
+        syncZoomLevel() {
+            const fullscreenZoomSlider = this.elements['fullscreen-zoom-slider'];
+            const fullscreenZoomDisplay = this.elements['fullscreen-zoom-level-display'];
+            
+            if (fullscreenZoomSlider) {
+                fullscreenZoomSlider.value = this.zoomLevel.toString();
+            }
+            if (fullscreenZoomDisplay) {
+                fullscreenZoomDisplay.textContent = `${this.zoomLevel.toFixed(1)}x`;
+            }
+        },
+
         // イベントリスナーと初期化（完全版）
         initEventListeners() {
             console.log('🎯 イベントリスナー初期化開始');
@@ -1100,6 +1461,128 @@
             if (this.elements['fullscreen-capture-btn']) {
                 this.elements['fullscreen-capture-btn'].addEventListener('click', () => this.takePicture());
             }
+            
+            // 比較機能関連のイベントリスナー（追加・修正）
+            console.log('🖼️ 比較機能イベントリスナー設定開始');
+            
+            // 比較ボタンのイベントリスナー
+            if (this.elements['toggle-compare-btn']) {
+                this.elements['toggle-compare-btn'].addEventListener('click', (e) => {
+                    console.log('🖼️ 比較ボタンクリック検出');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.toggleCompareMode();
+                });
+                console.log('✅ 比較ボタンのイベントリスナー設定完了');
+            } else {
+                console.error('❌ 比較ボタンが見つかりません');
+            }
+            
+            // PDFビューアーでのタップ処理
+            if (this.elements['pdf-viewer']) {
+                this.elements['pdf-viewer'].addEventListener('touchstart', (e) => {
+                    console.log('👆 PDFビューアータッチ検出');
+                    this.handlePdfTap(e);
+                }, { passive: false });
+                
+                this.elements['pdf-viewer'].addEventListener('click', (e) => {
+                    console.log('🖱️ PDFビューアークリック検出');
+                    this.handlePdfTap(e);
+                });
+                
+                console.log('✅ PDFタップ処理のイベントリスナー設定完了');
+            } else {
+                console.error('❌ PDFビューアーが見つかりません');
+            }
+            
+            // 比較モード終了ボタン
+            if (this.elements['close-compare-btn']) {
+                this.elements['close-compare-btn'].addEventListener('click', () => {
+                    console.log('❌ 比較モード終了ボタンクリック');
+                    this.revertToSplitView();
+                });
+            }
+            
+            // 全画面カメラ関連
+            if (this.elements['close-fullscreen-camera-btn']) {
+                this.elements['close-fullscreen-camera-btn'].addEventListener('click', () => {
+                    console.log('❌ 全画面カメラ終了ボタンクリック');
+                    this.hideFullscreenCamera();
+                });
+            }
+            
+            // AI機能ボタン
+            if (this.elements['ai-assistant-btn']) {
+                this.elements['ai-assistant-btn'].addEventListener('click', () => { 
+                    console.log('✨ AI撮影補助ボタンクリック');
+                    if (this.targetImageDataUrl) {
+                        this.getAiShootingAssistant(this.targetImageDataUrl);
+                    } else {
+                        alert('先に比較画像を選択してください。');
+                    }
+                });
+            }
+            
+            if (this.elements['fullscreen-ai-assistant-btn']) {
+                this.elements['fullscreen-ai-assistant-btn'].addEventListener('click', () => { 
+                    console.log('✨ 全画面AI撮影補助ボタンクリック');
+                    if (this.targetImageDataUrl) {
+                        this.getAiShootingAssistant(this.targetImageDataUrl);
+                    } else {
+                        alert('先に比較画像を選択してください。');
+                    }
+                });
+            }
+            
+            // アルバム表示ボタン
+            if (this.elements['show-album-btn']) {
+                this.elements['show-album-btn'].addEventListener('click', () => {
+                    console.log('📁 アルバム表示ボタンクリック');
+                    this.elements['album-modal'].classList.remove('hidden');
+                });
+            }
+            
+            if (this.elements['fullscreen-show-album-btn']) {
+                this.elements['fullscreen-show-album-btn'].addEventListener('click', () => {
+                    console.log('📁 全画面アルバム表示ボタンクリック');
+                    this.elements['album-modal'].classList.remove('hidden');
+                });
+            }
+            
+            // ズーム関連ボタン
+            if (this.elements['zoom-in-btn']) {
+                this.elements['zoom-in-btn'].addEventListener('click', () => {
+                    console.log('🔍 ズームインボタンクリック');
+                    this.zoomIn();
+                });
+            }
+            
+            if (this.elements['zoom-out-btn']) {
+                this.elements['zoom-out-btn'].addEventListener('click', () => {
+                    console.log('🔍 ズームアウトボタンクリック');
+                    this.zoomOut();
+                });
+            }
+            
+            if (this.elements['zoom-reset-btn']) {
+                this.elements['zoom-reset-btn'].addEventListener('click', () => {
+                    console.log('🔍 ズームリセットボタンクリック');
+                    this.resetZoom();
+                });
+            }
+            
+            // ズームスライダー
+            if (this.elements['zoom-slider']) {
+                this.elements['zoom-slider'].addEventListener('input', () => this.setZoomFromSlider());
+                this.elements['zoom-slider'].addEventListener('change', () => this.setZoomFromSlider());
+            }
+            
+            if (this.elements['fullscreen-zoom-slider']) {
+                this.elements['fullscreen-zoom-slider'].addEventListener('input', () => this.setZoomFromFullscreenSlider());
+                this.elements['fullscreen-zoom-slider'].addEventListener('change', () => this.setZoomFromFullscreenSlider());
+            }
+            
+            console.log('✅ 比較機能イベントリスナー設定完了');
             
             // PDF関連のイベントリスナー（復活）
             this.elements['pdf-upload'].addEventListener('change', (e) => {
