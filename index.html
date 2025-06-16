@@ -58,12 +58,12 @@
             right: 0;
             width: 90px;
             height: 100%;
-            z-index: 20;
-            background: linear-gradient(to left, rgba(0,0,0,0.8), rgba(0,0,0,0.3));
+            z-index: 52;
+            background: linear-gradient(to left, rgba(0,0,0,0.7), rgba(0,0,0,0.2));
             display: flex;
             flex-direction: column;
-            justify-content: space-around; /* 均等配置に変更 */
-            align-items: center; /* 中央揃え */
+            justify-content: space-around;
+            align-items: center;
             padding: 20px 8px;
             pointer-events: auto;
         }
@@ -83,11 +83,12 @@
             cursor: pointer;
             transition: background-color 0.2s, transform 0.1s;
             min-height: 48px;
-            width: 64px; /* 幅を固定 */
+            width: 64px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            pointer-events: auto;
         }
         .control-btn:active {
             transform: scale(0.95);
@@ -123,6 +124,7 @@
                  <div class="flex flex-wrap gap-2 mb-2">
                     <label for="pdf-upload" class="flex-grow text-center cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm">PDF選択</label>
                     <button id="toggle-compare-btn" class="flex-grow text-center bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🖼️ 比較撮影</button>
+                    <button id="reconfigure-api-key-btn" class="flex-grow text-center bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🔑 API設定</button>
                 </div>
                  <input type="file" id="pdf-upload" class="hidden" accept=".pdf">
             </div>
@@ -148,7 +150,7 @@
                     <div><span id="gps-status-dot" class="status-dot bg-red-500"></span> GPS</div>
                     <div><span id="compass-status-dot" class="status-dot bg-red-500"></span> 方位</div>
                 </div>
-                <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+                <div class="absolute bottom-4 right-4 z-10">
                     <button id="capture-btn" title="撮影"></button>
                 </div>
             </div>
@@ -189,7 +191,7 @@
             <video id="fullscreen-camera-stream" autoplay playsinline></video>
             
             <!-- 左上：センサー情報と比較画像 -->
-            <div class="absolute top-4 left-4 flex flex-col gap-3 z-10 safe-area-padding">
+            <div class="absolute top-4 left-4 flex flex-col gap-3 z-51 safe-area-padding">
                 <div class="bg-black bg-opacity-70 p-2 rounded-lg text-xs text-white">
                     <div class="flex items-center gap-2 mb-1">
                         <span id="fullscreen-gps-status-dot" class="status-dot bg-red-500"></span> 
@@ -210,7 +212,7 @@
             <!-- 右側：コントロールパネル -->
             <div class="fullscreen-control-panel">
                 <!-- 上部ボタン -->
-                <button id="close-fullscreen-camera-btn" class="control-btn red" onclick="App.resetCompareMode()">
+                <button id="close-fullscreen-camera-btn" class="control-btn red">
                     <span>✖</span>
                     <span>戻る</span>
                 </button>
@@ -228,11 +230,11 @@
 
                 <!-- 下部ボタン -->
                 <div class="flex flex-col gap-3">
-                     <button id="fullscreen-ai-assistant-btn" class="control-btn purple" onclick="App.getAiShootingAssistant()">
+                     <button id="fullscreen-ai-assistant-btn" class="control-btn purple">
                         <span>✨</span>
                         <span>AI補助</span>
                     </button>
-                    <button id="fullscreen-show-album-btn" class="control-btn" onclick="App.elements['album-modal'].classList.remove('hidden')">
+                    <button id="fullscreen-show-album-btn" class="control-btn">
                         <span>📁</span>
                         <span>アルバム</span>
                     </button>
@@ -240,8 +242,8 @@
                 </div>
             </div>
             
-            <!-- 下部中央：撮影ボタン -->
-            <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20 safe-area-padding">
+            <!-- 下部右側：撮影ボタン -->
+            <div class="absolute bottom-8 right-8 z-51 safe-area-padding">
                 <button id="fullscreen-capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
                     <div class="w-16 h-16 bg-white rounded-full shadow-inner border-2 border-gray-200"></div>
                 </button>
@@ -354,10 +356,7 @@
 
         // API設定
         initApiKeyModal() {
-            // 保存済みのキーがなければモーダル表示
-            if (!this.apiKey) {
-                this.elements['api-key-modal'].classList.remove('hidden');
-            }
+            this.elements['api-key-modal'].classList.remove('hidden');
         },
 
         loadApiKey() {
@@ -676,7 +675,10 @@
 
         // AI関連
         async callGeminiApi(prompt, imageDataUrl = null) {
-            if (!this.apiKey) throw new Error('APIキーが設定されていません。');
+            if (!this.apiKey) {
+                this.initApiKeyModal();
+                throw new Error('APIキーが設定されていません。');
+            }
             
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.apiKey}`;
             const parts = [{ text: prompt }];
@@ -702,9 +704,9 @@
         },
 
         async analyzeImageWithGemini(dataUrl) {
-            if (!this.apiKey) { this.initApiKeyModal(); return; }
-            this.openGeminiModal('✨ AIによる損傷分析', `<div class="flex justify-center items-center py-8"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>`);
             try {
+                await this.callGeminiApi("Test prompt"); // Test API key first
+                this.openGeminiModal('✨ AIによる損傷分析', `<div class="flex justify-center items-center py-8"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>`);
                 const prompt = "あなたは土木技術者です。この構造物点検写真から、コンクリートのひび割れ、剥離、鉄筋露出、漏水、錆などの損傷の可能性を分析し、発見事項を箇条書きで簡潔に説明してください。損傷が見られない場合は「特筆すべき損傷は見当たりません。」と回答してください。日本語で回答してください。";
                 const analysisText = await this.callGeminiApi(prompt, dataUrl);
                 const contentHtml = `<h4 class="text-xl font-semibold">分析結果</h4><div class="mt-2 p-4 bg-gray-900 rounded-lg">${analysisText.replace(/\n/g, '<br>')}</div>
@@ -729,9 +731,9 @@
                 this.showNotification('比較画像が選択されていません。', 'warning');
                 return;
             }
-            if (!this.apiKey) { this.initApiKeyModal(); return; }
-            this.openGeminiModal('✨ AI撮影アシスタント', `<div class="flex justify-center items-center py-8"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>`);
             try {
+                await this.callGeminiApi("Test prompt"); // Test API key first
+                this.openGeminiModal('✨ AI撮影アシスタント', `<div class="flex justify-center items-center py-8"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>`);
                 const prompt = `あなたは経験豊富な土木技術者です。この写真は過去の点検で撮影されたものです。\n1. この写真に写っている構造物や部材が何か、専門用語を使いつつ簡潔に説明してください。\n2. 新人技術者が同じ写真を再現撮影するための、具体的で分かりやすいアドバイスをしてください。\n\n現在地情報（緯度: ${this.sensorData.latitude || '不明'}, 経度: ${this.sensorData.longitude || '不明'}）も参考にしてください。`;
                 const assistantText = await this.callGeminiApi(prompt, this.targetImageDataUrl);
                 this.elements['gemini-modal-content'].innerHTML = `<div class="prose prose-invert max-w-none">${assistantText.replace(/\n/g, '<br>')}</div>`;
@@ -840,6 +842,7 @@
         // 初期化とイベントリスナー
         initEventListeners() {
             // API
+            this.elements['reconfigure-api-key-btn'].addEventListener('click', () => this.initApiKeyModal());
             this.elements['save-api-key-btn'].addEventListener('click', () => this.saveApiKey());
             this.elements['clear-api-key-btn'].addEventListener('click', () => this.clearApiKey());
             this.elements['close-api-key-modal-btn'].addEventListener('click', () => this.elements['api-key-modal'].classList.add('hidden'));
@@ -877,6 +880,11 @@
             this.elements['pdf-viewer'].addEventListener('click', e => this.handlePdfTap(e));
             this.elements['pdf-viewer'].addEventListener('touchstart', e => this.handlePdfTap(e), { passive: false });
 
+            // フルスクリーンボタン
+            this.elements['close-fullscreen-camera-btn'].addEventListener('click', () => this.resetCompareMode());
+            this.elements['fullscreen-ai-assistant-btn'].addEventListener('click', () => this.getAiShootingAssistant());
+            this.elements['fullscreen-show-album-btn'].addEventListener('click', () => this.elements['album-modal'].classList.remove('hidden'));
+
             // ズーム
             this.elements['zoom-in-btn'].addEventListener('click', () => this.updateZoom(this.zoomLevel + 0.2));
             this.elements['zoom-out-btn'].addEventListener('click', () => this.updateZoom(this.zoomLevel - 0.2));
@@ -901,7 +909,8 @@
             const ids = [
                 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 
                 'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder',
-                'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'clear-api-key-btn', 'close-api-key-modal-btn',
+                'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'clear-api-key-btn', 
+                'close-api-key-modal-btn', 'reconfigure-api-key-btn',
                 'gps-status-dot', 'compass-status-dot', 'toggle-compare-btn', 'selection-marker', 'selection-instruction',
                 'fullscreen-camera-modal', 'fullscreen-camera-stream', 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
                 'fullscreen-target-image', 'fullscreen-photo-count', 'fullscreen-capture-btn', 'close-fullscreen-camera-btn',
@@ -922,7 +931,7 @@
             
             this.loadApiKey();
             this.initEventListeners();
-            this.initApiKeyModal();
+            this.initApiKeyModal(); // 初期状態でキーがなければ表示
             this.initCamera();
             this.initSensors();
             console.log('構造物点検カメラアプリ 初期化完了');
