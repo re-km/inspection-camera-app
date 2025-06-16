@@ -518,7 +518,7 @@
                 return;
             }
 
-            const captureBtn = this.isCompareMode ? document.querySelector('[data-action="take-picture-fullscreen"]') : document.getElementById('capture-btn');
+            const captureBtn = this.isCompareMode ? document.querySelector('[data-action="take-picture-fullscreen"]') : document.querySelector('[data-action="take-picture"]');
             captureBtn.classList.add('ping-animation');
             setTimeout(() => captureBtn.classList.remove('ping-animation'), 500);
 
@@ -788,8 +788,9 @@
             }
             this.isCompareMode = true;
             this.selectionState = 'waiting_for_p1';
-            this.elements['toggle-compare-btn'].textContent = '🖼️ 終了';
-            this.elements['toggle-compare-btn'].classList.replace('bg-teal-600', 'bg-red-600');
+            const btn = document.querySelector('[data-action="toggle-compare"]');
+            btn.textContent = '🖼️ 終了';
+            btn.classList.replace('bg-teal-600', 'bg-red-600');
             this.elements['pdf-viewer'].style.cursor = 'crosshair';
             this.showInstruction('比較範囲の左上をタップ');
         },
@@ -797,8 +798,9 @@
         resetCompareMode() {
             this.isCompareMode = false;
             this.selectionState = 'idle';
-            this.elements['toggle-compare-btn'].textContent = '🖼️ 比較撮影';
-            this.elements['toggle-compare-btn'].classList.replace('bg-red-600', 'bg-teal-600');
+            const btn = document.querySelector('[data-action="toggle-compare"]');
+            btn.textContent = '🖼️ 比較撮影';
+            btn.classList.replace('bg-red-600', 'bg-teal-600');
             this.elements['pdf-viewer'].style.cursor = 'default';
             this.elements['selection-marker'].classList.add('hidden');
             this.elements['selection-instruction'].classList.add('hidden');
@@ -934,18 +936,16 @@
         init() {
             if (!this.checkSecureContext()) return;
             const ids = [
-                'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'prev-page', 'next-page', 'page-num', 'page-count', 
+                'app-container', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'pdf-controls', 'page-num', 'page-count', 
                 'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder',
-                'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'clear-api-key-btn', 
-                'close-api-key-modal-btn', 'reconfigure-api-key-btn',
-                'gps-status-dot', 'compass-status-dot', 'toggle-compare-btn', 'selection-marker', 'selection-instruction',
+                'photo-count-badge', 'api-key-modal', 'api-key-input', 
+                'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction',
                 'fullscreen-camera-modal', 'fullscreen-camera-stream', 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
-                'fullscreen-target-image', 'fullscreen-photo-count', 'fullscreen-capture-btn', 'close-fullscreen-camera-btn',
-                'fullscreen-ai-assistant-btn', 'fullscreen-show-album-btn', 'fullscreen-zoom-level-display', 'zoom-in-btn',
-                'zoom-out-btn', 'zoom-reset-btn', 'album-modal', 'album-grid', 'album-placeholder', 'album-photo-count',
-                'download-all-btn', 'close-album-btn', 'download-progress', 'download-progress-bar', 'download-counter', 'download-message',
+                'fullscreen-target-image', 'fullscreen-photo-count', 'fullscreen-zoom-level-display',
+                 'album-modal', 'album-grid', 'album-placeholder', 'album-photo-count',
+                 'download-progress', 'download-progress-bar', 'download-counter', 'download-message',
                 'gemini-modal', 'modal-title', 'gemini-modal-content-wrapper', 'gemini-modal-content', 'report-generation-area',
-                'report-content', 'copy-report-btn', 'close-modal-btn'
+                'report-content'
             ];
             ids.forEach(id => {
                 const el = document.getElementById(id);
