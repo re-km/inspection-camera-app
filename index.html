@@ -28,6 +28,7 @@
             top: 0; 
             left: 0;
             transition: opacity 0.3s ease-in-out, visibility 0.3s;
+            background-color: #1f2937; /* bg-gray-800 */
         }
         .view-section.hidden {
             opacity: 0;
@@ -109,11 +110,11 @@
 
     <div id="app-container" class="relative h-full">
         <!-- メイン画面 (PDFビューア) -->
-        <div id="main-view" class="view-section p-2 bg-gray-800">
+        <div id="main-view" class="view-section p-2">
             <div class="flex-shrink-0">
                  <div class="flex flex-wrap gap-2 mb-2">
                     <label for="pdf-upload" class="flex-grow text-center cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm">PDF選択</label>
-                    <button data-action="toggle-compare" class="flex-grow text-center bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🖼️ 比較撮影開始</button>
+                    <button data-action="toggle-compare" id="toggle-compare-btn" class="flex-grow text-center bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🖼️ 比較撮影開始</button>
                     <button data-action="open-album" class="flex-grow text-center bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm">📁 アルバム</button>
                     <button data-action="open-api-modal" class="flex-grow text-center bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🔑 API設定</button>
                 </div>
@@ -797,10 +798,8 @@
                 const target = e.target.closest('button, label');
                 if (!target) return;
         
-                let action = target.dataset.action;
-                if (!action) {
-                     action = target.id;
-                }
+                let action = target.dataset.action || target.id;
+        
                  if (!action && target.getAttribute('for') === 'pdf-upload') {
                     document.getElementById('pdf-upload').click();
                     return;
@@ -824,15 +823,15 @@
                     'reset-compare-mode': () => this.resetCompareMode(),
                     'ai-assistant': () => this.getAiShootingAssistant(),
                     'open-album': () => this.elements['album-modal'].classList.remove('hidden'),
-                    'close-album-btn': () => this.elements['album-modal'].classList.add('hidden'),
+                    'close-album': () => this.elements['album-modal'].classList.add('hidden'),
                     'zoom-in': () => this.updateZoom(this.zoomLevel + 0.2),
                     'zoom-out': () => this.updateZoom(this.zoomLevel - 0.2),
                     'zoom-reset': () => this.updateZoom(1.0),
-                    'download-all-btn': () => this.downloadAllPhotos(),
+                    'download-all': () => this.downloadAllPhotos(),
                     'ai-analyze': () => { if (photoId) this.analyzeImageWithGemini(photoId); },
                     'download-single': () => { if (photoId) this.downloadSinglePhoto(photoId); },
-                    'close-modal-btn': () => this.elements['gemini-modal'].classList.add('hidden'),
-                    'copy-report-btn': () => {
+                    'close-gemini-modal': () => this.elements['gemini-modal'].classList.add('hidden'),
+                    'copy-report': () => {
                         navigator.clipboard.writeText(this.elements['report-content'].textContent)
                             .then(() => this.showNotification('報告書をコピーしました', 'success'))
                             .catch(() => this.showNotification('コピーに失敗しました', 'error'));
