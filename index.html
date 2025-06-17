@@ -730,7 +730,7 @@
             }
             this.isCompareMode = true;
             this.selectionState = 'waiting_for_p1';
-            const btn = document.getElementById('toggle-compare-btn');
+            const btn = this.elements['toggle-compare-btn'];
             btn.textContent = '🖼️ 終了';
             btn.classList.replace('bg-teal-600', 'bg-red-600');
             this.elements['pdf-viewer'].style.cursor = 'crosshair';
@@ -740,7 +740,7 @@
         resetCompareMode() {
             this.isCompareMode = false;
             this.selectionState = 'idle';
-            const btn = document.getElementById('toggle-compare-btn');
+            const btn = this.elements['toggle-compare-btn'];
             btn.textContent = '🖼️ 比較撮影開始';
             btn.classList.replace('bg-red-600', 'bg-teal-600');
             this.elements['pdf-viewer'].style.cursor = 'default';
@@ -806,6 +806,10 @@
         showCameraView() {
             this.elements['main-section'].classList.add('hidden');
             this.elements['camera-section'].classList.remove('hidden');
+            const stream = this.elements['camera-stream'].srcObject;
+            if(stream && !this.elements['camera-section'].querySelector('video').srcObject) {
+                 this.elements['camera-section'].querySelector('video').srcObject = stream;
+            }
             this.updateSensorStatus('gps', this.sensorData.latitude !== null);
             this.updateSensorStatus('compass', this.sensorData.heading !== null);
             this.updatePhotoCounts();
@@ -815,18 +819,17 @@
         // 初期化とイベントリスナー
         setupEventListeners() {
             document.body.addEventListener('click', (e) => {
-                const target = e.target.closest('button, label');
-                if (!target) return;
-        
-                let action = target.dataset.action;
-                if (!action) {
-                     action = target.id;
-                }
-                 if (!action && target.getAttribute('for') === 'pdf-upload') {
-                    this.elements['pdf-upload'].click();
+                const target = e.target.closest('[data-action]');
+                if (!target) {
+                    // Check label for pdf-upload
+                     if (e.target.closest('label[for="pdf-upload"]')) {
+                        e.preventDefault();
+                        this.elements['pdf-upload'].click();
+                    }
                     return;
                 }
         
+                const action = target.dataset.action;
                 const photoItem = target.closest('[data-photo-id]');
                 const photoId = photoItem ? parseInt(photoItem.dataset.photoId, 10) : null;
         
@@ -835,20 +838,13 @@
                     'save-api-key': () => this.saveApiKey(),
                     'clear-api-key': () => this.clearApiKey(),
                     'close-api-modal': () => this.elements['api-key-modal'].classList.add('hidden'),
-                    'reconfigure-api-key': () => this.openApiKeyModal(),
+                    'toggle-compare': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
                     'prev-page': () => { if (this.pdfDoc && this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); },
                     'next-page': () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); },
                     'take-picture': () => this.takePicture(),
-                    'take-picture-fullscreen': () => this.takePicture(),
-                    'capture-btn': () => this.takePicture(),
-                    'fullscreen-capture-btn': () => this.takePicture(),
-                    'toggle-compare': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
                     'reset-compare-mode': () => this.resetCompareMode(),
-                    'close-fullscreen-camera-btn': () => this.resetCompareMode(),
                     'ai-assistant': () => this.getAiShootingAssistant(),
-                    'fullscreen-ai-assistant-btn': () => this.getAiShootingAssistant(),
                     'open-album': () => this.elements['album-modal'].classList.remove('hidden'),
-                    'fullscreen-show-album-btn': () => this.elements['album-modal'].classList.remove('hidden'),
                     'close-album': () => this.elements['album-modal'].classList.add('hidden'),
                     'zoom-in': () => this.updateZoom(this.zoomLevel + 0.2),
                     'zoom-out': () => this.updateZoom(this.zoomLevel - 0.2),
@@ -857,7 +853,6 @@
                     'ai-analyze': () => { if (photoId) this.analyzeImageWithGemini(photoId); },
                     'download-single': () => { if (photoId) this.downloadSinglePhoto(photoId); },
                     'close-gemini-modal': () => this.elements['gemini-modal'].classList.add('hidden'),
-                    'close-modal-btn': () => this.elements['gemini-modal'].classList.add('hidden'),
                     'copy-report': () => {
                         navigator.clipboard.writeText(this.elements['report-content'].textContent)
                             .then(() => this.showNotification('報告書をコピーしました', 'success'))
@@ -870,7 +865,7 @@
                     'reconfigure-api-key-from-error': () => this.openApiKeyModal()
                 };
         
-                const func = functions[action] || functions[target.id];
+                const func = functions[action];
                  if (func) {
                     e.preventDefault();
                     func();
@@ -890,7 +885,14 @@
                         this.renderPage(1);
                         this.elements['pdf-controls'].classList.remove('hidden');
                         this.elements['pdf-placeholder'].classList.add('hidden');
+                    }).catch(error => {
+                        console.error("Error loading PDF:", error);
+                        this.showNotification('PDFファイルの読み込みに失敗しました。', 'error');
                     });
+                };
+                fileReader.onerror = () => {
+                    console.error("FileReader error");
+                    this.showNotification('ファイルの読み取りに失敗しました。', 'error');
                 };
                 fileReader.readAsArrayBuffer(file);
             });
@@ -902,19 +904,16 @@
         init() {
             if (!this.checkSecureContext()) return;
             const ids = [
-                'main-section', 'camera-section', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls', 'prev-page', 'next-page',
+                'main-section', 'camera-section', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls',
                 'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder',
-                'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'clear-api-key-btn', 
-                'close-api-key-modal-btn', 'reconfigure-api-key-btn', 'toggle-compare-btn',
-                'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 
-                'fullscreen-camera-modal', 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
-                'fullscreen-target-image', 'fullscreen-photo-count', 'zoom-level-display', 'fullscreen-capture-btn', 'close-fullscreen-camera-btn',
-                'ai-assistant-btn', 'fullscreen-show-album-btn', 'zoom-in-btn', 'zoom-out-btn', 'zoom-reset-btn',
+                'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 
+                'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 'toggle-compare-btn', 'reconfigure-api-key-btn',
+                'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
+                'target-image-wrapper', 'target-image', 'fullscreen-photo-count', 'zoom-level-display', 
                  'album-modal', 'album-grid', 'album-placeholder', 'album-photo-count', 'close-album-btn', 'download-all-btn',
                  'download-progress', 'download-progress-bar', 'download-counter', 'download-message',
                 'gemini-modal', 'modal-title', 'gemini-modal-content-wrapper', 'gemini-modal-content', 'report-generation-area',
-                'report-content', 'copy-report-btn', 'close-modal-btn',
-                'target-image-wrapper'
+                'report-content'
             ];
             ids.forEach(id => {
                 const el = document.getElementById(id);
