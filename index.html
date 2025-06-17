@@ -20,38 +20,30 @@
             -webkit-touch-callout: none;
         }
         .section { 
-            height: 100vh; 
+            height: 100%;
+            width: 100%;
             display: flex; 
             flex-direction: column; 
             position: absolute; 
             top: 0; 
-            transition: all 0.3s ease-in-out;
-            -webkit-transition: all 0.3s ease-in-out;
+            left: 0;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s;
         }
-        #pdf-section { 
-            left: 0; 
-            width: 50%; 
-            z-index: 1;
-        }
-        #camera-section { 
-            left: 50%; 
-            width: 50%; 
-            z-index: 1;
+        .section.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
         }
         
-        #capture-btn { width: 64px; height: 64px; border-radius: 50%; border: 5px solid white; background-color: rgba(255, 255, 255, 0.3); transition: background-color 0.2s, transform 0.1s; }
-        #capture-btn:active { background-color: rgba(255, 255, 255, 0.6); transform: scale(0.95); }
         .ping-animation { animation: ping 0.5s cubic-bezier(0, 0, 0.2, 1); }
         @keyframes ping { 75%, 100% { transform: scale(1.2); opacity: 0; } }
         #photo-gallery, #album-grid { scrollbar-width: none; -ms-overflow-style: none; }
         #photo-gallery::-webkit-scrollbar, #album-grid::-webkit-scrollbar { display: none; }
         #selection-box { position: absolute; border: 2px dashed #00aeff; background-color: rgba(0, 174, 255, 0.2); pointer-events: none; }
         #selection-marker { position: absolute; width: 15px; height: 15px; background: rgba(0, 174, 255, 0.7); border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
-        #camera-frame { transition: box-shadow 0.3s ease-in-out; }
         .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-        #camera-stream, #fullscreen-camera-stream { width: 100%; height: 100%; object-fit: contain; transform-origin: center; transition: transform 0.2s ease-out; }
+        #camera-stream { width: 100%; height: 100%; object-fit: contain; transform-origin: center; transition: transform 0.2s ease-out; }
         
-        /* 全画面カメラの右側コントロールパネル */
         .fullscreen-control-panel {
             position: fixed;
             top: 0;
@@ -68,7 +60,6 @@
             pointer-events: auto;
         }
 
-        /* ボタンの基本スタイル */
         .control-btn {
             background-color: rgba(59, 130, 246, 0.8);
             color: white;
@@ -99,7 +90,6 @@
         .control-btn.purple { background-color: rgba(168, 85, 247, 0.8); }
         .control-btn.purple:hover { background-color: rgba(168, 85, 247, 1); }
         
-        /* Safe Area対応 */
         @supports (padding: max(0px)) {
             .safe-area-padding {
                 padding-top: max(12px, env(safe-area-inset-top));
@@ -118,13 +108,14 @@
 <body class="bg-gray-900 text-white">
 
     <div id="app-container" class="relative h-full">
-        <!-- 左セクション: PDFビューア -->
+        <!-- メイン画面 (PDFビューアとアルバム) -->
         <div id="pdf-section" class="section p-2 bg-gray-800">
             <div class="flex-shrink-0">
                  <div class="flex flex-wrap gap-2 mb-2">
                     <label for="pdf-upload" class="flex-grow text-center cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm">PDF選択</label>
-                    <button id="toggle-compare-btn" class="flex-grow text-center bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🖼️ 比較撮影</button>
-                    <button id="reconfigure-api-key-btn" class="flex-grow text-center bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🔑 API設定</button>
+                    <button data-action="toggle-compare" class="flex-grow text-center bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🖼️ 比較撮影</button>
+                    <button data-action="open-album" class="flex-grow text-center bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm">📁 アルバム</button>
+                    <button data-action="open-api-modal" class="flex-grow text-center bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🔑 API設定</button>
                 </div>
                  <input type="file" id="pdf-upload" class="hidden" accept=".pdf">
             </div>
@@ -136,34 +127,61 @@
                 <div id="selection-instruction" class="hidden absolute top-2 left-1/2 -translate-x-1/2 bg-black bg-opacity-70 text-white p-2 rounded-lg text-sm font-bold"></div>
             </div>
             <div id="pdf-controls" class="flex items-center justify-center mt-1 flex-shrink-0 hidden">
-                <button id="prev-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-l-lg">◀</button>
+                <button data-action="prev-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-l-lg">◀</button>
                 <span id="page-num" class="bg-gray-800 py-1 px-2 text-sm"></span>/<span id="page-count" class="bg-gray-800 py-1 px-2 text-sm"></span>
-                <button id="next-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-r-lg">▶</button>
+                <button data-action="next-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-r-lg">▶</button>
             </div>
         </div>
 
-        <!-- 右セクション: カメラと撮影結果 -->
-        <div id="camera-section" class="section p-2 bg-gray-900">
-            <div id="camera-frame" class="relative flex-grow bg-black rounded-lg mb-2 overflow-hidden">
-                <video id="camera-stream" autoplay playsinline></video>
-                <div class="absolute top-2 left-2 bg-black bg-opacity-50 p-1 rounded-md text-xs z-20">
-                    <div><span id="gps-status-dot" class="status-dot bg-red-500"></span> GPS</div>
-                    <div><span id="compass-status-dot" class="status-dot bg-red-500"></span> 方位</div>
-                </div>
-                <div class="absolute bottom-4 right-1/4 z-10">
-                    <button id="capture-btn" title="撮影"></button>
-                </div>
-            </div>
-            <div class="flex-shrink-0 h-24 flex flex-col">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-sm font-bold text-gray-400">撮影プレビュー</h3>
-                    <div class="flex items-center gap-2">
-                        <span id="photo-count-badge" class="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full hidden">0枚</span>
-                        <button id="open-album-btn" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1 px-3 rounded-lg text-xs">アルバムを開く</button>
+        <!-- 撮影画面 -->
+        <div id="camera-section" class="section bg-black hidden">
+            <div class="flex-grow relative bg-black overflow-hidden">
+                <video id="camera-stream" autoplay playsinline class="w-full h-full object-contain"></video>
+                
+                <div class="absolute top-4 left-4 flex flex-col gap-3 z-51 safe-area-padding">
+                    <div class="bg-black bg-opacity-70 p-2 rounded-lg text-xs text-white">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span id="fullscreen-gps-status-dot" class="status-dot bg-red-500"></span> 
+                            <span>GPS</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span id="fullscreen-compass-status-dot" class="status-dot bg-red-500"></span> 
+                            <span>方位</span>
+                        </div>
+                    </div>
+                    <div class="bg-black bg-opacity-70 p-2 rounded-lg">
+                        <div class="text-xs text-white mb-1">比較画像</div>
+                        <img id="fullscreen-target-image" class="w-24 h-18 border-2 border-teal-500 rounded object-cover">
                     </div>
                 </div>
-                <div id="photo-gallery" class="flex-grow bg-gray-800 rounded-lg p-2 flex space-x-2 overflow-x-auto mt-1">
-                    <div id="gallery-placeholder" class="w-full h-full flex items-center justify-center text-gray-500 text-sm">撮影写真がここに表示されます</div>
+                
+                <div class="fullscreen-control-panel">
+                    <button data-action="reset-compare-mode" class="control-btn red">
+                        <span>✖</span>
+                        <span>戻る</span>
+                    </button>
+                    <div class="bg-black bg-opacity-80 p-2 rounded-lg flex flex-col items-center gap-2">
+                        <div class="text-white text-xs font-bold">ズーム</div>
+                        <div id="fullscreen-zoom-level-display" class="text-white text-xs font-bold">1.0x</div>
+                        <div class="flex flex-col gap-1">
+                            <button data-action="zoom-in" class="control-btn" style="min-height: 30px; font-size: 14px;">+</button>
+                            <button data-action="zoom-reset" class="control-btn" style="min-height: 25px; font-size: 8px;">1x</button>
+                            <button data-action="zoom-out" class="control-btn" style="min-height: 30px; font-size: 14px;">-</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-3">
+                         <button data-action="ai-assistant" class="control-btn purple">
+                            <span>✨</span>
+                            <span>AI補助</span>
+                        </button>
+                         <span id="fullscreen-photo-count" class="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full self-center">0枚</span>
+                    </div>
+                </div>
+                
+                <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-51 safe-area-padding">
+                    <button data-action="take-picture" id="fullscreen-capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
+                        <div class="w-16 h-16 bg-white rounded-full shadow-inner border-2 border-gray-200"></div>
+                    </button>
                 </div>
             </div>
         </div>
@@ -176,91 +194,25 @@
             <p class="text-sm text-gray-300 mb-4">AI機能 (Gemini) を使用するにはAPIキーが必要です。キーはブラウザに保存されます。</p>
             <input type="password" id="api-key-input" placeholder="Gemini API Key" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white mb-4">
             <div class="flex gap-2">
-                <button id="save-api-key-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">保存</button>
-                <button id="clear-api-key-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">クリア</button>
+                <button data-action="save-api-key" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">保存</button>
+                <button data-action="clear-api-key" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">クリア</button>
             </div>
-             <button id="close-api-key-modal-btn" class="w-full mt-3 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+             <button data-action="close-api-modal" class="w-full mt-3 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
                 閉じる
             </button>
         </div>
     </div>
     
-    <!-- 全画面カメラモーダル -->
-    <div id="fullscreen-camera-modal" class="hidden fixed inset-0 bg-black z-50 flex flex-col">
-        <div class="flex-grow relative bg-black overflow-hidden">
-            <video id="fullscreen-camera-stream" autoplay playsinline></video>
-            
-            <!-- 左上：センサー情報と比較画像 -->
-            <div class="absolute top-4 left-4 flex flex-col gap-3 z-51 safe-area-padding">
-                <div class="bg-black bg-opacity-70 p-2 rounded-lg text-xs text-white">
-                    <div class="flex items-center gap-2 mb-1">
-                        <span id="fullscreen-gps-status-dot" class="status-dot bg-red-500"></span> 
-                        <span>GPS</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span id="fullscreen-compass-status-dot" class="status-dot bg-red-500"></span> 
-                        <span>方位</span>
-                    </div>
-                </div>
-                
-                <div class="bg-black bg-opacity-70 p-2 rounded-lg">
-                    <div class="text-xs text-white mb-1">比較画像</div>
-                    <img id="fullscreen-target-image" class="w-24 h-18 border-2 border-teal-500 rounded object-cover">
-                </div>
-            </div>
-            
-            <!-- 右側：コントロールパネル -->
-            <div class="fullscreen-control-panel">
-                <!-- 上部ボタン -->
-                <button id="close-fullscreen-camera-btn" class="control-btn red">
-                    <span>✖</span>
-                    <span>戻る</span>
-                </button>
-                
-                <!-- ズームコントロール -->
-                <div class="bg-black bg-opacity-80 p-2 rounded-lg flex flex-col items-center gap-2">
-                    <div class="text-white text-xs font-bold">ズーム</div>
-                    <div id="fullscreen-zoom-level-display" class="text-white text-xs font-bold">1.0x</div>
-                    <div class="flex flex-col gap-1">
-                        <button id="zoom-in-btn" class="control-btn" style="min-height: 30px; font-size: 14px;">+</button>
-                        <button id="zoom-reset-btn" class="control-btn" style="min-height: 25px; font-size: 8px;">1x</button>
-                        <button id="zoom-out-btn" class="control-btn" style="min-height: 30px; font-size: 14px;">-</button>
-                    </div>
-                </div>
-
-                <!-- 下部ボタン -->
-                <div class="flex flex-col gap-3">
-                     <button id="fullscreen-ai-assistant-btn" class="control-btn purple">
-                        <span>✨</span>
-                        <span>AI補助</span>
-                    </button>
-                    <button id="fullscreen-show-album-btn" class="control-btn">
-                        <span>📁</span>
-                        <span>アルバム</span>
-                    </button>
-                     <span id="fullscreen-photo-count" class="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full self-center">0枚</span>
-                </div>
-            </div>
-            
-            <!-- 下部中央：撮影ボタン -->
-            <div class="absolute bottom-8 right-1/4 z-51 safe-area-padding">
-                <button id="fullscreen-capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
-                    <div class="w-16 h-16 bg-white rounded-full shadow-inner border-2 border-gray-200"></div>
-                </button>
-            </div>
-        </div>
-    </div>
-
     <!-- 全画面アルバムモーダル -->
     <div id="album-modal" class="hidden fixed inset-0 bg-gray-900 z-60 flex flex-col p-4 safe-area-padding">
         <div class="flex-shrink-0 flex justify-between items-center mb-4">
             <h2 class="text-2xl font-bold">アルバム</h2>
             <div class="flex items-center gap-3">
                 <span id="album-photo-count" class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full">0枚</span>
-                <button id="download-all-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm">
-                    📥 一括ダウンロード
+                <button data-action="download-all" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm">
+                    � 一括ダウンロード
                 </button>
-                <button id="close-album-btn" class="text-3xl font-bold text-white">&times;</button>
+                <button data-action="close-album" class="text-3xl font-bold text-white">&times;</button>
             </div>
         </div>
         <div id="album-grid" class="flex-grow overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
@@ -289,12 +241,12 @@
                     <h4 class="text-xl font-semibold border-t border-gray-600 pt-4">報告書（案）</h4>
                     <div id="report-content" class="mt-2 p-4 bg-gray-900 rounded-lg min-h-[150px] whitespace-pre-wrap"></div>
                     <div class="text-right mt-2">
-                         <button id="copy-report-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">文章をコピー</button>
+                         <button data-action="copy-report" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">文章をコピー</button>
                     </div>
                 </div>
             </div>
             <div class="mt-6 text-right flex-shrink-0">
-                <button id="close-modal-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg">閉じる</button>
+                <button data-action="close-gemini-modal" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg">閉じる</button>
             </div>
         </div>
     </div>
@@ -499,7 +451,6 @@
                     audio: false 
                 });
                 this.elements['camera-stream'].srcObject = stream;
-                this.elements['fullscreen-camera-stream'].srcObject = stream;
             } catch (err) {
                 console.error("カメラアクセスエラー:", err);
                 this.showNotification('カメラにアクセスできません。設定を確認してください。', 'error');
@@ -507,7 +458,7 @@
         },
 
         async takePicture() {
-            const video = this.isCompareMode ? this.elements['fullscreen-camera-stream'] : this.elements['camera-stream'];
+            const video = this.isCompareMode ? this.elements['camera-stream'] : document.getElementById('camera-stream');
             if (!video || !video.srcObject) {
                 this.showNotification('カメラが準備できていません。', 'error');
                 return;
@@ -536,10 +487,11 @@
         updateZoom(level) {
             this.zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, level));
             
-            const videoElement = this.isCompareMode ? this.elements['fullscreen-camera-stream'] : this.elements['camera-stream'];
-            videoElement.style.transform = `scale(${this.zoomLevel})`;
+            this.elements['camera-stream'].style.transform = `scale(${this.zoomLevel})`;
 
-            this.elements['fullscreen-zoom-level-display'].textContent = `${this.zoomLevel.toFixed(1)}x`;
+            if(this.elements['fullscreen-zoom-level-display']) {
+                this.elements['fullscreen-zoom-level-display'].textContent = `${this.zoomLevel.toFixed(1)}x`;
+            }
         },
 
         // 写真管理
@@ -865,41 +817,56 @@
             document.body.addEventListener('click', (e) => {
                 const target = e.target.closest('button, label');
                 if (!target) return;
-        
-                let action = target.dataset.action || target.id;
+
+                let action = target.dataset.action;
+                if (!action) {
+                    const id = target.id;
+                    if(id) action = id.replace(/-btn$/, '').replace(/([A-Z])/g, '-$1').toLowerCase();
+                }
+
+                if (!action) {
+                    const forAttr = target.getAttribute('for');
+                    if (forAttr === 'pdf-upload') {
+                       this.elements['pdf-upload'].click();
+                    }
+                    return;
+                }
+
+                const photoItem = target.closest('[data-photo-id]');
+                const photoId = photoItem ? parseInt(photoItem.dataset.photoId, 10) : null;
         
                 const functions = {
-                    'reconfigure-api-key-btn': () => this.openApiKeyModal(),
-                    'save-api-key-btn': () => this.saveApiKey(),
-                    'clear-api-key-btn': () => this.clearApiKey(),
-                    'close-api-key-modal-btn': () => this.elements['api-key-modal'].classList.add('hidden'),
-                    'toggle-compare-btn': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
+                    'open-api-modal': () => this.openApiKeyModal(),
+                    'save-api-key': () => this.saveApiKey(),
+                    'clear-api-key': () => this.clearApiKey(),
+                    'close-api-modal': () => this.elements['api-key-modal'].classList.add('hidden'),
+                    'reconfigure-api-key': () => this.openApiKeyModal(),
                     'prev-page': () => { if (this.pdfDoc && this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); },
                     'next-page': () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); },
-                    'capture-btn': () => this.takePicture(),
-                    'fullscreen-capture-btn': () => this.takePicture(),
-                    'open-album-btn': () => this.elements['album-modal'].classList.remove('hidden'),
-                    'close-fullscreen-camera-btn': () => this.resetCompareMode(),
-                    'fullscreen-ai-assistant-btn': () => this.getAiShootingAssistant(),
-                    'fullscreen-show-album-btn': () => this.elements['album-modal'].classList.remove('hidden'),
-                    'zoom-in-btn': () => this.updateZoom(this.zoomLevel + 0.2),
-                    'zoom-out-btn': () => this.updateZoom(this.zoomLevel - 0.2),
-                    'zoom-reset-btn': () => this.updateZoom(1.0),
-                    'download-all-btn': () => this.downloadAllPhotos(),
-                    'close-album-btn': () => this.elements['album-modal'].classList.add('hidden'),
-                    'close-modal-btn': () => this.elements['gemini-modal'].classList.add('hidden'),
-                    'copy-report-btn': () => {
+                    'take-picture': () => this.takePicture(),
+                    'take-picture-fullscreen': () => this.takePicture(),
+                    'capture': () => this.takePicture(),
+                    'fullscreen-capture': () => this.takePicture(),
+                    'toggle-compare': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
+                    'reset-compare-mode': () => this.resetCompareMode(),
+                    'close-fullscreen-camera': () => this.resetCompareMode(),
+                    'ai-assistant': () => this.getAiShootingAssistant(),
+                    'fullscreen-ai-assistant': () => this.getAiShootingAssistant(),
+                    'open-album': () => this.elements['album-modal'].classList.remove('hidden'),
+                    'fullscreen-show-album': () => this.elements['album-modal'].classList.remove('hidden'),
+                    'close-album': () => this.elements['album-modal'].classList.add('hidden'),
+                    'zoom-in': () => this.updateZoom(this.zoomLevel + 0.2),
+                    'zoom-out': () => this.updateZoom(this.zoomLevel - 0.2),
+                    'zoom-reset': () => this.updateZoom(1.0),
+                    'download-all': () => this.downloadAllPhotos(),
+                    'ai-analyze': () => { if (photoId) this.analyzeImageWithGemini(photoId); },
+                    'download-single': () => { if (photoId) this.downloadSinglePhoto(photoId); },
+                    'close-gemini-modal': () => this.elements['gemini-modal'].classList.add('hidden'),
+                    'close-modal': () => this.elements['gemini-modal'].classList.add('hidden'),
+                    'copy-report': () => {
                         navigator.clipboard.writeText(this.elements['report-content'].textContent)
                             .then(() => this.showNotification('報告書をコピーしました', 'success'))
                             .catch(() => this.showNotification('コピーに失敗しました', 'error'));
-                    },
-                    'ai-analyze': () => {
-                        const photoItem = target.closest('[data-photo-id]');
-                        if(photoItem) this.analyzeImageWithGemini(parseInt(photoItem.dataset.photoId, 10));
-                    },
-                    'download-single': () => {
-                        const photoItem = target.closest('[data-photo-id]');
-                        if(photoItem) this.downloadSinglePhoto(parseInt(photoItem.dataset.photoId, 10));
                     },
                     'generate-report': () => {
                         const analysisText = this.elements['gemini-modal-content'].querySelector('div').innerHTML.replace(/<br>/g, '\n');
@@ -974,3 +941,4 @@
     </script>
 </body>
 </html>
+�
