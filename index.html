@@ -174,12 +174,12 @@
                             <span>✨</span>
                             <span>AI補助</span>
                         </button>
-                         <span id="photo-count-badge" class="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full self-center">0枚</span>
+                         <span id="photo-count-badge-fullscreen" class="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full self-center">0枚</span>
                     </div>
                 </div>
                 
                 <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-51 safe-area-padding">
-                    <button id="capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
+                    <button id="capture-btn-fullscreen" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
                         <div class="w-16 h-16 bg-white rounded-full shadow-inner border-2 border-gray-200 pointer-events-none"></div>
                     </button>
                 </div>
@@ -435,8 +435,8 @@
         },
 
         updateSensorStatus(sensor, isOk) {
-            const dot = this.elements[`${sensor}-status-dot`];
-            const fsDot = this.elements[`fullscreen-${sensor}-status-dot`];
+            const dot = this.elements[`gps-status-dot`];
+            const fsDot = this.elements[`fullscreen-gps-status-dot`];
             const className = isOk ? 'bg-green-500' : 'bg-red-500';
             const oldClassName = isOk ? 'bg-red-500' : 'bg-green-500';
             if(dot) dot.classList.replace(oldClassName, className);
@@ -501,12 +501,46 @@
                 gps: { ...this.sensorData }
             };
             this.photoDatabase.push(photoData);
+
+            this.updateGalleryPreview(photoData);
+            this.updateAlbum(photoData);
             this.updatePhotoCounts();
+        },
+
+        updateGalleryPreview(photoData) {
+            this.elements['gallery-placeholder'].classList.add('hidden');
+            const previewWrapper = document.createElement('div');
+            previewWrapper.className = 'relative w-24 h-full flex-shrink-0';
+            previewWrapper.innerHTML = `
+                <img src="${photoData.dataUrl}" class="w-full h-full object-cover rounded-md">
+                <div class="absolute top-1 left-1 bg-black bg-opacity-70 text-white text-xs font-bold px-1 rounded">${photoData.id.toString().padStart(4, '0')}</div>
+            `;
+            this.elements['photo-gallery'].appendChild(previewWrapper);
+            this.elements['photo-gallery'].scrollLeft = this.elements['photo-gallery'].scrollWidth;
+        },
+
+        updateAlbum(photoData) {
+            this.elements['album-placeholder'].classList.add('hidden');
+            const albumItem = document.createElement('div');
+            albumItem.className = 'relative w-full aspect-4/3 group cursor-pointer bg-gray-800 rounded-lg overflow-hidden';
+            albumItem.dataset.photoId = photoData.id;
+            albumItem.innerHTML = `
+                <img src="${photoData.dataUrl}" class="w-full h-full object-cover">
+                <div class="absolute top-2 left-2 bg-black bg-opacity-80 text-white text-xs font-bold px-2 py-1 rounded">
+                    <div>${photoData.id.toString().padStart(4, '0')}</div>
+                </div>
+                <div class="absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity p-2 gap-2">
+                    <button data-action="ai-analyze" class="text-white bg-purple-600 hover:bg-purple-700 font-bold py-2 px-3 rounded-lg text-xs w-full">✨ AI分析</button>
+                    <button data-action="download-single" class="text-white bg-blue-600 hover:bg-blue-700 font-bold py-2 px-3 rounded-lg text-xs w-full">📥 ダウンロード</button>
+                </div>
+            `;
+            this.elements['album-grid'].appendChild(albumItem);
         },
 
         updatePhotoCounts() {
             const count = this.photoDatabase.length;
             this.elements['photo-count-badge'].textContent = `${count}枚`;
+            this.elements['fullscreen-photo-count'].textContent = `${count}枚`;
             this.elements['album-photo-count'].textContent = `${count}枚`;
         },
 
@@ -696,9 +730,8 @@
             }
             this.isCompareMode = true;
             this.selectionState = 'waiting_for_p1';
-            const btn = document.getElementById('toggle-compare-btn');
-            btn.textContent = '🖼️ 終了';
-            btn.classList.replace('bg-teal-600', 'bg-red-600');
+            this.elements['toggle-compare-btn'].textContent = '🖼️ 終了';
+            this.elements['toggle-compare-btn'].classList.replace('bg-teal-600', 'bg-red-600');
             this.elements['pdf-viewer'].style.cursor = 'crosshair';
             this.showInstruction('比較範囲の左上をタップ');
         },
@@ -706,9 +739,8 @@
         resetCompareMode() {
             this.isCompareMode = false;
             this.selectionState = 'idle';
-            const btn = document.getElementById('toggle-compare-btn');
-            btn.textContent = '🖼️ 比較撮影開始';
-            btn.classList.replace('bg-red-600', 'bg-teal-600');
+            this.elements['toggle-compare-btn'].textContent = '🖼️ 比較撮影開始';
+            this.elements['toggle-compare-btn'].classList.replace('bg-red-600', 'bg-teal-600');
             this.elements['pdf-viewer'].style.cursor = 'default';
             this.elements['selection-marker'].classList.add('hidden');
             this.elements['selection-instruction'].classList.add('hidden');
@@ -780,10 +812,8 @@
                 const target = e.target.closest('button, label');
                 if (!target) return;
         
-                let action = target.dataset.action;
-                if (!action) {
-                    action = target.id;
-                }
+                let action = target.dataset.action || target.id;
+        
                  if (!action && target.getAttribute('for') === 'pdf-upload') {
                     document.getElementById('pdf-upload').click();
                     return;
@@ -793,24 +823,24 @@
                 const photoId = photoItem ? parseInt(photoItem.dataset.photoId, 10) : null;
         
                 const functions = {
-                    'reconfigure-api-key-btn': () => this.openApiKeyModal(),
+                    'open-api-modal': () => this.openApiKeyModal(),
                     'save-api-key': () => this.saveApiKey(),
                     'clear-api-key': () => this.clearApiKey(),
-                    'close-api-key-modal-btn': () => this.elements['api-key-modal'].classList.add('hidden'),
-                    'toggle-compare-btn': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
+                    'close-api-modal': () => this.elements['api-key-modal'].classList.add('hidden'),
+                    'reconfigure-api-key-btn': () => this.openApiKeyModal(),
                     'prev-page': () => { if (this.pdfDoc && this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); },
                     'next-page': () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); },
                     'capture-btn': () => this.takePicture(),
                     'fullscreen-capture-btn': () => this.takePicture(),
-                    'open-album-btn': () => this.elements['album-modal'].classList.remove('hidden'),
+                    'toggle-compare-btn': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
                     'close-fullscreen-camera-btn': () => this.resetCompareMode(),
-                    'fullscreen-ai-assistant-btn': () => this.getAiShootingAssistant(),
-                    'fullscreen-show-album-btn': () => this.elements['album-modal'].classList.remove('hidden'),
+                    'ai-assistant-btn': () => this.getAiShootingAssistant(),
+                    'open-album-btn': () => this.elements['album-modal'].classList.remove('hidden'),
+                    'close-album-btn': () => this.elements['album-modal'].classList.add('hidden'),
                     'zoom-in-btn': () => this.updateZoom(this.zoomLevel + 0.2),
                     'zoom-out-btn': () => this.updateZoom(this.zoomLevel - 0.2),
                     'zoom-reset-btn': () => this.updateZoom(1.0),
                     'download-all-btn': () => this.downloadAllPhotos(),
-                    'close-album-btn': () => this.elements['album-modal'].classList.add('hidden'),
                     'ai-analyze': () => { if (photoId) this.analyzeImageWithGemini(photoId); },
                     'download-single': () => { if (photoId) this.downloadSinglePhoto(photoId); },
                     'close-modal-btn': () => this.elements['gemini-modal'].classList.add('hidden'),
@@ -868,8 +898,8 @@
                 'main-section', 'camera-section', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls', 'prev-page', 'next-page',
                 'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder',
                 'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'clear-api-key-btn', 
-                'close-api-key-modal-btn', 'reconfigure-api-key-btn',
-                'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 'toggle-compare-btn',
+                'close-api-key-modal-btn', 'reconfigure-api-key-btn', 'toggle-compare-btn',
+                'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 
                 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
                 'target-image-wrapper', 'target-image', 'fullscreen-photo-count', 'zoom-level-display', 
                 'fullscreen-capture-btn', 'close-fullscreen-camera-btn',
