@@ -243,7 +243,7 @@
             </div>
             
             <!-- 下部中央：撮影ボタン -->
-            <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-51 safe-area-padding">
+            <div class="absolute bottom-8 right-1/4 z-51 safe-area-padding">
                 <button id="fullscreen-capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
                     <div class="w-16 h-16 bg-white rounded-full shadow-inner border-2 border-gray-200"></div>
                 </button>
@@ -862,56 +862,54 @@
 
         // 初期化とイベントリスナー
         setupEventListeners() {
-            // イベントリスナーを一度だけ設定する
             document.body.addEventListener('click', (e) => {
                 const target = e.target.closest('button, label');
                 if (!target) return;
         
-                const action = target.dataset.action || target.id;
-                const photoItem = target.closest('[data-photo-id]');
-                const photoId = photoItem ? parseInt(photoItem.dataset.photoId, 10) : null;
+                let action = target.dataset.action || target.id;
         
                 const functions = {
-                    'open-api-modal': () => this.openApiKeyModal(),
-                    'save-api-key': () => this.saveApiKey(),
-                    'clear-api-key': () => this.clearApiKey(),
-                    'close-api-modal': () => this.elements['api-key-modal'].classList.add('hidden'),
-                    'reconfigure-api-key-from-error': () => this.openApiKeyModal(),
-                    'reconfigure-api-key': () => this.openApiKeyModal(),
+                    'reconfigure-api-key-btn': () => this.openApiKeyModal(),
+                    'save-api-key-btn': () => this.saveApiKey(),
+                    'clear-api-key-btn': () => this.clearApiKey(),
+                    'close-api-key-modal-btn': () => this.elements['api-key-modal'].classList.add('hidden'),
+                    'toggle-compare-btn': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
                     'prev-page': () => { if (this.pdfDoc && this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); },
                     'next-page': () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); },
-                    'take-picture': () => this.takePicture(),
-                    'take-picture-fullscreen': () => this.takePicture(),
                     'capture-btn': () => this.takePicture(),
                     'fullscreen-capture-btn': () => this.takePicture(),
-                    'toggle-compare': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
-                    'reset-compare-mode': () => this.resetCompareMode(),
+                    'open-album-btn': () => this.elements['album-modal'].classList.remove('hidden'),
                     'close-fullscreen-camera-btn': () => this.resetCompareMode(),
-                    'ai-assistant': () => this.getAiShootingAssistant(),
                     'fullscreen-ai-assistant-btn': () => this.getAiShootingAssistant(),
-                    'open-album': () => this.elements['album-modal'].classList.remove('hidden'),
                     'fullscreen-show-album-btn': () => this.elements['album-modal'].classList.remove('hidden'),
-                    'close-album': () => this.elements['album-modal'].classList.add('hidden'),
-                    'zoom-in': () => this.updateZoom(this.zoomLevel + 0.2),
-                    'zoom-out': () => this.updateZoom(this.zoomLevel - 0.2),
-                    'zoom-reset': () => this.updateZoom(1.0),
-                    'download-all': () => this.downloadAllPhotos(),
-                    'ai-analyze': () => { if (photoId) this.analyzeImageWithGemini(photoId); },
-                    'download-single': () => { if (photoId) this.downloadSinglePhoto(photoId); },
-                    'close-gemini-modal': () => this.elements['gemini-modal'].classList.add('hidden'),
-                    'copy-report': () => {
+                    'zoom-in-btn': () => this.updateZoom(this.zoomLevel + 0.2),
+                    'zoom-out-btn': () => this.updateZoom(this.zoomLevel - 0.2),
+                    'zoom-reset-btn': () => this.updateZoom(1.0),
+                    'download-all-btn': () => this.downloadAllPhotos(),
+                    'close-album-btn': () => this.elements['album-modal'].classList.add('hidden'),
+                    'close-modal-btn': () => this.elements['gemini-modal'].classList.add('hidden'),
+                    'copy-report-btn': () => {
                         navigator.clipboard.writeText(this.elements['report-content'].textContent)
                             .then(() => this.showNotification('報告書をコピーしました', 'success'))
                             .catch(() => this.showNotification('コピーに失敗しました', 'error'));
                     },
+                    'ai-analyze': () => {
+                        const photoItem = target.closest('[data-photo-id]');
+                        if(photoItem) this.analyzeImageWithGemini(parseInt(photoItem.dataset.photoId, 10));
+                    },
+                    'download-single': () => {
+                        const photoItem = target.closest('[data-photo-id]');
+                        if(photoItem) this.downloadSinglePhoto(parseInt(photoItem.dataset.photoId, 10));
+                    },
                     'generate-report': () => {
                         const analysisText = this.elements['gemini-modal-content'].querySelector('div').innerHTML.replace(/<br>/g, '\n');
                         this.generateReportFromAnalysis(analysisText);
-                    }
+                    },
+                    'reconfigure-api-key-from-error': () => this.openApiKeyModal()
                 };
         
-                const func = functions[action] || functions[target.id];
-                 if (func) {
+                const func = functions[action];
+                if (func) {
                     e.preventDefault();
                     func();
                 }
@@ -942,18 +940,18 @@
         init() {
             if (!this.checkSecureContext()) return;
             const ids = [
-                'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls',
+                'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls', 'prev-page', 'next-page',
                 'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder',
-                'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 
-                'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 'toggle-compare-btn', 'reconfigure-api-key-btn',
+                'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'clear-api-key-btn', 
+                'close-api-key-modal-btn', 'reconfigure-api-key-btn',
+                'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 'toggle-compare-btn',
                 'fullscreen-camera-modal', 'fullscreen-camera-stream', 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
                 'fullscreen-target-image', 'fullscreen-photo-count', 'fullscreen-zoom-level-display', 'fullscreen-capture-btn', 'close-fullscreen-camera-btn',
                 'fullscreen-ai-assistant-btn', 'fullscreen-show-album-btn', 'zoom-in-btn', 'zoom-out-btn', 'zoom-reset-btn',
                  'album-modal', 'album-grid', 'album-placeholder', 'album-photo-count', 'close-album-btn', 'download-all-btn',
                  'download-progress', 'download-progress-bar', 'download-counter', 'download-message',
                 'gemini-modal', 'modal-title', 'gemini-modal-content-wrapper', 'gemini-modal-content', 'report-generation-area',
-                'report-content', 'copy-report-btn', 'close-modal-btn', 'save-api-key-btn', 'clear-api-key-btn', 'close-api-key-modal-btn',
-                'prev-page', 'next-page'
+                'report-content', 'copy-report-btn', 'close-modal-btn'
             ];
             ids.forEach(id => {
                 const el = document.getElementById(id);
