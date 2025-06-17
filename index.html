@@ -210,7 +210,7 @@
             <div class="flex items-center gap-3">
                 <span id="album-photo-count" class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full">0枚</span>
                 <button data-action="download-all" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm">
-                    � 一括ダウンロード
+                    📥 一括ダウンロード
                 </button>
                 <button data-action="close-album" class="text-3xl font-bold text-white">&times;</button>
             </div>
@@ -458,13 +458,13 @@
         },
 
         async takePicture() {
-            const video = this.isCompareMode ? this.elements['camera-stream'] : document.getElementById('camera-stream');
+            const video = this.elements['camera-stream'];
             if (!video || !video.srcObject) {
                 this.showNotification('カメラが準備できていません。', 'error');
                 return;
             }
 
-            const captureBtn = this.isCompareMode ? this.elements['fullscreen-capture-btn'] : this.elements['capture-btn'];
+            const captureBtn = this.isCompareMode ? document.getElementById('fullscreen-capture-btn') : document.getElementById('capture-btn');
             captureBtn.classList.add('ping-animation');
             setTimeout(() => captureBtn.classList.remove('ping-animation'), 500);
 
@@ -735,8 +735,9 @@
             }
             this.isCompareMode = true;
             this.selectionState = 'waiting_for_p1';
-            this.elements['toggle-compare-btn'].textContent = '🖼️ 終了';
-            this.elements['toggle-compare-btn'].classList.replace('bg-teal-600', 'bg-red-600');
+            const btn = document.querySelector('[data-action="toggle-compare"]');
+            btn.textContent = '🖼️ 終了';
+            btn.classList.replace('bg-teal-600', 'bg-red-600');
             this.elements['pdf-viewer'].style.cursor = 'crosshair';
             this.showInstruction('比較範囲の左上をタップ');
         },
@@ -744,8 +745,9 @@
         resetCompareMode() {
             this.isCompareMode = false;
             this.selectionState = 'idle';
-            this.elements['toggle-compare-btn'].textContent = '🖼️ 比較撮影';
-            this.elements['toggle-compare-btn'].classList.replace('bg-red-600', 'bg-teal-600');
+            const btn = document.querySelector('[data-action="toggle-compare"]');
+            btn.textContent = '🖼️ 比較撮影';
+            btn.classList.replace('bg-red-600', 'bg-teal-600');
             this.elements['pdf-viewer'].style.cursor = 'default';
             this.elements['selection-marker'].classList.add('hidden');
             this.elements['selection-instruction'].classList.add('hidden');
@@ -801,15 +803,18 @@
         },
 
         showFullscreenCamera() {
+            this.elements['pdf-section'].classList.add('hidden');
+            this.elements['camera-section'].classList.remove('hidden');
+            this.elements['camera-stream'].srcObject = document.getElementById('camera-stream').srcObject; // Ensure stream is set
             this.updateSensorStatus('gps', this.elements['gps-status-dot'].classList.contains('bg-green-500'));
             this.updateSensorStatus('compass', this.elements['compass-status-dot'].classList.contains('bg-green-500'));
             this.updatePhotoCounts();
             this.updateZoom(this.zoomLevel);
-            this.elements['fullscreen-camera-modal'].classList.remove('hidden');
         },
 
         hideFullscreenCamera() {
-            this.elements['fullscreen-camera-modal'].classList.add('hidden');
+             this.elements['pdf-section'].classList.remove('hidden');
+             this.elements['camera-section'].classList.add('hidden');
         },
 
         // 初期化とイベントリスナー
@@ -817,11 +822,11 @@
             document.body.addEventListener('click', (e) => {
                 const target = e.target.closest('button, label');
                 if (!target) return;
-
+                
                 let action = target.dataset.action;
-                if (!action) {
+                 if (!action) {
                     const id = target.id;
-                    if(id) action = id.replace(/-btn$/, '').replace(/([A-Z])/g, '-$1').toLowerCase();
+                    if(id) action = id.replace(/-btn/g, '').replace(/([A-Z])/g, '-$1').toLowerCase();
                 }
 
                 if (!action) {
@@ -831,7 +836,7 @@
                     }
                     return;
                 }
-
+        
                 const photoItem = target.closest('[data-photo-id]');
                 const photoId = photoItem ? parseInt(photoItem.dataset.photoId, 10) : null;
         
@@ -907,11 +912,11 @@
         init() {
             if (!this.checkSecureContext()) return;
             const ids = [
-                'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls', 'prev-page', 'next-page',
+                'app-container', 'pdf-section', 'camera-section', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls', 'prev-page', 'next-page',
                 'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder',
                 'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'clear-api-key-btn', 
-                'close-api-key-modal-btn', 'reconfigure-api-key-btn',
-                'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 'toggle-compare-btn',
+                'close-api-key-modal-btn', 'reconfigure-api-key-btn', 'toggle-compare-btn',
+                'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 
                 'fullscreen-camera-modal', 'fullscreen-camera-stream', 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
                 'fullscreen-target-image', 'fullscreen-photo-count', 'fullscreen-zoom-level-display', 'fullscreen-capture-btn', 'close-fullscreen-camera-btn',
                 'fullscreen-ai-assistant-btn', 'fullscreen-show-album-btn', 'zoom-in-btn', 'zoom-out-btn', 'zoom-reset-btn',
@@ -941,4 +946,3 @@
     </script>
 </body>
 </html>
-�
