@@ -464,7 +464,7 @@
                 return;
             }
 
-            const captureBtn = this.isCompareMode ? document.getElementById('fullscreen-capture-btn') : document.getElementById('capture-btn');
+            const captureBtn = document.getElementById(this.isCompareMode ? 'fullscreen-capture-btn' : 'capture-btn');
             captureBtn.classList.add('ping-animation');
             setTimeout(() => captureBtn.classList.remove('ping-animation'), 500);
 
@@ -735,7 +735,7 @@
             }
             this.isCompareMode = true;
             this.selectionState = 'waiting_for_p1';
-            const btn = document.querySelector('[data-action="toggle-compare"]');
+            const btn = document.getElementById('toggle-compare-btn');
             btn.textContent = '🖼️ 終了';
             btn.classList.replace('bg-teal-600', 'bg-red-600');
             this.elements['pdf-viewer'].style.cursor = 'crosshair';
@@ -745,7 +745,7 @@
         resetCompareMode() {
             this.isCompareMode = false;
             this.selectionState = 'idle';
-            const btn = document.querySelector('[data-action="toggle-compare"]');
+            const btn = document.getElementById('toggle-compare-btn');
             btn.textContent = '🖼️ 比較撮影';
             btn.classList.replace('bg-red-600', 'bg-teal-600');
             this.elements['pdf-viewer'].style.cursor = 'default';
@@ -803,18 +803,22 @@
         },
 
         showFullscreenCamera() {
+            const stream = this.elements['camera-stream'].srcObject;
+            if(stream) {
+                 this.elements['fullscreen-camera-stream'].srcObject = stream;
+            }
             this.elements['pdf-section'].classList.add('hidden');
-            this.elements['camera-section'].classList.remove('hidden');
-            this.elements['camera-stream'].srcObject = document.getElementById('camera-stream').srcObject; // Ensure stream is set
-            this.updateSensorStatus('gps', this.elements['gps-status-dot'].classList.contains('bg-green-500'));
-            this.updateSensorStatus('compass', this.elements['compass-status-dot'].classList.contains('bg-green-500'));
+            document.getElementById('camera-section').classList.add('hidden'); // 分割ビューを隠す
+            this.elements['fullscreen-camera-modal'].classList.remove('hidden');
+            this.updateSensorStatus('gps', this.sensorData.latitude !== null);
+            this.updateSensorStatus('compass', this.sensorData.heading !== null);
             this.updatePhotoCounts();
             this.updateZoom(this.zoomLevel);
         },
 
         hideFullscreenCamera() {
              this.elements['pdf-section'].classList.remove('hidden');
-             this.elements['camera-section'].classList.add('hidden');
+             this.elements['fullscreen-camera-modal'].classList.add('hidden');
         },
 
         // 初期化とイベントリスナー
@@ -823,17 +827,10 @@
                 const target = e.target.closest('button, label');
                 if (!target) return;
                 
-                let action = target.dataset.action;
-                 if (!action) {
-                    const id = target.id;
-                    if(id) action = id.replace(/-btn/g, '').replace(/([A-Z])/g, '-$1').toLowerCase();
-                }
-
-                if (!action) {
-                    const forAttr = target.getAttribute('for');
-                    if (forAttr === 'pdf-upload') {
-                       this.elements['pdf-upload'].click();
-                    }
+                let action = target.dataset.action || target.id;
+                
+                 if (!action && target.getAttribute('for') === 'pdf-upload') {
+                    this.elements['pdf-upload'].click();
                     return;
                 }
         
@@ -841,34 +838,28 @@
                 const photoId = photoItem ? parseInt(photoItem.dataset.photoId, 10) : null;
         
                 const functions = {
-                    'open-api-modal': () => this.openApiKeyModal(),
+                    'reconfigure-api-key-btn': () => this.openApiKeyModal(),
                     'save-api-key': () => this.saveApiKey(),
                     'clear-api-key': () => this.clearApiKey(),
-                    'close-api-modal': () => this.elements['api-key-modal'].classList.add('hidden'),
-                    'reconfigure-api-key': () => this.openApiKeyModal(),
+                    'close-api-key-modal-btn': () => this.elements['api-key-modal'].classList.add('hidden'),
+                    'toggle-compare-btn': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
                     'prev-page': () => { if (this.pdfDoc && this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); },
                     'next-page': () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); },
-                    'take-picture': () => this.takePicture(),
-                    'take-picture-fullscreen': () => this.takePicture(),
-                    'capture': () => this.takePicture(),
-                    'fullscreen-capture': () => this.takePicture(),
-                    'toggle-compare': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
-                    'reset-compare-mode': () => this.resetCompareMode(),
-                    'close-fullscreen-camera': () => this.resetCompareMode(),
-                    'ai-assistant': () => this.getAiShootingAssistant(),
-                    'fullscreen-ai-assistant': () => this.getAiShootingAssistant(),
-                    'open-album': () => this.elements['album-modal'].classList.remove('hidden'),
-                    'fullscreen-show-album': () => this.elements['album-modal'].classList.remove('hidden'),
-                    'close-album': () => this.elements['album-modal'].classList.add('hidden'),
-                    'zoom-in': () => this.updateZoom(this.zoomLevel + 0.2),
-                    'zoom-out': () => this.updateZoom(this.zoomLevel - 0.2),
-                    'zoom-reset': () => this.updateZoom(1.0),
-                    'download-all': () => this.downloadAllPhotos(),
+                    'capture-btn': () => this.takePicture(),
+                    'fullscreen-capture-btn': () => this.takePicture(),
+                    'open-album-btn': () => this.elements['album-modal'].classList.remove('hidden'),
+                    'close-fullscreen-camera-btn': () => this.resetCompareMode(),
+                    'fullscreen-ai-assistant-btn': () => this.getAiShootingAssistant(),
+                    'fullscreen-show-album-btn': () => this.elements['album-modal'].classList.remove('hidden'),
+                    'zoom-in-btn': () => this.updateZoom(this.zoomLevel + 0.2),
+                    'zoom-out-btn': () => this.updateZoom(this.zoomLevel - 0.2),
+                    'zoom-reset-btn': () => this.updateZoom(1.0),
+                    'download-all-btn': () => this.downloadAllPhotos(),
+                    'close-album-btn': () => this.elements['album-modal'].classList.add('hidden'),
                     'ai-analyze': () => { if (photoId) this.analyzeImageWithGemini(photoId); },
                     'download-single': () => { if (photoId) this.downloadSinglePhoto(photoId); },
-                    'close-gemini-modal': () => this.elements['gemini-modal'].classList.add('hidden'),
-                    'close-modal': () => this.elements['gemini-modal'].classList.add('hidden'),
-                    'copy-report': () => {
+                    'close-modal-btn': () => this.elements['gemini-modal'].classList.add('hidden'),
+                    'copy-report-btn': () => {
                         navigator.clipboard.writeText(this.elements['report-content'].textContent)
                             .then(() => this.showNotification('報告書をコピーしました', 'success'))
                             .catch(() => this.showNotification('コピーに失敗しました', 'error'));
@@ -880,8 +871,8 @@
                     'reconfigure-api-key-from-error': () => this.openApiKeyModal()
                 };
         
-                const func = functions[action];
-                if (func) {
+                const func = functions[action] || functions[target.id];
+                 if (func) {
                     e.preventDefault();
                     func();
                 }
