@@ -436,7 +436,7 @@
         },
 
         updateSensorStatus(sensor, isOk) {
-            const dot = this.elements[`fullscreen-${sensor}-status-dot`];
+            const dot = this.elements[`${sensor}-status-dot`];
             const className = isOk ? 'bg-green-500' : 'bg-red-500';
             const oldClassName = isOk ? 'bg-red-500' : 'bg-green-500';
             if(dot) dot.classList.replace(oldClassName, className);
@@ -798,12 +798,10 @@
                 const target = e.target.closest('button, label');
                 if (!target) return;
         
-                let action = target.dataset.action;
-                if (!action) {
-                     action = target.id;
-                }
+                let action = target.dataset.action || target.id;
+        
                  if (!action && target.getAttribute('for') === 'pdf-upload') {
-                    this.elements['pdf-upload'].click();
+                    document.getElementById('pdf-upload').click();
                     return;
                 }
         
@@ -815,10 +813,11 @@
                     'save-api-key': () => this.saveApiKey(),
                     'clear-api-key': () => this.clearApiKey(),
                     'close-api-modal': () => this.elements['api-key-modal'].classList.add('hidden'),
-                    'toggle-compare': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
+                    'reconfigure-api-key-btn': () => this.openApiKeyModal(),
                     'prev-page': () => { if (this.pdfDoc && this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); },
                     'next-page': () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); },
                     'take-picture': () => this.takePicture(),
+                    'toggle-compare': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
                     'reset-compare-mode': () => this.resetCompareMode(),
                     'ai-assistant': () => this.getAiShootingAssistant(),
                     'open-album': () => this.elements['album-modal'].classList.remove('hidden'),
@@ -842,7 +841,7 @@
                     'reconfigure-api-key-from-error': () => this.openApiKeyModal()
                 };
         
-                const func = functions[action] || functions[target.id];
+                const func = functions[action];
                  if (func) {
                     e.preventDefault();
                     func();
@@ -882,11 +881,12 @@
             if (!this.checkSecureContext()) return;
             const ids = [
                 'main-view', 'camera-view', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls',
-                'pdf-viewer-wrapper', 'camera-stream', 'capture-canvas', 'photo-gallery',
+                'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery',
                 'api-key-modal', 'api-key-input',
                 'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 
                 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
                 'target-image-wrapper', 'target-image', 'photo-count', 'zoom-level-display', 
+                'fullscreen-capture-btn', 
                  'album-modal', 'album-grid', 'album-placeholder', 'album-photo-count', 'close-album-btn', 'download-all-btn',
                  'download-progress', 'download-progress-bar', 'download-counter', 'download-message',
                 'gemini-modal', 'modal-title', 'gemini-modal-content-wrapper', 'gemini-modal-content', 'report-generation-area',
