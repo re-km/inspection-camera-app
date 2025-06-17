@@ -501,46 +501,12 @@
                 gps: { ...this.sensorData }
             };
             this.photoDatabase.push(photoData);
-
-            this.updateGalleryPreview(photoData);
-            this.updateAlbum(photoData);
             this.updatePhotoCounts();
-        },
-
-        updateGalleryPreview(photoData) {
-            this.elements['gallery-placeholder'].classList.add('hidden');
-            const previewWrapper = document.createElement('div');
-            previewWrapper.className = 'relative w-24 h-full flex-shrink-0';
-            previewWrapper.innerHTML = `
-                <img src="${photoData.dataUrl}" class="w-full h-full object-cover rounded-md">
-                <div class="absolute top-1 left-1 bg-black bg-opacity-70 text-white text-xs font-bold px-1 rounded">${photoData.id.toString().padStart(4, '0')}</div>
-            `;
-            this.elements['photo-gallery'].appendChild(previewWrapper);
-            this.elements['photo-gallery'].scrollLeft = this.elements['photo-gallery'].scrollWidth;
-        },
-
-        updateAlbum(photoData) {
-            this.elements['album-placeholder'].classList.add('hidden');
-            const albumItem = document.createElement('div');
-            albumItem.className = 'relative w-full aspect-4/3 group cursor-pointer bg-gray-800 rounded-lg overflow-hidden';
-            albumItem.dataset.photoId = photoData.id;
-            albumItem.innerHTML = `
-                <img src="${photoData.dataUrl}" class="w-full h-full object-cover">
-                <div class="absolute top-2 left-2 bg-black bg-opacity-80 text-white text-xs font-bold px-2 py-1 rounded">
-                    <div>${photoData.id.toString().padStart(4, '0')}</div>
-                </div>
-                <div class="absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity p-2 gap-2">
-                    <button data-action="ai-analyze" class="text-white bg-purple-600 hover:bg-purple-700 font-bold py-2 px-3 rounded-lg text-xs w-full">✨ AI分析</button>
-                    <button data-action="download-single" class="text-white bg-blue-600 hover:bg-blue-700 font-bold py-2 px-3 rounded-lg text-xs w-full">📥 ダウンロード</button>
-                </div>
-            `;
-            this.elements['album-grid'].appendChild(albumItem);
         },
 
         updatePhotoCounts() {
             const count = this.photoDatabase.length;
             this.elements['photo-count-badge'].textContent = `${count}枚`;
-            this.elements['fullscreen-photo-count'].textContent = `${count}枚`;
             this.elements['album-photo-count'].textContent = `${count}枚`;
         },
 
@@ -730,9 +696,8 @@
             }
             this.isCompareMode = true;
             this.selectionState = 'waiting_for_p1';
-            const btn = this.elements['toggle-compare-btn'];
-            btn.textContent = '🖼️ 終了';
-            btn.classList.replace('bg-teal-600', 'bg-red-600');
+            this.elements['toggle-compare-btn'].textContent = '🖼️ 終了';
+            this.elements['toggle-compare-btn'].classList.replace('bg-teal-600', 'bg-red-600');
             this.elements['pdf-viewer'].style.cursor = 'crosshair';
             this.showInstruction('比較範囲の左上をタップ');
         },
@@ -740,9 +705,8 @@
         resetCompareMode() {
             this.isCompareMode = false;
             this.selectionState = 'idle';
-            const btn = this.elements['toggle-compare-btn'];
-            btn.textContent = '🖼️ 比較撮影開始';
-            btn.classList.replace('bg-red-600', 'bg-teal-600');
+            this.elements['toggle-compare-btn'].textContent = '🖼️ 比較撮影開始';
+            this.elements['toggle-compare-btn'].classList.replace('bg-red-600', 'bg-teal-600');
             this.elements['pdf-viewer'].style.cursor = 'default';
             this.elements['selection-marker'].classList.add('hidden');
             this.elements['selection-instruction'].classList.add('hidden');
@@ -806,30 +770,23 @@
         showCameraView() {
             this.elements['main-section'].classList.add('hidden');
             this.elements['camera-section'].classList.remove('hidden');
-            const stream = this.elements['camera-stream'].srcObject;
-            if(stream && !this.elements['camera-section'].querySelector('video').srcObject) {
-                 this.elements['camera-section'].querySelector('video').srcObject = stream;
-            }
-            this.updateSensorStatus('gps', this.sensorData.latitude !== null);
-            this.updateSensorStatus('compass', this.sensorData.heading !== null);
-            this.updatePhotoCounts();
-            this.updateZoom(this.zoomLevel);
         },
 
         // 初期化とイベントリスナー
         setupEventListeners() {
             document.body.addEventListener('click', (e) => {
-                const target = e.target.closest('[data-action]');
-                if (!target) {
-                    // Check label for pdf-upload
-                     if (e.target.closest('label[for="pdf-upload"]')) {
-                        e.preventDefault();
-                        this.elements['pdf-upload'].click();
-                    }
+                const target = e.target.closest('button, label');
+                if (!target) return;
+        
+                let action = target.dataset.action;
+                if (!action) {
+                     action = target.id;
+                }
+                 if (!action && target.getAttribute('for') === 'pdf-upload') {
+                    this.elements['pdf-upload'].click();
                     return;
                 }
         
-                const action = target.dataset.action;
                 const photoItem = target.closest('[data-photo-id]');
                 const photoId = photoItem ? parseInt(photoItem.dataset.photoId, 10) : null;
         
@@ -865,7 +822,7 @@
                     'reconfigure-api-key-from-error': () => this.openApiKeyModal()
                 };
         
-                const func = functions[action];
+                const func = functions[action] || functions[target.id];
                  if (func) {
                     e.preventDefault();
                     func();
@@ -906,14 +863,17 @@
             const ids = [
                 'main-section', 'camera-section', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls',
                 'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder',
-                'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 
-                'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 'toggle-compare-btn', 'reconfigure-api-key-btn',
-                'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
+                'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'clear-api-key-btn', 
+                'close-api-key-modal-btn', 'reconfigure-api-key-btn',
+                'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 'toggle-compare-btn',
+                'fullscreen-camera-modal', 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
                 'target-image-wrapper', 'target-image', 'fullscreen-photo-count', 'zoom-level-display', 
+                'fullscreen-capture-btn', 'close-fullscreen-camera-btn',
+                'ai-assistant-btn', 'fullscreen-show-album-btn', 'zoom-in-btn', 'zoom-out-btn', 'zoom-reset-btn',
                  'album-modal', 'album-grid', 'album-placeholder', 'album-photo-count', 'close-album-btn', 'download-all-btn',
                  'download-progress', 'download-progress-bar', 'download-counter', 'download-message',
                 'gemini-modal', 'modal-title', 'gemini-modal-content-wrapper', 'gemini-modal-content', 'report-generation-area',
-                'report-content'
+                'report-content', 'copy-report-btn', 'close-modal-btn'
             ];
             ids.forEach(id => {
                 const el = document.getElementById(id);
