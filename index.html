@@ -28,7 +28,6 @@
             top: 0; 
             left: 0;
             transition: opacity 0.3s ease-in-out, visibility 0.3s;
-            background-color: #1f2937; /* bg-gray-800 */
         }
         .view-section.hidden {
             opacity: 0;
@@ -110,7 +109,7 @@
 
     <div id="app-container" class="relative h-full">
         <!-- メイン画面 (PDFビューア) -->
-        <div id="main-view" class="view-section p-2">
+        <div id="main-view" class="view-section p-2 bg-gray-800">
             <div class="flex-shrink-0">
                  <div class="flex flex-wrap gap-2 mb-2">
                     <label for="pdf-upload" class="flex-grow text-center cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm">PDF選択</label>
@@ -798,8 +797,10 @@
                 const target = e.target.closest('button, label');
                 if (!target) return;
         
-                let action = target.dataset.action || target.id;
-        
+                let action = target.dataset.action;
+                if (!action) {
+                     action = target.id;
+                }
                  if (!action && target.getAttribute('for') === 'pdf-upload') {
                     document.getElementById('pdf-upload').click();
                     return;
@@ -817,19 +818,21 @@
                     'prev-page': () => { if (this.pdfDoc && this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); },
                     'next-page': () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); },
                     'take-picture': () => this.takePicture(),
+                    'capture-btn': () => this.takePicture(),
                     'toggle-compare': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
+                    'toggle-compare-btn': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
                     'reset-compare-mode': () => this.resetCompareMode(),
                     'ai-assistant': () => this.getAiShootingAssistant(),
                     'open-album': () => this.elements['album-modal'].classList.remove('hidden'),
-                    'close-album': () => this.elements['album-modal'].classList.add('hidden'),
+                    'close-album-btn': () => this.elements['album-modal'].classList.add('hidden'),
                     'zoom-in': () => this.updateZoom(this.zoomLevel + 0.2),
                     'zoom-out': () => this.updateZoom(this.zoomLevel - 0.2),
                     'zoom-reset': () => this.updateZoom(1.0),
-                    'download-all': () => this.downloadAllPhotos(),
+                    'download-all-btn': () => this.downloadAllPhotos(),
                     'ai-analyze': () => { if (photoId) this.analyzeImageWithGemini(photoId); },
                     'download-single': () => { if (photoId) this.downloadSinglePhoto(photoId); },
-                    'close-gemini-modal': () => this.elements['gemini-modal'].classList.add('hidden'),
-                    'copy-report': () => {
+                    'close-modal-btn': () => this.elements['gemini-modal'].classList.add('hidden'),
+                    'copy-report-btn': () => {
                         navigator.clipboard.writeText(this.elements['report-content'].textContent)
                             .then(() => this.showNotification('報告書をコピーしました', 'success'))
                             .catch(() => this.showNotification('コピーに失敗しました', 'error'));
@@ -854,6 +857,7 @@
                 const fileReader = new FileReader();
                 fileReader.onload = () => {
                     const typedarray = new Uint8Array(fileReader.result);
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;
                     pdfjsLib.getDocument(typedarray).promise.then(pdf => {
                         this.pdfDoc = pdf;
                         this.elements['page-count'].textContent = pdf.numPages;
@@ -880,17 +884,19 @@
         init() {
             if (!this.checkSecureContext()) return;
             const ids = [
-                'main-view', 'camera-view', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls',
-                'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery',
-                'api-key-modal', 'api-key-input',
+                'main-view', 'camera-view', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls', 'prev-page', 'next-page',
+                'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 
+                'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'clear-api-key-btn', 
+                'close-api-key-modal-btn', 'reconfigure-api-key-btn', 'toggle-compare-btn',
                 'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 
                 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
                 'target-image-wrapper', 'target-image', 'photo-count', 'zoom-level-display', 
-                'fullscreen-capture-btn', 
+                'fullscreen-capture-btn', 'close-fullscreen-camera-btn',
+                'ai-assistant-btn', 'fullscreen-show-album-btn', 'zoom-in-btn', 'zoom-out-btn', 'zoom-reset-btn',
                  'album-modal', 'album-grid', 'album-placeholder', 'album-photo-count', 'close-album-btn', 'download-all-btn',
                  'download-progress', 'download-progress-bar', 'download-counter', 'download-message',
                 'gemini-modal', 'modal-title', 'gemini-modal-content-wrapper', 'gemini-modal-content', 'report-generation-area',
-                'report-content'
+                'report-content', 'copy-report-btn', 'close-modal-btn'
             ];
             ids.forEach(id => {
                 const el = document.getElementById(id);
