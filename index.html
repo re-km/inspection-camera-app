@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>構造物点検カメラアプリ (HTTPS必須)</title>
+    <title>構造物点検カメラアプリ (モバイル最適化版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- PDF.jsを最新版に更新 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous"></script>
+    <!-- PDF.jsをlegacy版に変更（モバイル互換性向上） -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/piexifjs/1.0.6/piexif.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
     <style>
@@ -46,21 +46,40 @@
         .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
         #camera-stream { width: 100%; height: 100%; object-fit: contain; transform-origin: center; transition: transform 0.2s ease-out; }
         
-        /* PDF表示領域のスタイルを改善 */
+        /* モバイル最適化されたPDF表示領域 */
         #pdf-viewer {
             display: flex;
             justify-content: center;
             align-items: flex-start;
             min-height: 100%;
-            padding: 10px;
+            padding: 5px;
+            overflow: auto;
+            -webkit-overflow-scrolling: touch;
         }
         
         #pdf-viewer canvas {
             max-width: 100%;
             height: auto;
             border: 1px solid #374151;
-            border-radius: 8px;
+            border-radius: 4px;
             background-color: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        
+        /* デバッグ情報表示エリア */
+        #debug-info {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            font-size: 10px;
+            padding: 4px;
+            max-height: 100px;
+            overflow-y: auto;
+            font-family: monospace;
+            z-index: 1000;
         }
         
         .fullscreen-control-panel {
@@ -149,6 +168,7 @@
                 <button data-action="prev-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-l-lg">◀</button>
                 <span id="page-num" class="bg-gray-800 py-1 px-2 text-sm"></span>/<span id="page-count" class="bg-gray-800 py-1 px-2 text-sm"></span>
                 <button data-action="next-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-r-lg">▶</button>
+                <button data-action="toggle-debug" class="bg-purple-600 hover:bg-purple-500 font-bold py-1 px-2 rounded-lg ml-2 text-xs">DEBUG</button>
             </div>
         </div>
 
@@ -205,6 +225,9 @@
             </div>
         </div>
     </div>
+
+    <!-- デバッグ情報（モバイル用） -->
+    <div id="debug-info" class="hidden"></div>
 
     <!-- APIキー設定モーダル -->
     <div id="api-key-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[70] p-4">
@@ -274,7 +297,7 @@
     <canvas id="capture-canvas" class="hidden"></canvas>
 
     <script>
-    // 構造物点検カメラアプリ（PDF表示修正版）
+    // 構造物点検カメラアプリ（モバイル最適化版）
     const App = {
         elements: {},
         pdfDoc: null, currentPageNum: 1, pageIsRendering: false, pageNumIsPending: null,
@@ -286,6 +309,58 @@
         zoomLevel: 1.0,
         maxZoom: 3.0,
         minZoom: 0.5,
+        debugMode: false,
+        debugMessages: [],
+
+        // デバッグログ機能（モバイル用）
+        debugLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logMessage = `[${timestamp}] ${message}`;
+            this.debugMessages.push(logMessage);
+            
+            // 最新50件のみ保持
+            if (this.debugMessages.length > 50) {
+                this.debugMessages = this.debugMessages.slice(-50);
+            }
+            
+            console.log(logMessage);
+            
+            if (this.debugMode && this.elements['debug-info']) {
+                this.elements['debug-info'].innerHTML = this.debugMessages.join('<br>');
+                this.elements['debug-info'].scrollTop = this.elements['debug-info'].scrollHeight;
+            }
+        },
+
+        toggleDebugMode() {
+            this.debugMode = !this.debugMode;
+            if (this.debugMode) {
+                this.elements['debug-info'].classList.remove('hidden');
+                this.debugLog('🐛 デバッグモード開始');
+            } else {
+                this.elements['debug-info'].classList.add('hidden');
+            }
+        },
+
+        // デバイス情報の取得
+        getDeviceInfo() {
+            const info = {
+                userAgent: navigator.userAgent,
+                platform: navigator.platform,
+                isIOS: /iPad|iPhone|iPod/.test(navigator.userAgent),
+                isSafari: /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent),
+                screenSize: `${screen.width}x${screen.height}`,
+                windowSize: `${window.innerWidth}x${window.innerHeight}`,
+                devicePixelRatio: window.devicePixelRatio,
+                isSecureContext: window.isSecureContext,
+                hasTouch: 'ontouchstart' in window,
+                memoryEstimate: navigator.deviceMemory || 'unknown'
+            };
+            
+            this.debugLog(`📱 デバイス情報: iOS=${info.isIOS}, Safari=${info.isSafari}, Touch=${info.hasTouch}, Memory=${info.memoryEstimate}GB`);
+            this.debugLog(`📏 画面サイズ: ${info.screenSize}, ウィンドウ: ${info.windowSize}, DPR: ${info.devicePixelRatio}`);
+            
+            return info;
+        },
 
         // セキュリティチェック
         checkSecureContext() {
@@ -323,6 +398,8 @@
             notification.innerHTML = `<div class="text-xl">${icon[type]}</div><div class="text-sm">${message}</div>`;
             document.body.appendChild(notification);
             setTimeout(() => notification.remove(), 4000);
+            
+            this.debugLog(`📢 通知: ${message} (${type})`);
         },
 
         // API設定
@@ -336,11 +413,11 @@
                 const savedKey = localStorage.getItem('geminiApiKey');
                 if (savedKey) {
                     this.apiKey = savedKey;
-                    console.log('Saved API Key loaded.');
+                    this.debugLog('🔑 保存されたAPIキーを読み込み');
                     return true;
                 }
             } catch (e) {
-                console.error("Could not access localStorage:", e);
+                this.debugLog(`❌ localStorage読み込みエラー: ${e.message}`);
             }
             return false;
         },
@@ -357,7 +434,7 @@
                     this.showNotification('有効なAPIキーを入力してください。', 'warning');
                 }
             } catch (e) {
-                console.error("Could not save to localStorage:", e);
+                this.debugLog(`❌ APIキー保存エラー: ${e.message}`);
                 this.showNotification('APIキーの保存に失敗しました。', 'error');
             }
         },
@@ -369,66 +446,79 @@
                 this.elements['api-key-input'].value = '';
                 this.showNotification('保存されたAPIキーを削除しました。', 'info');
             } catch (e) {
-                console.error("Could not clear localStorage:", e);
+                this.debugLog(`❌ APIキー削除エラー: ${e.message}`);
                 this.showNotification('APIキーの削除に失敗しました。', 'error');
             }
         },
 
-        // PDF関連（デバッグ強化版）
+        // PDF関連（モバイル最適化版）
         renderPage(num) {
-            console.log(`🖼️ renderPage呼び出し: ページ ${num}`);
-            console.log('pageIsRendering:', this.pageIsRendering);
-            console.log('pdfDoc存在:', !!this.pdfDoc);
+            this.debugLog(`🖼️ ページ描画開始: ${num}`);
             
             if (this.pageIsRendering || !this.pdfDoc) {
-                console.log('❌ 描画条件不適合 - 処理を中断');
+                this.debugLog('❌ 描画条件不適合');
                 return;
             }
             
             this.pageIsRendering = true;
-            console.log('✅ ページ描画開始');
 
             this.pdfDoc.getPage(num).then(page => {
-                console.log('📄 ページオブジェクト取得成功');
+                this.debugLog('📄 ページオブジェクト取得成功');
                 
                 const container = this.elements['pdf-viewer-wrapper'];
-                const containerWidth = container.clientWidth - 20; // padding考慮
-                console.log('📏 コンテナ幅:', containerWidth);
+                const containerWidth = container.clientWidth - 10; // padding考慮
                 
-                // 基本スケールを計算（コンテナ幅に合わせる）
+                this.debugLog(`📏 コンテナ幅: ${containerWidth}px`);
+                
+                // モバイル向けの低解像度描画（メモリ節約）
+                const deviceInfo = this.getDeviceInfo();
+                let baseScale = 0.8; // デフォルトスケール
+                
+                if (deviceInfo.isIOS) {
+                    baseScale = 0.6; // iOSはさらに小さく
+                    this.debugLog('📱 iOS検出: 低解像度モード');
+                }
+                
+                if (deviceInfo.memoryEstimate && deviceInfo.memoryEstimate <= 4) {
+                    baseScale *= 0.8; // 低メモリデバイスはさらに縮小
+                    this.debugLog('💾 低メモリデバイス検出: スケール削減');
+                }
+
                 const viewport = page.getViewport({ scale: 1.0 });
-                console.log('📐 基本ビューポート:', viewport.width, 'x', viewport.height);
-                
-                const scale = Math.min(containerWidth / viewport.width, 2.0); // 最大2倍まで
+                const scale = Math.min((containerWidth / viewport.width) * baseScale, 1.5); // 最大1.5倍
                 const scaledViewport = page.getViewport({ scale: scale });
-                console.log('📐 スケール調整後:', scaledViewport.width, 'x', scaledViewport.height, 'スケール:', scale);
+                
+                this.debugLog(`📐 描画スケール: ${scale.toFixed(2)}, サイズ: ${scaledViewport.width}x${scaledViewport.height}`);
 
                 // 既存のcanvasを削除
                 const existingCanvas = this.elements['pdf-viewer'].querySelector('canvas');
                 if (existingCanvas) {
-                    console.log('🗑️ 既存のcanvasを削除');
+                    this.debugLog('🗑️ 既存canvas削除');
                     existingCanvas.remove();
                 }
 
                 // 新しいcanvasを作成
-                console.log('🖼️ 新しいcanvas作成中...');
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
                 
                 if (!context) {
-                    console.error('❌ 2Dコンテキスト取得失敗');
+                    this.debugLog('❌ 2Dコンテキスト取得失敗');
                     this.pageIsRendering = false;
-                    this.showNotification('Canvas描画コンテキストの取得に失敗しました。', 'error');
+                    this.showNotification('Canvas描画エラー', 'error');
                     return;
                 }
                 
                 canvas.height = scaledViewport.height;
                 canvas.width = scaledViewport.width;
-                console.log(`✅ Canvas作成: ${canvas.width}x${canvas.height}`);
                 
-                // canvasをpdf-viewerに追加
+                this.debugLog(`✅ Canvas作成: ${canvas.width}x${canvas.height}`);
+                
+                // メモリ使用量の概算
+                const memoryMB = (canvas.width * canvas.height * 4) / (1024 * 1024);
+                this.debugLog(`💾 予想メモリ使用量: ${memoryMB.toFixed(1)}MB`);
+                
+                // canvasをDOMに追加
                 this.elements['pdf-viewer'].appendChild(canvas);
-                console.log('✅ CanvasをDOMに追加');
 
                 // PDFをcanvasに描画
                 const renderContext = {
@@ -436,38 +526,33 @@
                     viewport: scaledViewport
                 };
                 
-                console.log('🎨 PDF描画開始...');
+                this.debugLog('🎨 PDF描画開始...');
                 const renderTask = page.render(renderContext);
                 
                 renderTask.promise.then(() => {
-                    console.log(`🎉 PDFページ ${num} の描画完了!`);
+                    this.debugLog(`🎉 ページ ${num} 描画完了`);
                     this.pageIsRendering = false;
                     
-                    // プレースホルダーを非表示にする
+                    // プレースホルダーを非表示
                     this.elements['pdf-placeholder'].classList.add('hidden');
-                    console.log('✅ プレースホルダー非表示');
                     
                     if (this.pageNumIsPending !== null) {
-                        console.log('📋 待機中のページがあります:', this.pageNumIsPending);
+                        this.debugLog(`📋 待機ページあり: ${this.pageNumIsPending}`);
                         this.renderPage(this.pageNumIsPending);
                         this.pageNumIsPending = null;
                     }
                 }).catch(error => {
-                    console.error('❌ PDF描画エラー:', error);
-                    console.error('エラー詳細:', error.message);
+                    this.debugLog(`❌ PDF描画エラー: ${error.message}`);
                     this.pageIsRendering = false;
                     this.showNotification('PDFの描画に失敗しました。', 'error');
                 });
                 
             }).catch(error => {
-                console.error('❌ PDFページ取得エラー:', error);
-                console.error('ページ番号:', num);
-                console.error('エラー詳細:', error.message);
+                this.debugLog(`❌ ページ取得エラー: ${error.message}`);
                 this.pageIsRendering = false;
                 this.showNotification('PDFページの取得に失敗しました。', 'error');
             });
             
-            console.log(`📄 ページ番号表示更新: ${num}`);
             this.elements['page-num'].textContent = num;
         },
 
@@ -481,15 +566,18 @@
 
         // センサー関連
         async initSensors() {
+            this.debugLog('🧭 センサー初期化開始');
+            
             // GPS
             if ('geolocation' in navigator) {
                 const handleGPS = (position) => {
                     this.sensorData.latitude = position.coords.latitude;
                     this.sensorData.longitude = position.coords.longitude;
                     this.updateSensorStatus('gps', true);
+                    this.debugLog(`📍 GPS取得: ${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`);
                 };
                 const handleGPSError = (error) => {
-                    console.warn(`GPSエラー: ${error.message}`);
+                    this.debugLog(`❌ GPSエラー: ${error.message} (code: ${error.code})`);
                     this.updateSensorStatus('gps', false);
                     if(error.code === 1) this.showNotification('GPSの許可が必要です。サイト設定をご確認ください。', 'warning');
                 };
@@ -503,7 +591,10 @@
                 } else if (event.absolute && event.alpha !== null) { // Android
                     this.sensorData.heading = 360 - event.alpha;
                 }
-                if(this.sensorData.heading !== null) this.updateSensorStatus('compass', true);
+                if(this.sensorData.heading !== null) {
+                    this.updateSensorStatus('compass', true);
+                    this.debugLog(`🧭 方位取得: ${this.sensorData.heading.toFixed(1)}°`);
+                }
             };
 
             if (typeof(DeviceOrientationEvent) !== "undefined" && typeof(DeviceOrientationEvent.requestPermission) === "function") {
@@ -511,12 +602,13 @@
                     const permission = await DeviceOrientationEvent.requestPermission();
                     if (permission === 'granted') {
                         window.addEventListener('deviceorientation', handleOrientation, true);
+                        this.debugLog('✅ 方位センサー許可取得');
                     } else {
                          this.updateSensorStatus('compass', false);
                          this.showNotification('方位センサーの許可が必要です。', 'warning');
                     }
                 } catch(e) {
-                    console.error("方位センサー許可エラー", e);
+                    this.debugLog(`❌ 方位センサー許可エラー: ${e.message}`);
                     this.updateSensorStatus('compass', false);
                 }
             } else {
@@ -533,14 +625,16 @@
 
         // カメラ関連
         async initCamera() {
+            this.debugLog('📷 カメラ初期化開始');
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, 
                     audio: false 
                 });
                 this.elements['camera-stream'].srcObject = stream;
+                this.debugLog('✅ カメラ初期化成功');
             } catch (err) {
-                console.error("カメラアクセスエラー:", err);
+                this.debugLog(`❌ カメラアクセスエラー: ${err.message}`);
                 this.showNotification('カメラにアクセスできません。設定を確認してください。', 'error');
             }
         },
@@ -569,6 +663,7 @@
 
             const imageDataUrl = canvas.toDataURL('image/jpeg', 0.9);
             this.addPhotoToDatabase(imageDataUrl);
+            this.debugLog(`📸 写真撮影: ${this.photoDatabase.length}枚目`);
         },
 
         // ズーム機能
@@ -687,7 +782,7 @@
                 this.showNotification('ZIPファイルのダウンロードを開始しました。', 'success');
 
             } catch (error) {
-                console.error('一括ダウンロードエラー:', error);
+                this.debugLog(`❌ 一括ダウンロードエラー: ${error.message}`);
                 this.showNotification('一括ダウンロード中にエラーが発生しました。', 'error');
             } finally {
                 setTimeout(() => {
@@ -782,7 +877,7 @@
         },
 
         handleGeminiError(error, elementId = 'gemini-modal-content') {
-            console.error("Gemini Error:", error);
+            this.debugLog(`❌ Gemini API エラー: ${error.message}`);
             const errorMessage = `<p class="text-red-400">エラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${error.message}</p>
                 <button data-action="reconfigure-api-key-from-error" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
             this.elements[elementId].innerHTML = errorMessage;
@@ -920,6 +1015,7 @@
                     'ai-analyze': () => { if (photoId) this.analyzeImageWithGemini(photoId); },
                     'download-single': () => { if (photoId) this.downloadSinglePhoto(photoId); },
                     'close-gemini-modal': () => this.elements['gemini-modal'].classList.add('hidden'),
+                    'toggle-debug': () => this.toggleDebugMode(),
                     'copy-report': () => {
                         navigator.clipboard.writeText(this.elements['report-content'].textContent)
                             .then(() => this.showNotification('報告書をコピーしました', 'success'))
@@ -939,139 +1035,105 @@
                 }
             });
         
-            // PDFアップロード処理（デバッグ強化版）
+            // PDFアップロード処理（モバイル最適化版）
             document.getElementById('pdf-upload').addEventListener('change', e => {
                 const file = e.target.files[0];
-                console.log('📁 ファイル選択イベント発生');
-                console.log('選択されたファイル:', file);
+                this.debugLog('📁 ファイル選択イベント');
                 
                 if (!file) {
-                    console.log('❌ ファイルが選択されていません');
+                    this.debugLog('❌ ファイル未選択');
                     this.showNotification('ファイルが選択されていません。', 'warning');
                     return;
                 }
                 
                 if (file.type !== 'application/pdf') {
-                    console.log('❌ PDFファイルではありません。タイプ:', file.type);
+                    this.debugLog(`❌ 非PDFファイル: ${file.type}`);
                     this.showNotification('PDFファイルを選択してください。', 'warning');
                     return;
                 }
                 
-                console.log('✅ PDF読み込み開始:', file.name, 'サイズ:', file.size, 'bytes');
+                this.debugLog(`✅ PDF読み込み開始: ${file.name} (${(file.size/1024/1024).toFixed(1)}MB)`);
                 this.showNotification('PDFファイルを読み込み中...', 'info');
                 
-                // PDF.jsライブラリの存在確認
-                console.log('🔍 PDF.jsライブラリチェック...');
-                console.log('pdfjsLib存在:', typeof pdfjsLib !== 'undefined');
-                console.log('pdfjsLib.getDocument存在:', typeof pdfjsLib?.getDocument !== 'undefined');
-                
+                // PDF.jsライブラリチェック
                 if (typeof pdfjsLib === 'undefined') {
-                    console.error('❌ PDF.jsライブラリが読み込まれていません');
+                    this.debugLog('❌ PDF.jsライブラリ未読み込み');
                     this.showNotification('PDF.jsライブラリの読み込みに失敗しました。ページを再読み込みしてください。', 'error');
                     return;
                 }
                 
-                // Worker設定
+                // Worker設定（モバイル最適化）
                 try {
-                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-                    console.log('✅ PDF.js Worker設定完了');
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+                    this.debugLog('✅ PDF.js Worker設定完了');
                 } catch (workerError) {
-                    console.error('❌ Worker設定エラー:', workerError);
+                    this.debugLog(`❌ Worker設定エラー: ${workerError.message}`);
                 }
                 
                 const fileReader = new FileReader();
                 
-                fileReader.onloadstart = () => {
-                    console.log('📖 FileReader読み込み開始');
-                };
-                
-                fileReader.onprogress = (e) => {
-                    if (e.lengthComputable) {
-                        const percent = Math.round((e.loaded / e.total) * 100);
-                        console.log(`📖 ファイル読み込み進行: ${percent}%`);
-                    }
-                };
-                
                 fileReader.onload = () => {
-                    console.log('✅ FileReader読み込み完了');
-                    console.log('読み込み結果サイズ:', fileReader.result?.byteLength, 'bytes');
+                    this.debugLog('📖 FileReader読み込み完了');
                     
                     if (!fileReader.result || fileReader.result.byteLength === 0) {
-                        console.error('❌ ファイル読み込み結果が空です');
+                        this.debugLog('❌ 読み込み結果が空');
                         this.showNotification('ファイルの読み込みに失敗しました。', 'error');
                         return;
                     }
                     
                     try {
                         const typedarray = new Uint8Array(fileReader.result);
-                        console.log('✅ TypedArray作成成功:', typedarray.length, 'bytes');
-                        console.log('📊 PDF解析開始...');
+                        this.debugLog(`✅ TypedArray作成: ${typedarray.length} bytes`);
                         
-                        // PDF.jsでの解析
+                        // モバイル向けPDF読み込み設定
                         const loadingTask = pdfjsLib.getDocument({
                             data: typedarray,
-                            verbosity: 1  // デバッグレベル設定
+                            useWorkerFetch: false, // モバイルでWorker fetchを無効化
+                            isEvalSupported: false, // eval無効化
+                            useSystemFonts: true // システムフォント使用
                         });
                         
-                        console.log('📋 PDFドキュメント読み込みタスク作成');
+                        this.debugLog('📋 PDFドキュメント読み込み開始');
                         
                         loadingTask.promise.then(pdf => {
-                            console.log('🎉 PDF読み込み成功!');
-                            console.log('📄 ページ数:', pdf.numPages);
-                            console.log('📖 PDFinfo:', pdf._pdfInfo);
+                            this.debugLog(`🎉 PDF読み込み成功! ページ数: ${pdf.numPages}`);
                             
                             this.pdfDoc = pdf;
                             this.elements['page-count'].textContent = pdf.numPages;
                             this.currentPageNum = 1;
                             
-                            console.log('🖼️ 最初のページ描画開始...');
+                            this.debugLog('🖼️ 最初のページ描画開始');
                             this.renderPage(1);
                             this.elements['pdf-controls'].classList.remove('hidden');
                             this.showNotification('PDFが正常に読み込まれました。', 'success');
                             
                         }).catch(error => {
-                            console.error('❌ PDFドキュメント読み込みエラー:');
-                            console.error('エラータイプ:', error.name);
-                            console.error('エラーメッセージ:', error.message);
-                            console.error('エラー詳細:', error);
+                            this.debugLog(`❌ PDF読み込みエラー: ${error.message}`);
                             
                             let userMessage = 'PDFファイルの読み込みに失敗しました。';
                             if (error.name === 'InvalidPDFException') {
                                 userMessage += ' ファイルが破損しているか、有効なPDFではありません。';
                             } else if (error.name === 'MissingPDFException') {
                                 userMessage += ' PDFデータが見つかりません。';
-                            } else if (error.name === 'UnexpectedResponseException') {
-                                userMessage += ' 予期しない応答が返されました。';
+                            } else if (error.message.includes('memory')) {
+                                userMessage += ' メモリ不足です。より小さなPDFファイルをお試しください。';
                             }
                             
                             this.showNotification(userMessage, 'error');
                         });
                         
-                        // 進行状況の監視
-                        loadingTask.onProgress = (progress) => {
-                            if (progress.total > 0) {
-                                const percent = Math.round((progress.loaded / progress.total) * 100);
-                                console.log(`📊 PDF解析進行: ${percent}%`);
-                            }
-                        };
-                        
                     } catch (error) {
-                        console.error('❌ PDF処理エラー:', error);
+                        this.debugLog(`❌ PDF処理エラー: ${error.message}`);
                         this.showNotification('PDFファイルの処理中にエラーが発生しました。', 'error');
                     }
                 };
                 
                 fileReader.onerror = (error) => {
-                    console.error('❌ FileReader エラー:', error);
-                    console.error('FileReader.error:', fileReader.error);
+                    this.debugLog(`❌ FileReader エラー: ${error}`);
                     this.showNotification('ファイルの読み取りに失敗しました。', 'error');
                 };
                 
-                fileReader.onabort = () => {
-                    console.log('⚠️ FileReader読み込みが中断されました');
-                };
-                
-                console.log('📖 ArrayBuffer読み込み開始...');
+                this.debugLog('📖 ArrayBuffer読み込み開始');
                 fileReader.readAsArrayBuffer(file);
             });
         
@@ -1082,32 +1144,28 @@
         init() {
             if (!this.checkSecureContext()) return;
             
-            console.log('🚀 アプリ初期化開始...');
+            this.debugLog('🚀 アプリ初期化開始');
             
-            // PDF.jsライブラリの詳細チェック
-            console.log('📚 PDF.jsライブラリ確認:');
-            console.log('  - pdfjsLib存在:', typeof pdfjsLib !== 'undefined');
-            console.log('  - window.pdfjsLib存在:', typeof window.pdfjsLib !== 'undefined');
+            // デバイス情報取得
+            this.getDeviceInfo();
             
+            // PDF.jsライブラリチェック
+            this.debugLog(`📚 PDF.js存在確認: ${typeof pdfjsLib !== 'undefined'}`);
             if (typeof pdfjsLib !== 'undefined') {
-                console.log('  - pdfjsLib.version:', pdfjsLib.version);
-                console.log('  - pdfjsLib.getDocument存在:', typeof pdfjsLib.getDocument === 'function');
-                console.log('  - pdfjsLib.GlobalWorkerOptions存在:', typeof pdfjsLib.GlobalWorkerOptions === 'object');
+                this.debugLog(`📖 PDF.js version: ${pdfjsLib.version || 'unknown'}`);
                 
-                // Worker設定を事前に行う
+                // Worker事前設定
                 try {
-                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-                    console.log('  ✅ PDF.js Worker事前設定完了');
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+                    this.debugLog('✅ PDF.js Worker事前設定完了');
                 } catch (workerError) {
-                    console.error('  ❌ Worker事前設定エラー:', workerError);
+                    this.debugLog(`❌ Worker事前設定エラー: ${workerError.message}`);
                 }
-            } else {
-                console.error('❌ PDF.jsライブラリが見つかりません');
             }
             
             const ids = [
                 'main-view', 'camera-view', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls', 'prev-page', 'next-page',
-                'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 
+                'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'debug-info',
                 'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'clear-api-key-btn', 
                 'close-api-key-modal-btn', 'reconfigure-api-key-btn', 'toggle-compare-btn',
                 'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 
@@ -1121,46 +1179,29 @@
                 'report-content', 'copy-report-btn', 'close-modal-btn'
             ];
             
-            console.log('🔍 DOM要素の確認:');
             let missingElements = 0;
             ids.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) {
                     this.elements[id] = el;
                 } else {
-                    console.warn(`  ⚠️ Element with id "${id}" not found.`);
+                    this.debugLog(`⚠️ 要素未発見: ${id}`);
                     missingElements++;
                 }
             });
             
-            if (missingElements === 0) {
-                console.log('  ✅ 全ての必要な要素が見つかりました');
-            } else {
-                console.warn(`  ⚠️ ${missingElements}個の要素が見つかりませんでした`);
-            }
+            this.debugLog(`🔍 DOM要素チェック完了: ${ids.length - missingElements}/${ids.length}`);
             
-            console.log('⚙️ 各機能の初期化...');
             this.loadApiKey();
             this.setupEventListeners();
             
-            // APIキーがない場合のモーダル表示を一時的に無効にしてテストしやすくする
-            // if (!this.apiKey) {
-            //     this.openApiKeyModal();
-            // }
-            
-            console.log('📷 カメラ初期化...');
+            this.debugLog('📷 カメラ初期化');
             this.initCamera();
-            console.log('🧭 センサー初期化...');
+            this.debugLog('🧭 センサー初期化');
             this.initSensors();
             this.showMainView();
             
-            console.log('✅ 構造物点検カメラアプリ 初期化完了');
-            
-            // テスト用の情報表示
-            console.log('🔧 デバッグ情報:');
-            console.log('  - User Agent:', navigator.userAgent);
-            console.log('  - Secure Context:', window.isSecureContext);
-            console.log('  - PDF viewer wrapper size:', this.elements['pdf-viewer-wrapper']?.clientWidth, 'x', this.elements['pdf-viewer-wrapper']?.clientHeight);
+            this.debugLog('✅ 初期化完了');
         }
     };
 
