@@ -113,9 +113,9 @@
             <div class="flex-shrink-0">
                  <div class="flex flex-wrap gap-2 mb-2">
                     <label for="pdf-upload" class="flex-grow text-center cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm">PDF選択</label>
-                    <button data-action="toggle-compare" class="flex-grow text-center bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🖼️ 比較撮影開始</button>
-                    <button data-action="open-album" class="flex-grow text-center bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm">📁 アルバム</button>
-                    <button data-action="open-api-modal" class="flex-grow text-center bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🔑 API設定</button>
+                    <button id="toggle-compare-btn" class="flex-grow text-center bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🖼️ 比較撮影開始</button>
+                    <button id="open-album-btn" class="flex-grow text-center bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm">📁 アルバム</button>
+                    <button id="reconfigure-api-key-btn" class="flex-grow text-center bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🔑 API設定</button>
                 </div>
                  <input type="file" id="pdf-upload" class="hidden" accept=".pdf">
             </div>
@@ -127,9 +127,9 @@
                 <div id="selection-instruction" class="hidden absolute top-2 left-1/2 -translate-x-1/2 bg-black bg-opacity-70 text-white p-2 rounded-lg text-sm font-bold"></div>
             </div>
             <div id="pdf-controls" class="flex items-center justify-center mt-1 flex-shrink-0 hidden">
-                <button data-action="prev-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-l-lg">◀</button>
+                <button id="prev-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-l-lg">◀</button>
                 <span id="page-num" class="bg-gray-800 py-1 px-2 text-sm"></span>/<span id="page-count" class="bg-gray-800 py-1 px-2 text-sm"></span>
-                <button data-action="next-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-r-lg">▶</button>
+                <button id="next-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-r-lg">▶</button>
             </div>
         </div>
 
@@ -156,7 +156,7 @@
                 </div>
                 
                 <div class="fullscreen-control-panel">
-                    <button data-action="reset-compare-mode" class="control-btn red">
+                    <button id="close-fullscreen-camera-btn" class="control-btn red">
                         <span>✖</span>
                         <span>戻る</span>
                     </button>
@@ -164,13 +164,13 @@
                         <div class="text-white text-xs font-bold">ズーム</div>
                         <div id="zoom-level-display" class="text-white text-xs font-bold">1.0x</div>
                         <div class="flex flex-col gap-1">
-                            <button data-action="zoom-in" class="control-btn" style="min-height: 30px; font-size: 14px;">+</button>
-                            <button data-action="zoom-reset" class="control-btn" style="min-height: 25px; font-size: 8px;">1x</button>
-                            <button data-action="zoom-out" class="control-btn" style="min-height: 30px; font-size: 14px;">-</button>
+                            <button id="zoom-in-btn" class="control-btn" style="min-height: 30px; font-size: 14px;">+</button>
+                            <button id="zoom-reset-btn" class="control-btn" style="min-height: 25px; font-size: 8px;">1x</button>
+                            <button id="zoom-out-btn" class="control-btn" style="min-height: 30px; font-size: 14px;">-</button>
                         </div>
                     </div>
                     <div class="flex flex-col gap-3">
-                         <button data-action="ai-assistant" class="control-btn purple">
+                         <button id="ai-assistant-btn" class="control-btn purple">
                             <span>✨</span>
                             <span>AI補助</span>
                         </button>
@@ -179,7 +179,7 @@
                 </div>
                 
                 <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-51 safe-area-padding">
-                    <button data-action="take-picture" id="capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
+                    <button id="capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
                         <div class="w-16 h-16 bg-white rounded-full shadow-inner border-2 border-gray-200 pointer-events-none"></div>
                     </button>
                 </div>
@@ -194,10 +194,10 @@
             <p class="text-sm text-gray-300 mb-4">AI機能 (Gemini) を使用するにはAPIキーが必要です。キーはブラウザに保存されます。</p>
             <input type="password" id="api-key-input" placeholder="Gemini API Key" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white mb-4">
             <div class="flex gap-2">
-                <button data-action="save-api-key" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">保存</button>
-                <button data-action="clear-api-key" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">クリア</button>
+                <button id="save-api-key-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">保存</button>
+                <button id="clear-api-key-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">クリア</button>
             </div>
-             <button data-action="close-api-modal" class="w-full mt-3 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+             <button id="close-api-key-modal-btn" class="w-full mt-3 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
                 閉じる
             </button>
         </div>
@@ -209,10 +209,10 @@
             <h2 class="text-2xl font-bold">アルバム</h2>
             <div class="flex items-center gap-3">
                 <span id="album-photo-count" class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full">0枚</span>
-                <button data-action="download-all" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm">
+                <button id="download-all-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm">
                     📥 一括ダウンロード
                 </button>
-                <button data-action="close-album" class="text-3xl font-bold text-white">&times;</button>
+                <button id="close-album-btn" class="text-3xl font-bold text-white">&times;</button>
             </div>
         </div>
         <div id="album-grid" class="flex-grow overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
@@ -241,12 +241,12 @@
                     <h4 class="text-xl font-semibold border-t border-gray-600 pt-4">報告書（案）</h4>
                     <div id="report-content" class="mt-2 p-4 bg-gray-900 rounded-lg min-h-[150px] whitespace-pre-wrap"></div>
                     <div class="text-right mt-2">
-                         <button data-action="copy-report" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">文章をコピー</button>
+                         <button id="copy-report-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">文章をコピー</button>
                     </div>
                 </div>
             </div>
             <div class="mt-6 text-right flex-shrink-0">
-                <button data-action="close-gemini-modal" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg">閉じる</button>
+                <button id="close-modal-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg">閉じる</button>
             </div>
         </div>
     </div>
@@ -435,8 +435,8 @@
         },
 
         updateSensorStatus(sensor, isOk) {
-            const dot = this.elements[`gps-status-dot`];
-            const fsDot = this.elements[`fullscreen-gps-status-dot`];
+            const dot = this.elements[`${sensor}-status-dot`];
+            const fsDot = this.elements[`fullscreen-${sensor}-status-dot`];
             const className = isOk ? 'bg-green-500' : 'bg-red-500';
             const oldClassName = isOk ? 'bg-red-500' : 'bg-green-500';
             if(dot) dot.classList.replace(oldClassName, className);
@@ -696,8 +696,9 @@
             }
             this.isCompareMode = true;
             this.selectionState = 'waiting_for_p1';
-            this.elements['toggle-compare-btn'].textContent = '🖼️ 終了';
-            this.elements['toggle-compare-btn'].classList.replace('bg-teal-600', 'bg-red-600');
+            const btn = document.getElementById('toggle-compare-btn');
+            btn.textContent = '🖼️ 終了';
+            btn.classList.replace('bg-teal-600', 'bg-red-600');
             this.elements['pdf-viewer'].style.cursor = 'crosshair';
             this.showInstruction('比較範囲の左上をタップ');
         },
@@ -705,8 +706,9 @@
         resetCompareMode() {
             this.isCompareMode = false;
             this.selectionState = 'idle';
-            this.elements['toggle-compare-btn'].textContent = '🖼️ 比較撮影開始';
-            this.elements['toggle-compare-btn'].classList.replace('bg-red-600', 'bg-teal-600');
+            const btn = document.getElementById('toggle-compare-btn');
+            btn.textContent = '🖼️ 比較撮影開始';
+            btn.classList.replace('bg-red-600', 'bg-teal-600');
             this.elements['pdf-viewer'].style.cursor = 'default';
             this.elements['selection-marker'].classList.add('hidden');
             this.elements['selection-instruction'].classList.add('hidden');
@@ -780,10 +782,10 @@
         
                 let action = target.dataset.action;
                 if (!action) {
-                     action = target.id;
+                    action = target.id;
                 }
                  if (!action && target.getAttribute('for') === 'pdf-upload') {
-                    this.elements['pdf-upload'].click();
+                    document.getElementById('pdf-upload').click();
                     return;
                 }
         
@@ -791,26 +793,28 @@
                 const photoId = photoItem ? parseInt(photoItem.dataset.photoId, 10) : null;
         
                 const functions = {
-                    'open-api-modal': () => this.openApiKeyModal(),
+                    'reconfigure-api-key-btn': () => this.openApiKeyModal(),
                     'save-api-key': () => this.saveApiKey(),
                     'clear-api-key': () => this.clearApiKey(),
-                    'close-api-modal': () => this.elements['api-key-modal'].classList.add('hidden'),
-                    'toggle-compare': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
+                    'close-api-key-modal-btn': () => this.elements['api-key-modal'].classList.add('hidden'),
+                    'toggle-compare-btn': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
                     'prev-page': () => { if (this.pdfDoc && this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); },
                     'next-page': () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); },
-                    'take-picture': () => this.takePicture(),
-                    'reset-compare-mode': () => this.resetCompareMode(),
-                    'ai-assistant': () => this.getAiShootingAssistant(),
-                    'open-album': () => this.elements['album-modal'].classList.remove('hidden'),
-                    'close-album': () => this.elements['album-modal'].classList.add('hidden'),
-                    'zoom-in': () => this.updateZoom(this.zoomLevel + 0.2),
-                    'zoom-out': () => this.updateZoom(this.zoomLevel - 0.2),
-                    'zoom-reset': () => this.updateZoom(1.0),
-                    'download-all': () => this.downloadAllPhotos(),
+                    'capture-btn': () => this.takePicture(),
+                    'fullscreen-capture-btn': () => this.takePicture(),
+                    'open-album-btn': () => this.elements['album-modal'].classList.remove('hidden'),
+                    'close-fullscreen-camera-btn': () => this.resetCompareMode(),
+                    'fullscreen-ai-assistant-btn': () => this.getAiShootingAssistant(),
+                    'fullscreen-show-album-btn': () => this.elements['album-modal'].classList.remove('hidden'),
+                    'zoom-in-btn': () => this.updateZoom(this.zoomLevel + 0.2),
+                    'zoom-out-btn': () => this.updateZoom(this.zoomLevel - 0.2),
+                    'zoom-reset-btn': () => this.updateZoom(1.0),
+                    'download-all-btn': () => this.downloadAllPhotos(),
+                    'close-album-btn': () => this.elements['album-modal'].classList.add('hidden'),
                     'ai-analyze': () => { if (photoId) this.analyzeImageWithGemini(photoId); },
                     'download-single': () => { if (photoId) this.downloadSinglePhoto(photoId); },
-                    'close-gemini-modal': () => this.elements['gemini-modal'].classList.add('hidden'),
-                    'copy-report': () => {
+                    'close-modal-btn': () => this.elements['gemini-modal'].classList.add('hidden'),
+                    'copy-report-btn': () => {
                         navigator.clipboard.writeText(this.elements['report-content'].textContent)
                             .then(() => this.showNotification('報告書をコピーしました', 'success'))
                             .catch(() => this.showNotification('コピーに失敗しました', 'error'));
@@ -829,7 +833,7 @@
                 }
             });
         
-            this.elements['pdf-upload'].addEventListener('change', e => {
+            document.getElementById('pdf-upload').addEventListener('change', e => {
                 const file = e.target.files[0];
                 if (!file || file.type !== 'application/pdf') return;
                 const fileReader = new FileReader();
@@ -854,19 +858,19 @@
                 fileReader.readAsArrayBuffer(file);
             });
         
-            this.elements['pdf-viewer'].addEventListener('click', e => this.handlePdfTap(e));
-            this.elements['pdf-viewer'].addEventListener('touchstart', e => this.handlePdfTap(e), { passive: false });
+            document.getElementById('pdf-viewer').addEventListener('click', e => this.handlePdfTap(e));
+            document.getElementById('pdf-viewer').addEventListener('touchstart', e => this.handlePdfTap(e), { passive: false });
         },
         
         init() {
             if (!this.checkSecureContext()) return;
             const ids = [
-                'main-section', 'camera-section', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls',
+                'main-section', 'camera-section', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls', 'prev-page', 'next-page',
                 'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'photo-gallery', 'gallery-placeholder',
                 'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'clear-api-key-btn', 
                 'close-api-key-modal-btn', 'reconfigure-api-key-btn',
                 'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 'toggle-compare-btn',
-                'fullscreen-camera-modal', 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
+                'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
                 'target-image-wrapper', 'target-image', 'fullscreen-photo-count', 'zoom-level-display', 
                 'fullscreen-capture-btn', 'close-fullscreen-camera-btn',
                 'ai-assistant-btn', 'fullscreen-show-album-btn', 'zoom-in-btn', 'zoom-out-btn', 'zoom-reset-btn',
