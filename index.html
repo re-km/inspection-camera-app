@@ -374,67 +374,100 @@
             }
         },
 
-        // PDF関連（修正版）
+        // PDF関連（デバッグ強化版）
         renderPage(num) {
-            if (this.pageIsRendering || !this.pdfDoc) return;
+            console.log(`🖼️ renderPage呼び出し: ページ ${num}`);
+            console.log('pageIsRendering:', this.pageIsRendering);
+            console.log('pdfDoc存在:', !!this.pdfDoc);
+            
+            if (this.pageIsRendering || !this.pdfDoc) {
+                console.log('❌ 描画条件不適合 - 処理を中断');
+                return;
+            }
+            
             this.pageIsRendering = true;
-
-            console.log(`PDFページ ${num} を描画中...`);
+            console.log('✅ ページ描画開始');
 
             this.pdfDoc.getPage(num).then(page => {
+                console.log('📄 ページオブジェクト取得成功');
+                
                 const container = this.elements['pdf-viewer-wrapper'];
                 const containerWidth = container.clientWidth - 20; // padding考慮
+                console.log('📏 コンテナ幅:', containerWidth);
                 
                 // 基本スケールを計算（コンテナ幅に合わせる）
                 const viewport = page.getViewport({ scale: 1.0 });
+                console.log('📐 基本ビューポート:', viewport.width, 'x', viewport.height);
+                
                 const scale = Math.min(containerWidth / viewport.width, 2.0); // 最大2倍まで
                 const scaledViewport = page.getViewport({ scale: scale });
+                console.log('📐 スケール調整後:', scaledViewport.width, 'x', scaledViewport.height, 'スケール:', scale);
 
                 // 既存のcanvasを削除
                 const existingCanvas = this.elements['pdf-viewer'].querySelector('canvas');
                 if (existingCanvas) {
+                    console.log('🗑️ 既存のcanvasを削除');
                     existingCanvas.remove();
                 }
 
                 // 新しいcanvasを作成
+                console.log('🖼️ 新しいcanvas作成中...');
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
+                
+                if (!context) {
+                    console.error('❌ 2Dコンテキスト取得失敗');
+                    this.pageIsRendering = false;
+                    this.showNotification('Canvas描画コンテキストの取得に失敗しました。', 'error');
+                    return;
+                }
+                
                 canvas.height = scaledViewport.height;
                 canvas.width = scaledViewport.width;
+                console.log(`✅ Canvas作成: ${canvas.width}x${canvas.height}`);
                 
                 // canvasをpdf-viewerに追加
                 this.elements['pdf-viewer'].appendChild(canvas);
-
-                console.log(`Canvas作成: ${canvas.width}x${canvas.height}, scale: ${scale}`);
+                console.log('✅ CanvasをDOMに追加');
 
                 // PDFをcanvasに描画
                 const renderContext = {
                     canvasContext: context,
                     viewport: scaledViewport
                 };
-
-                page.render(renderContext).promise.then(() => {
-                    console.log(`PDFページ ${num} の描画完了`);
+                
+                console.log('🎨 PDF描画開始...');
+                const renderTask = page.render(renderContext);
+                
+                renderTask.promise.then(() => {
+                    console.log(`🎉 PDFページ ${num} の描画完了!`);
                     this.pageIsRendering = false;
                     
                     // プレースホルダーを非表示にする
                     this.elements['pdf-placeholder'].classList.add('hidden');
+                    console.log('✅ プレースホルダー非表示');
                     
                     if (this.pageNumIsPending !== null) {
+                        console.log('📋 待機中のページがあります:', this.pageNumIsPending);
                         this.renderPage(this.pageNumIsPending);
                         this.pageNumIsPending = null;
                     }
                 }).catch(error => {
-                    console.error('PDF描画エラー:', error);
+                    console.error('❌ PDF描画エラー:', error);
+                    console.error('エラー詳細:', error.message);
                     this.pageIsRendering = false;
                     this.showNotification('PDFの描画に失敗しました。', 'error');
                 });
+                
             }).catch(error => {
-                console.error('PDFページ取得エラー:', error);
+                console.error('❌ PDFページ取得エラー:', error);
+                console.error('ページ番号:', num);
+                console.error('エラー詳細:', error.message);
                 this.pageIsRendering = false;
                 this.showNotification('PDFページの取得に失敗しました。', 'error');
             });
             
+            console.log(`📄 ページ番号表示更新: ${num}`);
             this.elements['page-num'].textContent = num;
         },
 
@@ -906,57 +939,139 @@
                 }
             });
         
-            // PDFアップロード処理（修正版）
+            // PDFアップロード処理（デバッグ強化版）
             document.getElementById('pdf-upload').addEventListener('change', e => {
                 const file = e.target.files[0];
-                if (!file || file.type !== 'application/pdf') {
+                console.log('📁 ファイル選択イベント発生');
+                console.log('選択されたファイル:', file);
+                
+                if (!file) {
+                    console.log('❌ ファイルが選択されていません');
+                    this.showNotification('ファイルが選択されていません。', 'warning');
+                    return;
+                }
+                
+                if (file.type !== 'application/pdf') {
+                    console.log('❌ PDFファイルではありません。タイプ:', file.type);
                     this.showNotification('PDFファイルを選択してください。', 'warning');
                     return;
                 }
                 
-                console.log('PDF読み込み開始:', file.name);
+                console.log('✅ PDF読み込み開始:', file.name, 'サイズ:', file.size, 'bytes');
+                this.showNotification('PDFファイルを読み込み中...', 'info');
                 
-                // PDF.jsのWorker設定を先に行う
-                if (typeof pdfjsLib !== 'undefined') {
-                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-                    console.log('PDF.js Worker設定完了');
-                } else {
-                    console.error('PDF.jsライブラリが読み込まれていません');
-                    this.showNotification('PDF.jsライブラリの読み込みに失敗しました。', 'error');
+                // PDF.jsライブラリの存在確認
+                console.log('🔍 PDF.jsライブラリチェック...');
+                console.log('pdfjsLib存在:', typeof pdfjsLib !== 'undefined');
+                console.log('pdfjsLib.getDocument存在:', typeof pdfjsLib?.getDocument !== 'undefined');
+                
+                if (typeof pdfjsLib === 'undefined') {
+                    console.error('❌ PDF.jsライブラリが読み込まれていません');
+                    this.showNotification('PDF.jsライブラリの読み込みに失敗しました。ページを再読み込みしてください。', 'error');
                     return;
+                }
+                
+                // Worker設定
+                try {
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                    console.log('✅ PDF.js Worker設定完了');
+                } catch (workerError) {
+                    console.error('❌ Worker設定エラー:', workerError);
                 }
                 
                 const fileReader = new FileReader();
                 
+                fileReader.onloadstart = () => {
+                    console.log('📖 FileReader読み込み開始');
+                };
+                
+                fileReader.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        console.log(`📖 ファイル読み込み進行: ${percent}%`);
+                    }
+                };
+                
                 fileReader.onload = () => {
-                    console.log('ファイル読み込み完了');
+                    console.log('✅ FileReader読み込み完了');
+                    console.log('読み込み結果サイズ:', fileReader.result?.byteLength, 'bytes');
+                    
+                    if (!fileReader.result || fileReader.result.byteLength === 0) {
+                        console.error('❌ ファイル読み込み結果が空です');
+                        this.showNotification('ファイルの読み込みに失敗しました。', 'error');
+                        return;
+                    }
+                    
                     try {
                         const typedarray = new Uint8Array(fileReader.result);
-                        console.log('PDF解析開始...');
+                        console.log('✅ TypedArray作成成功:', typedarray.length, 'bytes');
+                        console.log('📊 PDF解析開始...');
                         
-                        pdfjsLib.getDocument(typedarray).promise.then(pdf => {
-                            console.log('PDF読み込み成功:', pdf.numPages, 'ページ');
+                        // PDF.jsでの解析
+                        const loadingTask = pdfjsLib.getDocument({
+                            data: typedarray,
+                            verbosity: 1  // デバッグレベル設定
+                        });
+                        
+                        console.log('📋 PDFドキュメント読み込みタスク作成');
+                        
+                        loadingTask.promise.then(pdf => {
+                            console.log('🎉 PDF読み込み成功!');
+                            console.log('📄 ページ数:', pdf.numPages);
+                            console.log('📖 PDFinfo:', pdf._pdfInfo);
+                            
                             this.pdfDoc = pdf;
                             this.elements['page-count'].textContent = pdf.numPages;
                             this.currentPageNum = 1;
+                            
+                            console.log('🖼️ 最初のページ描画開始...');
                             this.renderPage(1);
                             this.elements['pdf-controls'].classList.remove('hidden');
                             this.showNotification('PDFが正常に読み込まれました。', 'success');
+                            
                         }).catch(error => {
-                            console.error("PDFドキュメント読み込みエラー:", error);
-                            this.showNotification('PDFファイルの読み込みに失敗しました。ファイルが破損している可能性があります。', 'error');
+                            console.error('❌ PDFドキュメント読み込みエラー:');
+                            console.error('エラータイプ:', error.name);
+                            console.error('エラーメッセージ:', error.message);
+                            console.error('エラー詳細:', error);
+                            
+                            let userMessage = 'PDFファイルの読み込みに失敗しました。';
+                            if (error.name === 'InvalidPDFException') {
+                                userMessage += ' ファイルが破損しているか、有効なPDFではありません。';
+                            } else if (error.name === 'MissingPDFException') {
+                                userMessage += ' PDFデータが見つかりません。';
+                            } else if (error.name === 'UnexpectedResponseException') {
+                                userMessage += ' 予期しない応答が返されました。';
+                            }
+                            
+                            this.showNotification(userMessage, 'error');
                         });
+                        
+                        // 進行状況の監視
+                        loadingTask.onProgress = (progress) => {
+                            if (progress.total > 0) {
+                                const percent = Math.round((progress.loaded / progress.total) * 100);
+                                console.log(`📊 PDF解析進行: ${percent}%`);
+                            }
+                        };
+                        
                     } catch (error) {
-                        console.error("PDF処理エラー:", error);
+                        console.error('❌ PDF処理エラー:', error);
                         this.showNotification('PDFファイルの処理中にエラーが発生しました。', 'error');
                     }
                 };
                 
-                fileReader.onerror = () => {
-                    console.error("FileReader エラー");
+                fileReader.onerror = (error) => {
+                    console.error('❌ FileReader エラー:', error);
+                    console.error('FileReader.error:', fileReader.error);
                     this.showNotification('ファイルの読み取りに失敗しました。', 'error');
                 };
                 
+                fileReader.onabort = () => {
+                    console.log('⚠️ FileReader読み込みが中断されました');
+                };
+                
+                console.log('📖 ArrayBuffer読み込み開始...');
                 fileReader.readAsArrayBuffer(file);
             });
         
@@ -967,7 +1082,28 @@
         init() {
             if (!this.checkSecureContext()) return;
             
-            console.log('アプリ初期化開始...');
+            console.log('🚀 アプリ初期化開始...');
+            
+            // PDF.jsライブラリの詳細チェック
+            console.log('📚 PDF.jsライブラリ確認:');
+            console.log('  - pdfjsLib存在:', typeof pdfjsLib !== 'undefined');
+            console.log('  - window.pdfjsLib存在:', typeof window.pdfjsLib !== 'undefined');
+            
+            if (typeof pdfjsLib !== 'undefined') {
+                console.log('  - pdfjsLib.version:', pdfjsLib.version);
+                console.log('  - pdfjsLib.getDocument存在:', typeof pdfjsLib.getDocument === 'function');
+                console.log('  - pdfjsLib.GlobalWorkerOptions存在:', typeof pdfjsLib.GlobalWorkerOptions === 'object');
+                
+                // Worker設定を事前に行う
+                try {
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                    console.log('  ✅ PDF.js Worker事前設定完了');
+                } catch (workerError) {
+                    console.error('  ❌ Worker事前設定エラー:', workerError);
+                }
+            } else {
+                console.error('❌ PDF.jsライブラリが見つかりません');
+            }
             
             const ids = [
                 'main-view', 'camera-view', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls', 'prev-page', 'next-page',
@@ -985,12 +1121,25 @@
                 'report-content', 'copy-report-btn', 'close-modal-btn'
             ];
             
+            console.log('🔍 DOM要素の確認:');
+            let missingElements = 0;
             ids.forEach(id => {
                 const el = document.getElementById(id);
-                if (el) this.elements[id] = el;
-                else console.warn(`Element with id "${id}" not found.`);
+                if (el) {
+                    this.elements[id] = el;
+                } else {
+                    console.warn(`  ⚠️ Element with id "${id}" not found.`);
+                    missingElements++;
+                }
             });
             
+            if (missingElements === 0) {
+                console.log('  ✅ 全ての必要な要素が見つかりました');
+            } else {
+                console.warn(`  ⚠️ ${missingElements}個の要素が見つかりませんでした`);
+            }
+            
+            console.log('⚙️ 各機能の初期化...');
             this.loadApiKey();
             this.setupEventListeners();
             
@@ -999,11 +1148,19 @@
             //     this.openApiKeyModal();
             // }
             
+            console.log('📷 カメラ初期化...');
             this.initCamera();
+            console.log('🧭 センサー初期化...');
             this.initSensors();
             this.showMainView();
             
-            console.log('構造物点検カメラアプリ 初期化完了');
+            console.log('✅ 構造物点検カメラアプリ 初期化完了');
+            
+            // テスト用の情報表示
+            console.log('🔧 デバッグ情報:');
+            console.log('  - User Agent:', navigator.userAgent);
+            console.log('  - Secure Context:', window.isSecureContext);
+            console.log('  - PDF viewer wrapper size:', this.elements['pdf-viewer-wrapper']?.clientWidth, 'x', this.elements['pdf-viewer-wrapper']?.clientHeight);
         }
     };
 
