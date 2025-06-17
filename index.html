@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>構造物点検カメラアプリ (HTTPS必須)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js" crossorigin="anonymous"></script>
+    <!-- PDF.jsを最新版に更新 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/piexifjs/1.0.6/piexif.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
     <style>
@@ -44,6 +45,23 @@
         #selection-marker { position: absolute; width: 15px; height: 15px; background: rgba(0, 174, 255, 0.7); border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
         .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
         #camera-stream { width: 100%; height: 100%; object-fit: contain; transform-origin: center; transition: transform 0.2s ease-out; }
+        
+        /* PDF表示領域のスタイルを改善 */
+        #pdf-viewer {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100%;
+            padding: 10px;
+        }
+        
+        #pdf-viewer canvas {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #374151;
+            border-radius: 8px;
+            background-color: white;
+        }
         
         .fullscreen-control-panel {
             position: fixed;
@@ -256,7 +274,7 @@
     <canvas id="capture-canvas" class="hidden"></canvas>
 
     <script>
-    // 構造物点検カメラアプリ（修正版）
+    // 構造物点検カメラアプリ（PDF表示修正版）
     const App = {
         elements: {},
         pdfDoc: null, currentPageNum: 1, pageIsRendering: false, pageNumIsPending: null,
@@ -356,38 +374,76 @@
             }
         },
 
-        // PDF関連
+        // PDF関連（修正版）
         renderPage(num) {
             if (this.pageIsRendering || !this.pdfDoc) return;
             this.pageIsRendering = true;
 
+            console.log(`PDFページ ${num} を描画中...`);
+
             this.pdfDoc.getPage(num).then(page => {
                 const container = this.elements['pdf-viewer-wrapper'];
-                const viewport = page.getViewport({ scale: 1.5 });
-                const scale = container.clientWidth / viewport.width;
+                const containerWidth = container.clientWidth - 20; // padding考慮
+                
+                // 基本スケールを計算（コンテナ幅に合わせる）
+                const viewport = page.getViewport({ scale: 1.0 });
+                const scale = Math.min(containerWidth / viewport.width, 2.0); // 最大2倍まで
                 const scaledViewport = page.getViewport({ scale: scale });
 
+                // 既存のcanvasを削除
+                const existingCanvas = this.elements['pdf-viewer'].querySelector('canvas');
+                if (existingCanvas) {
+                    existingCanvas.remove();
+                }
+
+                // 新しいcanvasを作成
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
                 canvas.height = scaledViewport.height;
                 canvas.width = scaledViewport.width;
-                this.elements['pdf-viewer'].innerHTML = '';
+                
+                // canvasをpdf-viewerに追加
                 this.elements['pdf-viewer'].appendChild(canvas);
 
-                page.render({ canvasContext: context, viewport: scaledViewport }).promise.then(() => {
+                console.log(`Canvas作成: ${canvas.width}x${canvas.height}, scale: ${scale}`);
+
+                // PDFをcanvasに描画
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: scaledViewport
+                };
+
+                page.render(renderContext).promise.then(() => {
+                    console.log(`PDFページ ${num} の描画完了`);
                     this.pageIsRendering = false;
+                    
+                    // プレースホルダーを非表示にする
+                    this.elements['pdf-placeholder'].classList.add('hidden');
+                    
                     if (this.pageNumIsPending !== null) {
                         this.renderPage(this.pageNumIsPending);
                         this.pageNumIsPending = null;
                     }
+                }).catch(error => {
+                    console.error('PDF描画エラー:', error);
+                    this.pageIsRendering = false;
+                    this.showNotification('PDFの描画に失敗しました。', 'error');
                 });
+            }).catch(error => {
+                console.error('PDFページ取得エラー:', error);
+                this.pageIsRendering = false;
+                this.showNotification('PDFページの取得に失敗しました。', 'error');
             });
+            
             this.elements['page-num'].textContent = num;
         },
 
         queueRenderPage(num) {
-            if (this.pageIsRendering) { this.pageNumIsPending = num; } 
-            else { this.renderPage(num); }
+            if (this.pageIsRendering) { 
+                this.pageNumIsPending = num; 
+            } else { 
+                this.renderPage(num); 
+            }
         },
 
         // センサー関連
@@ -850,29 +906,57 @@
                 }
             });
         
+            // PDFアップロード処理（修正版）
             document.getElementById('pdf-upload').addEventListener('change', e => {
                 const file = e.target.files[0];
-                if (!file || file.type !== 'application/pdf') return;
+                if (!file || file.type !== 'application/pdf') {
+                    this.showNotification('PDFファイルを選択してください。', 'warning');
+                    return;
+                }
+                
+                console.log('PDF読み込み開始:', file.name);
+                
+                // PDF.jsのWorker設定を先に行う
+                if (typeof pdfjsLib !== 'undefined') {
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                    console.log('PDF.js Worker設定完了');
+                } else {
+                    console.error('PDF.jsライブラリが読み込まれていません');
+                    this.showNotification('PDF.jsライブラリの読み込みに失敗しました。', 'error');
+                    return;
+                }
+                
                 const fileReader = new FileReader();
+                
                 fileReader.onload = () => {
-                    const typedarray = new Uint8Array(fileReader.result);
-                    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;
-                    pdfjsLib.getDocument(typedarray).promise.then(pdf => {
-                        this.pdfDoc = pdf;
-                        this.elements['page-count'].textContent = pdf.numPages;
-                        this.currentPageNum = 1;
-                        this.renderPage(1);
-                        this.elements['pdf-controls'].classList.remove('hidden');
-                        this.elements['pdf-placeholder'].classList.add('hidden');
-                    }).catch(error => {
-                        console.error("Error loading PDF:", error);
-                        this.showNotification('PDFファイルの読み込みに失敗しました。', 'error');
-                    });
+                    console.log('ファイル読み込み完了');
+                    try {
+                        const typedarray = new Uint8Array(fileReader.result);
+                        console.log('PDF解析開始...');
+                        
+                        pdfjsLib.getDocument(typedarray).promise.then(pdf => {
+                            console.log('PDF読み込み成功:', pdf.numPages, 'ページ');
+                            this.pdfDoc = pdf;
+                            this.elements['page-count'].textContent = pdf.numPages;
+                            this.currentPageNum = 1;
+                            this.renderPage(1);
+                            this.elements['pdf-controls'].classList.remove('hidden');
+                            this.showNotification('PDFが正常に読み込まれました。', 'success');
+                        }).catch(error => {
+                            console.error("PDFドキュメント読み込みエラー:", error);
+                            this.showNotification('PDFファイルの読み込みに失敗しました。ファイルが破損している可能性があります。', 'error');
+                        });
+                    } catch (error) {
+                        console.error("PDF処理エラー:", error);
+                        this.showNotification('PDFファイルの処理中にエラーが発生しました。', 'error');
+                    }
                 };
+                
                 fileReader.onerror = () => {
-                    console.error("FileReader error");
+                    console.error("FileReader エラー");
                     this.showNotification('ファイルの読み取りに失敗しました。', 'error');
                 };
+                
                 fileReader.readAsArrayBuffer(file);
             });
         
@@ -882,6 +966,9 @@
         
         init() {
             if (!this.checkSecureContext()) return;
+            
+            console.log('アプリ初期化開始...');
+            
             const ids = [
                 'main-view', 'camera-view', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls', 'prev-page', 'next-page',
                 'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 
@@ -897,6 +984,7 @@
                 'gemini-modal', 'modal-title', 'gemini-modal-content-wrapper', 'gemini-modal-content', 'report-generation-area',
                 'report-content', 'copy-report-btn', 'close-modal-btn'
             ];
+            
             ids.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) this.elements[id] = el;
@@ -905,12 +993,16 @@
             
             this.loadApiKey();
             this.setupEventListeners();
-            if (!this.apiKey) {
-                this.openApiKeyModal();
-            }
+            
+            // APIキーがない場合のモーダル表示を一時的に無効にしてテストしやすくする
+            // if (!this.apiKey) {
+            //     this.openApiKeyModal();
+            // }
+            
             this.initCamera();
             this.initSensors();
             this.showMainView();
+            
             console.log('構造物点検カメラアプリ 初期化完了');
         }
     };
