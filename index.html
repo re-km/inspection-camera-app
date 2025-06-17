@@ -169,6 +169,7 @@
                 <span id="page-num" class="bg-gray-800 py-1 px-2 text-sm"></span>/<span id="page-count" class="bg-gray-800 py-1 px-2 text-sm"></span>
                 <button data-action="next-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-r-lg">▶</button>
                 <button data-action="toggle-debug" class="bg-purple-600 hover:bg-purple-500 font-bold py-1 px-2 rounded-lg ml-2 text-xs">DEBUG</button>
+                <button data-action="test-file-selection" class="bg-orange-600 hover:bg-orange-500 font-bold py-1 px-2 rounded-lg ml-1 text-xs">TEST</button>
             </div>
         </div>
 
@@ -311,6 +312,7 @@
         minZoom: 0.5,
         debugMode: false,
         debugMessages: [],
+        pdfChangeHandler: null,
 
         // デバッグログ機能（モバイル用）
         debugLog(message, type = 'info') {
@@ -666,11 +668,73 @@
             this.debugLog(`📸 写真撮影: ${this.photoDatabase.length}枚目`);
         },
 
-        // ズーム機能
-        updateZoom(level) {
-            this.zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, level));
-            this.elements['camera-stream'].style.transform = `scale(${this.zoomLevel})`;
-            this.elements['zoom-level-display'].textContent = `${this.zoomLevel.toFixed(1)}x`;
+        // フォールバック：ファイル情報のみ表示
+        showFileInfoOnly(file) {
+            this.debugLog('📋 フォールバックモード：ファイル情報表示');
+            
+            // プレースホルダーを置き換え
+            this.elements['pdf-placeholder'].innerHTML = `
+                <div class="text-center p-4">
+                    <div class="text-4xl mb-4">📄</div>
+                    <h3 class="text-lg font-bold mb-2">ファイル情報</h3>
+                    <div class="text-sm text-gray-300">
+                        <p><strong>名前:</strong> ${file.name}</p>
+                        <p><strong>サイズ:</strong> ${(file.size/1024/1024).toFixed(2)} MB</p>
+                        <p><strong>タイプ:</strong> ${file.type}</p>
+                        <p class="mt-4 text-yellow-400">
+                            PDFの表示に失敗しましたが、<br>
+                            ファイルは正常に選択されています。
+                        </p>
+                        <button onclick="location.reload()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">
+                            ページを再読み込み
+                        </button>
+                    </div>
+                </div>
+            `;
+            this.elements['pdf-placeholder'].classList.remove('hidden');
+            
+            // コントロールを表示（ダミーとして）
+            this.elements['pdf-controls'].classList.remove('hidden');
+            this.elements['page-num'].textContent = '?';
+            this.elements['page-count'].textContent = '?';
+            
+            this.showNotification('ファイルは選択されましたが、PDFの表示に失敗しました。', 'warning');
+        },
+
+        // ファイル選択テスト（基本機能確認用）
+        testFileSelection() {
+            this.debugLog('🧪 ファイル選択テスト開始');
+            
+            // input要素の確認
+            const fileInput = document.getElementById('pdf-upload');
+            this.debugLog(`📋 ファイルinput要素: ${!!fileInput}`);
+            
+            if (!fileInput) {
+                this.debugLog('❌ ファイルinput要素が見つかりません');
+                return;
+            }
+            
+            this.debugLog(`  accept属性: ${fileInput.accept}`);
+            this.debugLog(`  multiple: ${fileInput.multiple}`);
+            this.debugLog(`  disabled: ${fileInput.disabled}`);
+            
+            // ダミーファイル選択テスト用のハンドラ
+            const testHandler = (e) => {
+                this.debugLog('🧪 テストハンドラ発火');
+                const files = e.target.files;
+                this.debugLog(`  選択ファイル数: ${files.length}`);
+                for (let i = 0; i < files.length; i++) {
+                    this.debugLog(`  ファイル${i}: ${files[i].name}`);
+                }
+                
+                // 元のハンドラに戻す
+                fileInput.removeEventListener('change', testHandler);
+                this.debugLog('🧪 テスト完了、元のハンドラに戻します');
+            };
+            
+            // 一時的にテストハンドラを追加
+            fileInput.addEventListener('change', testHandler);
+            this.debugLog('🧪 テストハンドラ追加完了');
         },
 
         // 写真管理
@@ -978,6 +1042,16 @@
 
         // 初期化とイベントリスナー
         setupEventListeners() {
+            this.debugLog('🔗 イベントリスナー設定開始');
+            
+            // ファイル入力要素の確認
+            const fileInput = document.getElementById('pdf-upload');
+            this.debugLog(`📋 PDF upload input確認: ${!!fileInput}`);
+            if (!fileInput) {
+                this.debugLog('❌ pdf-upload要素が見つかりません');
+                return;
+            }
+            
             document.body.addEventListener('click', (e) => {
                 const target = e.target.closest('button, label');
                 if (!target) return;
@@ -1016,6 +1090,7 @@
                     'download-single': () => { if (photoId) this.downloadSinglePhoto(photoId); },
                     'close-gemini-modal': () => this.elements['gemini-modal'].classList.add('hidden'),
                     'toggle-debug': () => this.toggleDebugMode(),
+                    'test-file-selection': () => this.testFileSelection(),
                     'copy-report': () => {
                         navigator.clipboard.writeText(this.elements['report-content'].textContent)
                             .then(() => this.showNotification('報告書をコピーしました', 'success'))
@@ -1035,10 +1110,32 @@
                 }
             });
         
-            // PDFアップロード処理（モバイル最適化版）
-            document.getElementById('pdf-upload').addEventListener('change', e => {
+            // PDFアップロード処理イベントリスナー設定
+            this.debugLog('📁 ファイル選択イベントリスナー設定開始');
+            const pdfUploadInput = document.getElementById('pdf-upload');
+            
+            if (!pdfUploadInput) {
+                this.debugLog('❌ pdf-upload要素が見つかりません');
+                return;
+            }
+            
+            this.debugLog('✅ pdf-upload要素確認完了');
+            
+            // 既存のイベントリスナーをクリア（重複防止）
+            pdfUploadInput.removeEventListener('change', this.pdfChangeHandler);
+            
+            // イベントハンドラを定義
+            this.pdfChangeHandler = (e) => {
+                this.debugLog('🎯 change イベント発火');
+                
+                // デバッグモードを自動でONにする
+                if (!this.debugMode) {
+                    this.toggleDebugMode();
+                    this.debugLog('🐛 デバッグモード自動開始');
+                }
+                
                 const file = e.target.files[0];
-                this.debugLog('📁 ファイル選択イベント');
+                this.debugLog(`📁 選択ファイル確認: ${file ? 'あり' : 'なし'}`);
                 
                 if (!file) {
                     this.debugLog('❌ ファイル未選択');
@@ -1046,57 +1143,141 @@
                     return;
                 }
                 
-                if (file.type !== 'application/pdf') {
+                // ファイル詳細情報をログ出力
+                this.debugLog(`📄 ファイル情報:`);
+                this.debugLog(`  名前: ${file.name}`);
+                this.debugLog(`  サイズ: ${(file.size/1024/1024).toFixed(2)}MB`);
+                this.debugLog(`  タイプ: ${file.type}`);
+                this.debugLog(`  最終更新: ${file.lastModified ? new Date(file.lastModified).toLocaleString() : '不明'}`);
+                
+                // ファイルタイプチェック（より柔軟に）
+                const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+                if (!isPDF) {
                     this.debugLog(`❌ 非PDFファイル: ${file.type}`);
                     this.showNotification('PDFファイルを選択してください。', 'warning');
                     return;
                 }
                 
-                this.debugLog(`✅ PDF読み込み開始: ${file.name} (${(file.size/1024/1024).toFixed(1)}MB)`);
+                this.debugLog('✅ PDFファイル確認済み');
                 this.showNotification('PDFファイルを読み込み中...', 'info');
                 
-                // PDF.jsライブラリチェック
+                // PDF.jsライブラリの詳細チェック
+                this.debugLog(`📚 PDF.jsライブラリチェック:`);
+                this.debugLog(`  pdfjsLib存在: ${typeof pdfjsLib !== 'undefined'}`);
+                this.debugLog(`  window.pdfjsLib存在: ${typeof window.pdfjsLib !== 'undefined'}`);
+                
                 if (typeof pdfjsLib === 'undefined') {
                     this.debugLog('❌ PDF.jsライブラリ未読み込み');
-                    this.showNotification('PDF.jsライブラリの読み込みに失敗しました。ページを再読み込みしてください。', 'error');
+                    this.showNotification('PDF.jsライブラリの読み込みに失敗しました。', 'error');
+                    
+                    // フォールバック：ファイル情報のみ表示
+                    this.debugLog('🔄 フォールバックモード：ファイル情報表示のみ');
+                    this.showFileInfoOnly(file);
                     return;
                 }
                 
-                // Worker設定（モバイル最適化）
+                this.debugLog(`  version: ${pdfjsLib.version || '不明'}`);
+                this.debugLog(`  getDocument存在: ${typeof pdfjsLib.getDocument === 'function'}`);
+                
+                // Worker設定
                 try {
-                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-                    this.debugLog('✅ PDF.js Worker設定完了');
+                    const workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+                    this.debugLog(`✅ Worker設定: ${workerSrc}`);
                 } catch (workerError) {
                     this.debugLog(`❌ Worker設定エラー: ${workerError.message}`);
                 }
                 
+                // FileReader作成
                 const fileReader = new FileReader();
+                this.debugLog('📖 FileReader作成完了');
+                
+                // エラーハンドラを先に設定
+                fileReader.onerror = (error) => {
+                    this.debugLog(`❌ FileReader エラー:`, error);
+                    this.debugLog(`  FileReader.error:`, fileReader.error);
+                    this.debugLog(`  FileReader.readyState:`, fileReader.readyState);
+                    this.showNotification('ファイルの読み取りに失敗しました。', 'error');
+                };
+                
+                fileReader.onabort = () => {
+                    this.debugLog('⚠️ FileReader読み込み中断');
+                };
+                
+                fileReader.onloadstart = () => {
+                    this.debugLog('📖 FileReader読み込み開始');
+                };
+                
+                fileReader.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        this.debugLog(`📊 FileReader進行: ${percent}% (${e.loaded}/${e.total})`);
+                    }
+                };
                 
                 fileReader.onload = () => {
-                    this.debugLog('📖 FileReader読み込み完了');
+                    this.debugLog('📖 FileReader onload 発火');
+                    this.debugLog(`  readyState: ${fileReader.readyState}`);
+                    this.debugLog(`  result存在: ${!!fileReader.result}`);
+                    this.debugLog(`  result type: ${typeof fileReader.result}`);
                     
-                    if (!fileReader.result || fileReader.result.byteLength === 0) {
-                        this.debugLog('❌ 読み込み結果が空');
+                    if (!fileReader.result) {
+                        this.debugLog('❌ 読み込み結果がnull');
+                        this.showNotification('ファイルの読み込み結果が空です。', 'error');
+                        return;
+                    }
+                    
+                    const byteLength = fileReader.result.byteLength || 0;
+                    this.debugLog(`  result byteLength: ${byteLength}`);
+                    
+                    if (byteLength === 0) {
+                        this.debugLog('❌ 読み込み結果のサイズが0');
                         this.showNotification('ファイルの読み込みに失敗しました。', 'error');
                         return;
                     }
                     
                     try {
+                        this.debugLog('🔄 TypedArray作成開始');
                         const typedarray = new Uint8Array(fileReader.result);
-                        this.debugLog(`✅ TypedArray作成: ${typedarray.length} bytes`);
+                        this.debugLog(`✅ TypedArray作成完了: ${typedarray.length} bytes`);
                         
-                        // モバイル向けPDF読み込み設定
-                        const loadingTask = pdfjsLib.getDocument({
+                        // PDF.jsでの処理を試行
+                        this.debugLog('📋 PDF.js処理開始');
+                        
+                        // タイムアウト設定付きでPDF読み込み
+                        const timeoutId = setTimeout(() => {
+                            this.debugLog('⏰ PDF読み込みタイムアウト (10秒)');
+                            this.showNotification('PDF読み込みがタイムアウトしました。', 'error');
+                        }, 10000);
+                        
+                        // モバイル向け設定
+                        const pdfConfig = {
                             data: typedarray,
-                            useWorkerFetch: false, // モバイルでWorker fetchを無効化
-                            isEvalSupported: false, // eval無効化
-                            useSystemFonts: true // システムフォント使用
-                        });
+                            useWorkerFetch: false,
+                            isEvalSupported: false,
+                            useSystemFonts: true,
+                            cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/cmaps/',
+                            cMapPacked: true
+                        };
                         
-                        this.debugLog('📋 PDFドキュメント読み込み開始');
+                        this.debugLog('📐 PDF読み込み設定:', JSON.stringify(pdfConfig, null, 2));
+                        
+                        const loadingTask = pdfjsLib.getDocument(pdfConfig);
+                        this.debugLog('✅ LoadingTask作成完了');
+                        
+                        // 進行状況監視
+                        loadingTask.onProgress = (progress) => {
+                            if (progress.total > 0) {
+                                const percent = Math.round((progress.loaded / progress.total) * 100);
+                                this.debugLog(`📊 PDF読み込み進行: ${percent}%`);
+                            }
+                        };
                         
                         loadingTask.promise.then(pdf => {
-                            this.debugLog(`🎉 PDF読み込み成功! ページ数: ${pdf.numPages}`);
+                            clearTimeout(timeoutId);
+                            this.debugLog(`🎉 PDF読み込み成功!`);
+                            this.debugLog(`  ページ数: ${pdf.numPages}`);
+                            this.debugLog(`  PDF info:`, pdf._pdfInfo);
                             
                             this.pdfDoc = pdf;
                             this.elements['page-count'].textContent = pdf.numPages;
@@ -1108,37 +1289,68 @@
                             this.showNotification('PDFが正常に読み込まれました。', 'success');
                             
                         }).catch(error => {
-                            this.debugLog(`❌ PDF読み込みエラー: ${error.message}`);
+                            clearTimeout(timeoutId);
+                            this.debugLog(`❌ PDF読み込みエラー:`);
+                            this.debugLog(`  name: ${error.name}`);
+                            this.debugLog(`  message: ${error.message}`);
+                            this.debugLog(`  stack:`, error.stack);
                             
                             let userMessage = 'PDFファイルの読み込みに失敗しました。';
                             if (error.name === 'InvalidPDFException') {
                                 userMessage += ' ファイルが破損しているか、有効なPDFではありません。';
                             } else if (error.name === 'MissingPDFException') {
                                 userMessage += ' PDFデータが見つかりません。';
-                            } else if (error.message.includes('memory')) {
+                            } else if (error.message.includes('memory') || error.message.includes('Memory')) {
                                 userMessage += ' メモリ不足です。より小さなPDFファイルをお試しください。';
+                            } else if (error.message.includes('Worker')) {
+                                userMessage += ' PDF.js Workerでエラーが発生しました。';
                             }
                             
                             this.showNotification(userMessage, 'error');
+                            
+                            // フォールバック：ファイル情報のみ表示
+                            this.debugLog('🔄 フォールバック：ファイル情報表示');
+                            this.showFileInfoOnly(file);
                         });
                         
                     } catch (error) {
-                        this.debugLog(`❌ PDF処理エラー: ${error.message}`);
+                        this.debugLog(`❌ PDF処理での例外:`);
+                        this.debugLog(`  name: ${error.name}`);
+                        this.debugLog(`  message: ${error.message}`);
+                        this.debugLog(`  stack:`, error.stack);
                         this.showNotification('PDFファイルの処理中にエラーが発生しました。', 'error');
+                        
+                        // フォールバック：ファイル情報のみ表示
+                        this.showFileInfoOnly(file);
                     }
                 };
                 
-                fileReader.onerror = (error) => {
-                    this.debugLog(`❌ FileReader エラー: ${error}`);
-                    this.showNotification('ファイルの読み取りに失敗しました。', 'error');
-                };
-                
-                this.debugLog('📖 ArrayBuffer読み込み開始');
-                fileReader.readAsArrayBuffer(file);
-            });
+                // FileReader開始
+                try {
+                    this.debugLog('📖 ArrayBuffer読み込み開始');
+                    fileReader.readAsArrayBuffer(file);
+                } catch (readerError) {
+                    this.debugLog(`❌ FileReader.readAsArrayBuffer エラー: ${readerError.message}`);
+                    this.showNotification('ファイル読み込みの開始に失敗しました。', 'error');
+                }
+            };
+            
+            // イベントリスナーを設定
+            pdfUploadInput.addEventListener('change', this.pdfChangeHandler);
+            this.debugLog('✅ PDFファイル選択イベントリスナー設定完了');
         
-            document.getElementById('pdf-viewer').addEventListener('click', e => this.handlePdfTap(e));
-            document.getElementById('pdf-viewer').addEventListener('touchstart', e => this.handlePdfTap(e), { passive: false });
+            // その他のイベントリスナー
+            this.debugLog('🖱️ PDF viewer イベントリスナー設定');
+            const pdfViewer = document.getElementById('pdf-viewer');
+            if (pdfViewer) {
+                pdfViewer.addEventListener('click', e => this.handlePdfTap(e));
+                pdfViewer.addEventListener('touchstart', e => this.handlePdfTap(e), { passive: false });
+                this.debugLog('✅ PDF viewer タップイベント設定完了');
+            } else {
+                this.debugLog('❌ pdf-viewer要素が見つかりません');
+            }
+            
+            this.debugLog('✅ 全イベントリスナー設定完了');
         },
         
         init() {
@@ -1194,6 +1406,12 @@
             
             this.loadApiKey();
             this.setupEventListeners();
+            
+            // テスト用にPDFコントロールを最初から表示
+            this.elements['pdf-controls'].classList.remove('hidden');
+            this.elements['page-num'].textContent = '-';
+            this.elements['page-count'].textContent = '-';
+            this.debugLog('🔧 テスト用コントロール表示');
             
             this.debugLog('📷 カメラ初期化');
             this.initCamera();
