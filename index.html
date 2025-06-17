@@ -114,9 +114,9 @@
             <div class="flex-shrink-0">
                  <div class="flex flex-wrap gap-2 mb-2">
                     <label for="pdf-upload" class="flex-grow text-center cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm">PDF選択</label>
-                    <button id="toggle-compare-btn" data-action="toggle-compare" class="flex-grow text-center bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🖼️ 比較撮影開始</button>
-                    <button id="open-album-btn" data-action="open-album" class="flex-grow text-center bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm">📁 アルバム</button>
-                    <button id="reconfigure-api-key-btn" data-action="open-api-modal" class="flex-grow text-center bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🔑 API設定</button>
+                    <button data-action="toggle-compare" class="flex-grow text-center bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🖼️ 比較撮影開始</button>
+                    <button data-action="open-album" class="flex-grow text-center bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm">📁 アルバム</button>
+                    <button data-action="open-api-modal" class="flex-grow text-center bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🔑 API設定</button>
                 </div>
                  <input type="file" id="pdf-upload" class="hidden" accept=".pdf">
             </div>
@@ -128,9 +128,9 @@
                 <div id="selection-instruction" class="hidden absolute top-2 left-1/2 -translate-x-1/2 bg-black bg-opacity-70 text-white p-2 rounded-lg text-sm font-bold"></div>
             </div>
             <div id="pdf-controls" class="flex items-center justify-center mt-1 flex-shrink-0 hidden">
-                <button id="prev-page" data-action="prev-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-l-lg">◀</button>
+                <button data-action="prev-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-l-lg">◀</button>
                 <span id="page-num" class="bg-gray-800 py-1 px-2 text-sm"></span>/<span id="page-count" class="bg-gray-800 py-1 px-2 text-sm"></span>
-                <button id="next-page" data-action="next-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-r-lg">▶</button>
+                <button data-action="next-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-r-lg">▶</button>
             </div>
         </div>
 
@@ -463,7 +463,7 @@
                 return;
             }
 
-            const captureBtn = document.getElementById(this.isCompareMode ? 'fullscreen-capture-btn' : 'capture-btn');
+            const captureBtn = document.getElementById('capture-btn');
             captureBtn.classList.add('ping-animation');
             setTimeout(() => captureBtn.classList.remove('ping-animation'), 500);
 
@@ -849,7 +849,7 @@
                 }
             });
         
-            this.elements['pdf-upload'].addEventListener('change', e => {
+            document.getElementById('pdf-upload').addEventListener('change', e => {
                 const file = e.target.files[0];
                 if (!file || file.type !== 'application/pdf') return;
                 const fileReader = new FileReader();
@@ -874,23 +874,23 @@
                 fileReader.readAsArrayBuffer(file);
             });
         
-            this.elements['pdf-viewer'].addEventListener('click', e => this.handlePdfTap(e));
-            this.elements['pdf-viewer'].addEventListener('touchstart', e => this.handlePdfTap(e), { passive: false });
+            document.getElementById('pdf-viewer').addEventListener('click', e => this.handlePdfTap(e));
+            document.getElementById('pdf-viewer').addEventListener('touchstart', e => this.handlePdfTap(e), { passive: false });
         },
         
         init() {
             if (!this.checkSecureContext()) return;
             const ids = [
                 'main-view', 'camera-view', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls',
-                'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 
-                'photo-count-badge', 'api-key-modal', 'api-key-input', 
+                'pdf-viewer-wrapper', 'camera-stream', 'capture-canvas', 'photo-gallery',
+                'api-key-modal', 'api-key-input',
                 'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 
                 'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
                 'target-image-wrapper', 'target-image', 'photo-count', 'zoom-level-display', 
                  'album-modal', 'album-grid', 'album-placeholder', 'album-photo-count', 'close-album-btn', 'download-all-btn',
                  'download-progress', 'download-progress-bar', 'download-counter', 'download-message',
                 'gemini-modal', 'modal-title', 'gemini-modal-content-wrapper', 'gemini-modal-content', 'report-generation-area',
-                'report-content', 'copy-report-btn', 'close-modal-btn'
+                'report-content'
             ];
             ids.forEach(id => {
                 const el = document.getElementById(id);
