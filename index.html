@@ -40,7 +40,6 @@
         @keyframes ping { 75%, 100% { transform: scale(1.2); opacity: 0; } }
         #album-grid { scrollbar-width: none; -ms-overflow-style: none; }
         #album-grid::-webkit-scrollbar { display: none; }
-        #selection-box { position: absolute; border: 2px dashed #00aeff; background-color: rgba(0, 174, 255, 0.2); pointer-events: none; }
         #selection-marker { position: absolute; width: 15px; height: 15px; background: rgba(0, 174, 255, 0.7); border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
         .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
         #camera-stream { width: 100%; height: 100%; object-fit: contain; transform-origin: center; transition: transform 0.2s ease-out; }
@@ -104,24 +103,20 @@
         .control-btn:active {
             transform: scale(0.95);
         }
-        .control-btn:hover { background-color: rgba(59, 130, 246, 1); }
         .control-btn.red { background-color: rgba(239, 68, 68, 0.8); }
-        .control-btn.red:hover { background-color: rgba(239, 68, 68, 1); }
         .control-btn.purple { background-color: rgba(168, 85, 247, 0.8); }
-        .control-btn.purple:hover { background-color: rgba(168, 85, 247, 1); }
         
-        @supports (padding: max(0px)) {
-            .safe-area-padding {
-                padding-top: max(12px, env(safe-area-inset-top));
-                padding-bottom: max(8px, env(safe-area-inset-bottom));
-                padding-left: max(8px, env(safe-area-inset-left));
-                padding-right: max(8px, env(safe-area-inset-right));
-            }
-            .fullscreen-control-panel {
-                padding-top: max(20px, env(safe-area-inset-top));
-                padding-bottom: max(20px, env(safe-area-inset-bottom));
-                padding-right: max(8px, env(safe-area-inset-right));
-            }
+        /* スマートフォン専用の安全エリア対応 */
+        .safe-area-padding {
+            padding-top: max(12px, env(safe-area-inset-top));
+            padding-bottom: max(8px, env(safe-area-inset-bottom));
+            padding-left: max(8px, env(safe-area-inset-left));
+            padding-right: max(8px, env(safe-area-inset-right));
+        }
+        .fullscreen-control-panel {
+            padding-top: max(20px, env(safe-area-inset-top));
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+            padding-right: max(8px, env(safe-area-inset-right));
         }
     </style>
 </head>
@@ -132,23 +127,22 @@
         <div id="main-view" class="view-section p-2">
             <div class="flex-shrink-0">
                  <div class="flex flex-wrap gap-2 mb-2">
-                    <button id="select-pdf-btn" class="flex-grow text-center cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm">PDF選択</button>
-                    <button id="toggle-compare-btn" class="flex-grow text-center bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🖼️ 比較撮影開始</button>
-                    <button id="open-album-btn" class="flex-grow text-center bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm">📁 アルバム</button>
-                    <button id="open-api-modal-btn" class="flex-grow text-center bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🔑 API設定</button>
+                    <button id="select-pdf-btn" class="flex-grow text-center cursor-pointer bg-blue-600 text-white font-bold py-2 px-3 rounded-lg text-sm active:bg-blue-700">PDF選択</button>
+                    <button id="toggle-compare-btn" class="flex-grow text-center bg-teal-600 text-white font-bold py-2 px-3 rounded-lg text-sm active:bg-teal-700">🖼️ 比較撮影開始</button>
+                    <button id="open-album-btn" class="flex-grow text-center bg-green-600 text-white font-bold py-2 px-3 rounded-lg text-sm active:bg-green-700">📁 アルバム</button>
+                    <button id="open-api-modal-btn" class="flex-grow text-center bg-yellow-600 text-white font-bold py-2 px-3 rounded-lg text-sm active:bg-yellow-700">🔑 API設定</button>
                 </div>
             </div>
             <div id="pdf-viewer-wrapper" class="flex-grow overflow-auto bg-gray-700 rounded-lg relative mt-1">
                 <div id="pdf-viewer" class="w-full relative"></div>
                 <div id="pdf-placeholder" class="absolute inset-0 flex items-center justify-center text-gray-400">PDFを選択してください</div>
-                <div id="selection-box" class="hidden"></div>
                 <div id="selection-marker" class="hidden"></div>
                 <div id="selection-instruction" class="hidden absolute top-2 left-1/2 -translate-x-1/2 bg-black bg-opacity-70 text-white p-2 rounded-lg text-sm font-bold"></div>
             </div>
             <div id="pdf-controls" class="flex items-center justify-center mt-1 flex-shrink-0 hidden">
-                <button id="prev-page-btn" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-l-lg">◀</button>
+                <button id="prev-page-btn" class="bg-gray-600 active:bg-gray-500 font-bold py-1 px-3 rounded-l-lg">◀</button>
                 <span id="page-num" class="bg-gray-800 py-1 px-2 text-sm">1</span>/<span id="page-count" class="bg-gray-800 py-1 px-2 text-sm">1</span>
-                <button id="next-page-btn" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-r-lg">▶</button>
+                <button id="next-page-btn" class="bg-gray-600 active:bg-gray-500 font-bold py-1 px-3 rounded-r-lg">▶</button>
             </div>
         </div>
 
@@ -198,7 +192,7 @@
                 </div>
                 
                 <div class="absolute bottom-8 left-2/3 -translate-x-1/2 z-51 safe-area-padding">
-                    <button id="capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
+                    <button id="capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center">
                         <div class="w-16 h-16 bg-white rounded-full shadow-inner border-2 border-gray-200 pointer-events-none"></div>
                     </button>
                 </div>
@@ -213,10 +207,10 @@
             <p class="text-sm text-gray-300 mb-4">AI機能 (Gemini) を使用するにはAPIキーが必要です。キーはブラウザに保存されます。</p>
             <input type="password" id="api-key-input" placeholder="Gemini API Key" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white mb-4">
             <div class="flex gap-2">
-                <button id="save-api-key-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">保存</button>
-                <button id="clear-api-key-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">クリア</button>
+                <button id="save-api-key-btn" class="flex-1 bg-blue-600 active:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">保存</button>
+                <button id="clear-api-key-btn" class="flex-1 bg-red-600 active:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">クリア</button>
             </div>
-             <button id="close-api-modal-btn" class="w-full mt-3 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+             <button id="close-api-modal-btn" class="w-full mt-3 bg-gray-600 active:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
                 閉じる
             </button>
         </div>
@@ -228,13 +222,14 @@
             <h2 class="text-2xl font-bold">アルバム</h2>
             <div class="flex items-center gap-3">
                 <span id="album-photo-count" class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full">0枚</span>
-                <button id="download-all-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm">
+                <button id="download-all-btn" class="bg-green-600 active:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm">
                     📥 一括ダウンロード
                 </button>
                 <button id="close-album-btn" class="text-3xl font-bold text-white">&times;</button>
             </div>
         </div>
-        <div id="album-grid" class="flex-grow overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+        <!-- スマートフォン専用グリッド（3列固定） -->
+        <div id="album-grid" class="flex-grow overflow-y-auto grid grid-cols-3 gap-4">
             <div id="album-placeholder" class="col-span-full flex items-center justify-center text-gray-500 text-lg py-12">
                 撮影された写真がここに表示されます
             </div>
@@ -252,7 +247,7 @@
     
     <!-- Geminiモーダル -->
     <div id="gemini-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-60 p-4">
-        <div class="bg-gray-800 rounded-lg p-6 w-11/12 max-w-3xl text-white shadow-2xl max-h-[90vh] flex flex-col">
+        <div class="bg-gray-800 rounded-lg p-6 w-11/12 text-white shadow-2xl max-h-[90vh] flex flex-col">
             <h3 id="modal-title" class="text-2xl font-bold mb-4 flex items-center flex-shrink-0"></h3>
             <div id="gemini-modal-content-wrapper" class="overflow-y-auto pr-4">
                 <div id="gemini-modal-content" class="min-h-[100px]"></div>
@@ -260,12 +255,12 @@
                     <h4 class="text-xl font-semibold border-t border-gray-600 pt-4">報告書（案）</h4>
                     <div id="report-content" class="mt-2 p-4 bg-gray-900 rounded-lg min-h-[150px] whitespace-pre-wrap"></div>
                     <div class="text-right mt-2">
-                         <button id="copy-report-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">文章をコピー</button>
+                         <button id="copy-report-btn" class="bg-green-600 active:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">文章をコピー</button>
                     </div>
                 </div>
             </div>
             <div class="mt-6 text-right flex-shrink-0">
-                <button id="close-gemini-modal-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg">閉じる</button>
+                <button id="close-gemini-modal-btn" class="bg-blue-600 active:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg">閉じる</button>
             </div>
         </div>
     </div>
@@ -274,7 +269,7 @@
     <canvas id="capture-canvas" class="hidden"></canvas>
 
     <script>
-    // 構造物点検カメラアプリ（iOS Safari対応版）
+    // 構造物点検カメラアプリ（スマートフォン専用版）
     const App = {
         pdfDoc: null, 
         currentPageNum: 1, 
@@ -290,6 +285,9 @@
         zoomLevel: 1.0,
         maxZoom: 3.0,
         minZoom: 0.5,
+        cameraStream: null,
+        pdfCanvas: null,
+        pdfScale: 1.0,
 
         // 汎用通知
         showNotification(message, type = 'info') {
@@ -360,7 +358,7 @@
             }
         },
 
-        // PDF選択（iOS Safari対応版）
+        // PDF選択
         selectPdf() {
             const input = document.createElement('input');
             input.type = 'file';
@@ -400,7 +398,6 @@
                 return;
             }
             
-            // Worker設定
             try {
                 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
             } catch (workerError) {
@@ -451,7 +448,7 @@
             fileReader.readAsArrayBuffer(file);
         },
 
-        // PDF描画
+        // PDF描画（スマートフォン最適化）
         renderPage(num) {
             if (this.pageIsRendering || !this.pdfDoc) return;
             this.pageIsRendering = true;
@@ -460,16 +457,11 @@
                 const container = document.getElementById('pdf-viewer-wrapper');
                 const containerWidth = container.clientWidth - 10;
                 
-                // モバイル向けの低解像度描画
-                let baseScale = 0.8;
-                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-                if (isIOS) {
-                    baseScale = 0.6;
-                }
-
+                // スマートフォン専用設定
+                const baseScale = 1.0;
                 const viewport = page.getViewport({ scale: 1.0 });
-                const scale = Math.min((containerWidth / viewport.width) * baseScale, 1.5);
-                const scaledViewport = page.getViewport({ scale: scale });
+                this.pdfScale = Math.min((containerWidth / viewport.width) * baseScale, 2.0);
+                const scaledViewport = page.getViewport({ scale: this.pdfScale });
 
                 // 既存のcanvasを削除
                 const existingCanvas = document.getElementById('pdf-viewer').querySelector('canvas');
@@ -479,8 +471,20 @@
 
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
-                canvas.height = scaledViewport.height;
-                canvas.width = scaledViewport.width;
+                
+                // 高解像度での描画（スマートフォン向け）
+                const devicePixelRatio = window.devicePixelRatio || 1;
+                const ratio = Math.min(devicePixelRatio, 2); // 最大2倍まで
+                
+                canvas.width = scaledViewport.width * ratio;
+                canvas.height = scaledViewport.height * ratio;
+                canvas.style.width = scaledViewport.width + 'px';
+                canvas.style.height = scaledViewport.height + 'px';
+                
+                context.scale(ratio, ratio);
+                
+                // canvasの参照を保存（比較用）
+                this.pdfCanvas = canvas;
                 
                 document.getElementById('pdf-viewer').appendChild(canvas);
 
@@ -570,18 +574,99 @@
             if(dot) dot.classList.replace(oldClassName, className);
         },
 
-        // カメラ初期化
+        // カメラ初期化（スマートフォン専用）
         async initCamera() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, 
+                // スマートフォンでの最適な解像度
+                const constraints = {
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 3840, min: 1920 },
+                        height: { ideal: 2160, min: 1080 },
+                        frameRate: { ideal: 30, min: 15 }
+                    }, 
                     audio: false 
+                };
+                
+                this.cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+                const video = document.getElementById('camera-stream');
+                video.srcObject = this.cameraStream;
+                
+                video.addEventListener('loadedmetadata', () => {
+                    console.log(`カメラ解像度: ${video.videoWidth}x${video.videoHeight}`);
+                    this.showNotification(`カメラ初期化成功 (${video.videoWidth}x${video.videoHeight})`, 'success');
                 });
-                document.getElementById('camera-stream').srcObject = stream;
-                console.log('カメラ初期化成功');
+                
             } catch (err) {
                 console.error("カメラアクセスエラー:", err);
                 this.showNotification('カメラにアクセスできません。設定を確認してください。', 'error');
+            }
+        },
+
+        // EXIF情報を追加する関数
+        addExifData(imageDataUrl, gpsData, timestamp) {
+            if (typeof piexif === 'undefined') {
+                console.warn('piexif ライブラリが利用できません');
+                return imageDataUrl;
+            }
+
+            try {
+                const exifObj = {
+                    "0th": {},
+                    "Exif": {},
+                    "GPS": {},
+                    "1st": {},
+                    "thumbnail": null
+                };
+
+                // 基本情報
+                exifObj["0th"][piexif.ImageIFD.Make] = "InspectionCamera";
+                exifObj["0th"][piexif.ImageIFD.Model] = "WebApp";
+                exifObj["0th"][piexif.ImageIFD.Software] = "StructuralInspectionApp";
+                exifObj["0th"][piexif.ImageIFD.DateTime] = timestamp.toISOString().replace('T', ' ').split('.')[0];
+
+                // 撮影情報
+                exifObj["Exif"][piexif.ExifIFD.DateTimeOriginal] = timestamp.toISOString().replace('T', ' ').split('.')[0];
+                exifObj["Exif"][piexif.ExifIFD.DateTimeDigitized] = timestamp.toISOString().replace('T', ' ').split('.')[0];
+
+                // GPS情報
+                if (gpsData.latitude !== null && gpsData.longitude !== null) {
+                    // 緯度
+                    const latRef = gpsData.latitude >= 0 ? 'N' : 'S';
+                    const lat = Math.abs(gpsData.latitude);
+                    const latDeg = Math.floor(lat);
+                    const latMin = Math.floor((lat - latDeg) * 60);
+                    const latSec = Math.round(((lat - latDeg) * 60 - latMin) * 60 * 100) / 100;
+
+                    exifObj["GPS"][piexif.GPSIFD.GPSLatitudeRef] = latRef;
+                    exifObj["GPS"][piexif.GPSIFD.GPSLatitude] = [[latDeg, 1], [latMin, 1], [latSec * 100, 100]];
+
+                    // 経度
+                    const lonRef = gpsData.longitude >= 0 ? 'E' : 'W';
+                    const lon = Math.abs(gpsData.longitude);
+                    const lonDeg = Math.floor(lon);
+                    const lonMin = Math.floor((lon - lonDeg) * 60);
+                    const lonSec = Math.round(((lon - lonDeg) * 60 - lonMin) * 60 * 100) / 100;
+
+                    exifObj["GPS"][piexif.GPSIFD.GPSLongitudeRef] = lonRef;
+                    exifObj["GPS"][piexif.GPSIFD.GPSLongitude] = [[lonDeg, 1], [lonMin, 1], [lonSec * 100, 100]];
+
+                    // 方位
+                    if (gpsData.heading !== null) {
+                        exifObj["GPS"][piexif.GPSIFD.GPSImgDirectionRef] = 'T';
+                        exifObj["GPS"][piexif.GPSIFD.GPSImgDirection] = [Math.round(gpsData.heading * 100), 100];
+                    }
+                }
+
+                // EXIFデータをバイナリに変換
+                const exifBytes = piexif.dump(exifObj);
+                
+                // 画像にEXIFデータを挿入
+                return piexif.insert(exifBytes, imageDataUrl);
+
+            } catch (error) {
+                console.error("EXIF情報の追加でエラー:", error);
+                return imageDataUrl;
             }
         },
 
@@ -598,18 +683,31 @@
             setTimeout(() => captureBtn.classList.remove('ping-animation'), 500);
 
             const canvas = document.getElementById('capture-canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+            
+            // 実際のビデオ解像度を使用
+            const actualWidth = video.videoWidth;
+            const actualHeight = video.videoHeight;
+            
+            canvas.width = actualWidth;
+            canvas.height = actualHeight;
+            
             const context = canvas.getContext('2d');
             
+            // 高解像度でキャプチャ
             context.save();
             context.translate(canvas.width / 2, canvas.height / 2);
             context.scale(this.zoomLevel, this.zoomLevel);
             context.drawImage(video, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
             context.restore();
 
-            const imageDataUrl = canvas.toDataURL('image/jpeg', 0.9);
-            this.addPhotoToDatabase(imageDataUrl);
+            // 高品質でJPEGに変換
+            const imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+            
+            // EXIF情報を追加
+            const timestamp = new Date();
+            const imageWithExif = this.addExifData(imageDataUrl, this.sensorData, timestamp);
+            
+            this.addPhotoToDatabase(imageWithExif, actualWidth, actualHeight);
         },
 
         // ズーム機能
@@ -620,35 +718,61 @@
         },
 
         // 写真管理
-        addPhotoToDatabase(dataUrl) {
+        addPhotoToDatabase(dataUrl, width = 0, height = 0) {
             const photoNumber = this.photoDatabase.length + 1;
             const photoData = {
                 id: photoNumber,
                 fileName: `Ip${photoNumber.toString().padStart(4, '0')}.jpg`,
                 dataUrl: dataUrl,
                 timestamp: new Date(),
-                gps: { ...this.sensorData }
+                gps: { ...this.sensorData },
+                resolution: { width, height }
             };
             this.photoDatabase.push(photoData);
             this.updateAlbum(photoData);
             this.updatePhotoCounts();
+            
+            if (width > 0 && height > 0) {
+                this.showNotification(`写真撮影完了 (${width}x${height})`, 'success');
+            }
         },
 
         updateAlbum(photoData) {
             document.getElementById('album-placeholder').classList.add('hidden');
             const albumItem = document.createElement('div');
-            albumItem.className = 'relative w-full aspect-4/3 group cursor-pointer bg-gray-800 rounded-lg overflow-hidden';
+            albumItem.className = 'relative w-full aspect-4/3 cursor-pointer bg-gray-800 rounded-lg overflow-hidden';
             albumItem.dataset.photoId = photoData.id;
+            
+            const resInfo = photoData.resolution && photoData.resolution.width > 0 ? 
+                `<div class="text-xs text-gray-300">${photoData.resolution.width}x${photoData.resolution.height}</div>` : '';
+            
             albumItem.innerHTML = `
                 <img src="${photoData.dataUrl}" class="w-full h-full object-cover">
                 <div class="absolute top-2 left-2 bg-black bg-opacity-80 text-white text-xs font-bold px-2 py-1 rounded">
                     <div>${photoData.id.toString().padStart(4, '0')}</div>
+                    ${resInfo}
                 </div>
-                <div class="absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity p-2 gap-2">
-                    <button onclick="App.analyzeImageWithGemini(${photoData.id})" class="text-white bg-purple-600 hover:bg-purple-700 font-bold py-2 px-3 rounded-lg text-xs w-full">✨ AI分析</button>
-                    <button onclick="App.downloadSinglePhoto(${photoData.id})" class="text-white bg-blue-600 hover:bg-blue-700 font-bold py-2 px-3 rounded-lg text-xs w-full">📥 ダウンロード</button>
+                <div class="absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center opacity-0 active:opacity-100 transition-opacity p-2 gap-2">
+                    <button onclick="App.analyzeImageWithGemini(${photoData.id})" class="text-white bg-purple-600 active:bg-purple-700 font-bold py-2 px-3 rounded-lg text-xs w-full">✨ AI分析</button>
+                    <button onclick="App.downloadSinglePhoto(${photoData.id})" class="text-white bg-blue-600 active:bg-blue-700 font-bold py-2 px-3 rounded-lg text-xs w-full">📥 ダウンロード</button>
                 </div>
             `;
+            
+            // タッチイベントで詳細表示
+            let touchStartTime = 0;
+            albumItem.addEventListener('touchstart', () => {
+                touchStartTime = Date.now();
+            });
+            albumItem.addEventListener('touchend', (e) => {
+                const touchDuration = Date.now() - touchStartTime;
+                if (touchDuration > 500) { // 長押し
+                    e.preventDefault();
+                    const overlay = albumItem.querySelector('.absolute.inset-0');
+                    overlay.classList.toggle('opacity-0');
+                    overlay.classList.toggle('opacity-100');
+                }
+            });
+            
             document.getElementById('album-grid').appendChild(albumItem);
         },
 
@@ -658,18 +782,10 @@
             document.getElementById('album-photo-count').textContent = `${count}枚`;
         },
 
-        // iOS Safari判定メソッド
-        isIOSSafari() {
-            const userAgent = navigator.userAgent;
-            const isIOS = /iPad|iPhone|iPod/.test(userAgent);
-            const isSafari = /Safari/.test(userAgent) && !/Chrome|CriOS|FxiOS/.test(userAgent);
-            return isIOS && isSafari;
-        },
-
         // iOS Safari用のダウンロード方法
         downloadForIOSSafari(blob, fileName) {
             try {
-                // Web Share API を使用（iOS 14以降で利用可能）
+                // Web Share API を使用
                 if (navigator.share && navigator.canShare) {
                     const file = new File([blob], fileName, { type: 'application/zip' });
                     if (navigator.canShare({ files: [file] })) {
@@ -687,7 +803,6 @@
                     }
                 }
                 
-                // フォールバック：URLを生成してSafariで開く
                 this.fallbackDownload(blob, fileName);
                 
             } catch (error) {
@@ -696,38 +811,23 @@
             }
         },
 
-        // フォールバック ダウンロード方法
         fallbackDownload(blob, fileName) {
             const url = URL.createObjectURL(blob);
-            
-            // 新しいタブで開く
             const newWindow = window.open(url, '_blank');
             
             if (!newWindow) {
-                // ポップアップがブロックされた場合の対処
-                this.showNotification(
-                    'ポップアップがブロックされました。設定からポップアップを許可してください。', 
-                    'warning'
-                );
-                
-                // 現在のタブで開く
+                this.showNotification('ポップアップがブロックされました。設定からポップアップを許可してください。', 'warning');
                 window.location.href = url;
             } else {
-                // 少し遅延してからURLを解放
                 setTimeout(() => {
                     try {
                         newWindow.close();
-                    } catch (e) {
-                        // エラーは無視
-                    }
+                    } catch (e) {}
                     URL.revokeObjectURL(url);
                 }, 3000);
             }
             
-            this.showNotification(
-                '新しいタブでファイルが開かれました。「ダウンロード」をタップしてください。', 
-                'info'
-            );
+            this.showNotification('新しいタブでファイルが開かれました。「ダウンロード」をタップしてください。', 'info');
         },
 
         // ダウンロード機能
@@ -794,16 +894,16 @@
                 const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '');
                 const zipFileName = `InspectionPhotos_${timestamp}.zip`;
 
-                // iOS Safari対応の修正
-                if (this.isIOSSafari()) {
-                    // iOS Safariの場合、別の方法でダウンロードを試行
+                // スマートフォン向けダウンロード
+                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                if (isIOS) {
                     this.downloadForIOSSafari(zipBlob, zipFileName);
                 } else {
-                    // 通常のダウンロード方法
+                    // Android等
                     const a = document.createElement('a');
                     a.href = URL.createObjectURL(zipBlob);
                     a.download = zipFileName;
-                    a.type = 'application/zip'; // MIMEタイプを明示的に設定
+                    a.type = 'application/zip';
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
@@ -827,12 +927,13 @@
             let info = `構造物点検写真一覧\n`;
             info += `生成日時: ${new Date().toLocaleString('ja-JP')}\n`;
             info += `写真枚数: ${this.photoDatabase.length}枚\n\n`;
-            info += `${'No.'.padEnd(5)} ${'ファイル名'.padEnd(15)} ${'撮影日時'.padEnd(20)} ${'GPS座標'.padEnd(25)} ${'方位'.padEnd(8)}\n`;
-            info += `${'-'.repeat(80)}\n`;
+            info += `${'No.'.padEnd(5)} ${'ファイル名'.padEnd(15)} ${'解像度'.padEnd(12)} ${'撮影日時'.padEnd(20)} ${'GPS座標'.padEnd(25)} ${'方位'.padEnd(8)}\n`;
+            info += `${'-'.repeat(90)}\n`;
             this.photoDatabase.forEach((p, i) => {
                 const gps = p.gps.latitude ? `${p.gps.latitude.toFixed(6)}, ${p.gps.longitude.toFixed(6)}` : '情報なし';
                 const heading = p.gps.heading ? `${p.gps.heading.toFixed(1)}°` : '不明';
-                info += `${(i + 1).toString().padEnd(5)} ${p.fileName.padEnd(15)} ${p.timestamp.toLocaleString('ja-JP').padEnd(20)} ${gps.padEnd(25)} ${heading.padEnd(8)}\n`;
+                const resolution = p.resolution && p.resolution.width > 0 ? `${p.resolution.width}x${p.resolution.height}` : 'N/A';
+                info += `${(i + 1).toString().padEnd(5)} ${p.fileName.padEnd(15)} ${resolution.padEnd(12)} ${p.timestamp.toLocaleString('ja-JP').padEnd(20)} ${gps.padEnd(25)} ${heading.padEnd(8)}\n`;
             });
             return info;
         },
@@ -864,12 +965,15 @@
             this.showMainView();
         },
 
+        // PDFタップ処理（タッチのみ）
         handlePdfTap(event) {
             if (!this.isCompareMode || this.selectionState === 'completed') return;
             event.preventDefault();
-            const rect = document.getElementById('pdf-viewer').getBoundingClientRect();
-            const x = (event.touches ? event.touches[0].clientX : event.clientX) - rect.left;
-            const y = (event.touches ? event.touches[0].clientY : event.clientY) - rect.top;
+            
+            const pdfViewer = document.getElementById('pdf-viewer');
+            const rect = pdfViewer.getBoundingClientRect();
+            const x = event.touches[0].clientX - rect.left;
+            const y = event.touches[0].clientY - rect.top;
 
             if (this.selectionState === 'waiting_for_p1') {
                 this.p1 = { x, y };
@@ -886,7 +990,12 @@
                     width: Math.abs(this.p1.x - p2.x), 
                     height: Math.abs(this.p1.y - p2.y) 
                 };
-                if (selRect.width < 10 || selRect.height < 10) { this.resetCompareMode(); return; }
+                if (selRect.width < 10 || selRect.height < 10) { 
+                    this.showNotification('選択範囲が小さすぎます。もう一度選択してください。', 'warning');
+                    this.selectionState = 'waiting_for_p1';
+                    document.getElementById('selection-marker').classList.add('hidden');
+                    return; 
+                }
                 this.cropAndSetTarget(selRect);
             }
         },
@@ -897,12 +1006,37 @@
             el.classList.remove('hidden');
         },
 
+        // PDF比較画像の切り取り
         cropAndSetTarget(rect) {
-            const pdfCanvas = document.getElementById('pdf-viewer').querySelector('canvas');
-            if (!pdfCanvas) return;
+            const pdfCanvas = this.pdfCanvas;
+            if (!pdfCanvas) {
+                this.showNotification('PDFが正しく表示されていません。', 'error');
+                return;
+            }
+
+            const canvasStyleWidth = parseFloat(pdfCanvas.style.width);
+            const canvasStyleHeight = parseFloat(pdfCanvas.style.height);
+            const scaleX = pdfCanvas.width / canvasStyleWidth;
+            const scaleY = pdfCanvas.height / canvasStyleHeight;
+
+            const scaledRect = {
+                x: rect.x * scaleX,
+                y: rect.y * scaleY,
+                width: rect.width * scaleX,
+                height: rect.height * scaleY
+            };
+
             const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = rect.width; tempCanvas.height = rect.height;
-            tempCanvas.getContext('2d').drawImage(pdfCanvas, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height);
+            tempCanvas.width = scaledRect.width;
+            tempCanvas.height = scaledRect.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            tempCtx.drawImage(
+                pdfCanvas, 
+                scaledRect.x, scaledRect.y, scaledRect.width, scaledRect.height,
+                0, 0, scaledRect.width, scaledRect.height
+            );
+
             this.targetImageDataUrl = tempCanvas.toDataURL('image/png');
             
             document.getElementById('target-image').src = this.targetImageDataUrl;
@@ -910,6 +1044,8 @@
             this.selectionState = 'completed';
             document.getElementById('selection-marker').classList.add('hidden');
             document.getElementById('selection-instruction').classList.add('hidden');
+            
+            this.showNotification('比較画像を設定しました。撮影を開始してください。', 'success');
             this.showCameraView();
         },
 
@@ -923,7 +1059,7 @@
             document.getElementById('camera-view').classList.remove('hidden');
         },
 
-        // AI関連（簡素化）
+        // AI関連
         async callGeminiApi(prompt, imageDataUrl = null) {
             if (!this.apiKey) {
                 this.openApiKeyModal();
@@ -973,62 +1109,61 @@
 
         // 初期化
         init() {
-            console.log('アプリ初期化開始');
+            console.log('スマートフォン専用アプリ初期化開始');
             
             try {
-                // ボタンイベントの設定
-                document.getElementById('select-pdf-btn').addEventListener('click', () => this.selectPdf());
-                document.getElementById('toggle-compare-btn').addEventListener('click', () => {
+                // タッチイベント専用設定
+                document.getElementById('select-pdf-btn').addEventListener('touchend', () => this.selectPdf());
+                document.getElementById('toggle-compare-btn').addEventListener('touchend', () => {
                     if (this.isCompareMode) this.resetCompareMode();
                     else this.toggleCompareMode();
                 });
-                document.getElementById('open-album-btn').addEventListener('click', () => {
+                document.getElementById('open-album-btn').addEventListener('touchend', () => {
                     document.getElementById('album-modal').classList.remove('hidden');
                 });
-                document.getElementById('open-api-modal-btn').addEventListener('click', () => this.openApiKeyModal());
+                document.getElementById('open-api-modal-btn').addEventListener('touchend', () => this.openApiKeyModal());
                 
                 // PDF コントロール
-                document.getElementById('prev-page-btn').addEventListener('click', () => {
+                document.getElementById('prev-page-btn').addEventListener('touchend', () => {
                     if (this.pdfDoc && this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum);
                 });
-                document.getElementById('next-page-btn').addEventListener('click', () => {
+                document.getElementById('next-page-btn').addEventListener('touchend', () => {
                     if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum);
                 });
                 
                 // カメラコントロール
-                document.getElementById('capture-btn').addEventListener('click', () => this.takePicture());
-                document.getElementById('reset-compare-btn').addEventListener('click', () => this.resetCompareMode());
-                document.getElementById('zoom-in-btn').addEventListener('click', () => this.updateZoom(this.zoomLevel + 0.2));
-                document.getElementById('zoom-out-btn').addEventListener('click', () => this.updateZoom(this.zoomLevel - 0.2));
-                document.getElementById('zoom-reset-btn').addEventListener('click', () => this.updateZoom(1.0));
+                document.getElementById('capture-btn').addEventListener('touchend', () => this.takePicture());
+                document.getElementById('reset-compare-btn').addEventListener('touchend', () => this.resetCompareMode());
+                document.getElementById('zoom-in-btn').addEventListener('touchend', () => this.updateZoom(this.zoomLevel + 0.2));
+                document.getElementById('zoom-out-btn').addEventListener('touchend', () => this.updateZoom(this.zoomLevel - 0.2));
+                document.getElementById('zoom-reset-btn').addEventListener('touchend', () => this.updateZoom(1.0));
                 
                 // モーダル関連
-                document.getElementById('save-api-key-btn').addEventListener('click', () => this.saveApiKey());
-                document.getElementById('clear-api-key-btn').addEventListener('click', () => this.clearApiKey());
-                document.getElementById('close-api-modal-btn').addEventListener('click', () => {
+                document.getElementById('save-api-key-btn').addEventListener('touchend', () => this.saveApiKey());
+                document.getElementById('clear-api-key-btn').addEventListener('touchend', () => this.clearApiKey());
+                document.getElementById('close-api-modal-btn').addEventListener('touchend', () => {
                     document.getElementById('api-key-modal').classList.add('hidden');
                 });
-                document.getElementById('close-album-btn').addEventListener('click', () => {
+                document.getElementById('close-album-btn').addEventListener('touchend', () => {
                     document.getElementById('album-modal').classList.add('hidden');
                 });
-                document.getElementById('download-all-btn').addEventListener('click', () => this.downloadAllPhotos());
-                document.getElementById('close-gemini-modal-btn').addEventListener('click', () => {
+                document.getElementById('download-all-btn').addEventListener('touchend', () => this.downloadAllPhotos());
+                document.getElementById('close-gemini-modal-btn').addEventListener('touchend', () => {
                     document.getElementById('gemini-modal').classList.add('hidden');
                 });
                 
-                // PDF viewer タップイベント
-                document.getElementById('pdf-viewer').addEventListener('click', e => this.handlePdfTap(e));
+                // PDF viewer タッチイベント（タッチのみ）
                 document.getElementById('pdf-viewer').addEventListener('touchstart', e => this.handlePdfTap(e), { passive: false });
                 
-                console.log('イベントリスナー設定完了');
+                console.log('タッチイベント設定完了');
                 
                 this.loadApiKey();
                 this.initCamera();
                 this.initSensors();
                 this.showMainView();
                 
-                console.log('アプリ初期化完了');
-                this.showNotification('アプリが正常に起動しました', 'success');
+                console.log('スマートフォン専用アプリ初期化完了');
+                this.showNotification('スマートフォン専用アプリが起動しました', 'success');
                 
             } catch (error) {
                 console.error('初期化エラー:', error);
@@ -1039,7 +1174,7 @@
 
     // アプリ開始
     window.addEventListener('DOMContentLoaded', () => {
-        console.log('DOM読み込み完了、アプリ初期化開始');
+        console.log('DOM読み込み完了、スマートフォン専用アプリ初期化開始');
         App.init();
     });
     </script>
