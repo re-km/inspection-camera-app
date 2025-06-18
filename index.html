@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>構造物点検カメラアプリ (モバイル最適化版)</title>
+    <title>構造物点検カメラアプリ</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- PDF.jsをlegacy版に変更（モバイル互換性向上） -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/piexifjs/1.0.6/piexif.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
@@ -29,7 +28,7 @@
             top: 0; 
             left: 0;
             transition: opacity 0.3s ease-in-out, visibility 0.3s;
-            background-color: #1f2937; /* bg-gray-800 */
+            background-color: #1f2937;
         }
         .view-section.hidden {
             opacity: 0;
@@ -46,7 +45,6 @@
         .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
         #camera-stream { width: 100%; height: 100%; object-fit: contain; transform-origin: center; transition: transform 0.2s ease-out; }
         
-        /* モバイル最適化されたPDF表示領域 */
         #pdf-viewer {
             display: flex;
             justify-content: center;
@@ -64,58 +62,6 @@
             border-radius: 4px;
             background-color: white;
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
-        
-        /* デバッグ情報表示エリア（改善版） */
-        #debug-info {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(0,0,0,0.9);
-            color: white;
-            font-size: 10px;
-            padding: 8px;
-            max-height: 150px; /* 高さ制限 */
-            overflow-y: auto;
-            font-family: monospace;
-            z-index: 1000;
-            border-top: 2px solid #4f46e5;
-            transition: transform 0.3s ease-in-out;
-        }
-        
-        #debug-info.minimized {
-            transform: translateY(calc(100% - 30px)); /* ほとんど隠す */
-        }
-        
-        #debug-info .debug-header {
-            position: sticky;
-            top: 0;
-            background: rgba(0,0,0,0.95);
-            padding: 4px 0;
-            border-bottom: 1px solid #666;
-            margin-bottom: 4px;
-            display: flex;
-            justify-content: between;
-            align-items: center;
-            font-weight: bold;
-        }
-        
-        #debug-info .debug-content {
-            padding-bottom: 8px;
-        }
-        
-        #debug-info::-webkit-scrollbar {
-            width: 4px;
-        }
-        
-        #debug-info::-webkit-scrollbar-track {
-            background: #333;
-        }
-        
-        #debug-info::-webkit-scrollbar-thumb {
-            background: #666;
-            border-radius: 2px;
         }
         
         .fullscreen-control-panel {
@@ -186,12 +132,11 @@
         <div id="main-view" class="view-section p-2">
             <div class="flex-shrink-0">
                  <div class="flex flex-wrap gap-2 mb-2">
-                    <button data-action="select-pdf" class="flex-grow text-center cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm">PDF選択</button>
-                    <button data-action="toggle-compare" id="toggle-compare-btn" class="flex-grow text-center bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🖼️ 比較撮影開始</button>
-                    <button data-action="open-album" class="flex-grow text-center bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm">📁 アルバム</button>
-                    <button data-action="open-api-modal" class="flex-grow text-center bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🔑 API設定</button>
+                    <button id="select-pdf-btn" class="flex-grow text-center cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm">PDF選択</button>
+                    <button id="toggle-compare-btn" class="flex-grow text-center bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🖼️ 比較撮影開始</button>
+                    <button id="open-album-btn" class="flex-grow text-center bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm">📁 アルバム</button>
+                    <button id="open-api-modal-btn" class="flex-grow text-center bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🔑 API設定</button>
                 </div>
-                 <!-- 隠しinput要素は削除 -->
             </div>
             <div id="pdf-viewer-wrapper" class="flex-grow overflow-auto bg-gray-700 rounded-lg relative mt-1">
                 <div id="pdf-viewer" class="w-full relative"></div>
@@ -201,11 +146,9 @@
                 <div id="selection-instruction" class="hidden absolute top-2 left-1/2 -translate-x-1/2 bg-black bg-opacity-70 text-white p-2 rounded-lg text-sm font-bold"></div>
             </div>
             <div id="pdf-controls" class="flex items-center justify-center mt-1 flex-shrink-0 hidden">
-                <button data-action="prev-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-l-lg">◀</button>
-                <span id="page-num" class="bg-gray-800 py-1 px-2 text-sm"></span>/<span id="page-count" class="bg-gray-800 py-1 px-2 text-sm"></span>
-                <button data-action="next-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-r-lg">▶</button>
-                <button data-action="toggle-debug" class="bg-purple-600 hover:bg-purple-500 font-bold py-1 px-2 rounded-lg ml-2 text-xs">DEBUG</button>
-                <button data-action="alternative-file-selection" class="bg-green-600 hover:bg-green-500 font-bold py-1 px-2 rounded-lg ml-1 text-xs">再選択</button>
+                <button id="prev-page-btn" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-l-lg">◀</button>
+                <span id="page-num" class="bg-gray-800 py-1 px-2 text-sm">1</span>/<span id="page-count" class="bg-gray-800 py-1 px-2 text-sm">1</span>
+                <button id="next-page-btn" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-r-lg">▶</button>
             </div>
         </div>
 
@@ -232,7 +175,7 @@
                 </div>
                 
                 <div class="fullscreen-control-panel">
-                    <button data-action="reset-compare-mode" class="control-btn red">
+                    <button id="reset-compare-btn" class="control-btn red">
                         <span>✖</span>
                         <span>戻る</span>
                     </button>
@@ -240,13 +183,13 @@
                         <div class="text-white text-xs font-bold">ズーム</div>
                         <div id="zoom-level-display" class="text-white text-xs font-bold">1.0x</div>
                         <div class="flex flex-col gap-1">
-                            <button data-action="zoom-in" class="control-btn" style="min-height: 30px; font-size: 14px;">+</button>
-                            <button data-action="zoom-reset" class="control-btn" style="min-height: 25px; font-size: 8px;">1x</button>
-                            <button data-action="zoom-out" class="control-btn" style="min-height: 30px; font-size: 14px;">-</button>
+                            <button id="zoom-in-btn" class="control-btn" style="min-height: 30px; font-size: 14px;">+</button>
+                            <button id="zoom-reset-btn" class="control-btn" style="min-height: 25px; font-size: 8px;">1x</button>
+                            <button id="zoom-out-btn" class="control-btn" style="min-height: 30px; font-size: 14px;">-</button>
                         </div>
                     </div>
                     <div class="flex flex-col gap-3">
-                         <button data-action="ai-assistant" class="control-btn purple">
+                         <button id="ai-assistant-btn" class="control-btn purple">
                             <span>✨</span>
                             <span>AI補助</span>
                         </button>
@@ -255,25 +198,12 @@
                 </div>
                 
                 <div class="absolute bottom-8 left-2/3 -translate-x-1/2 z-51 safe-area-padding">
-                    <button data-action="take-picture" id="capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
+                    <button id="capture-btn" class="w-20 h-20 bg-white border-4 border-gray-300 rounded-full shadow-2xl active:scale-95 transition-transform flex items-center justify-center hover:bg-gray-100">
                         <div class="w-16 h-16 bg-white rounded-full shadow-inner border-2 border-gray-200 pointer-events-none"></div>
                     </button>
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- デバッグ情報（改善版） -->
-    <div id="debug-info" class="hidden">
-        <div class="debug-header">
-            <span>🐛 Debug Log</span>
-            <div class="flex gap-2 ml-auto">
-                <button id="debug-minimize" class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded">最小化</button>
-                <button id="debug-clear" class="text-xs bg-red-600 hover:bg-red-700 px-2 py-1 rounded">クリア</button>
-                <button id="debug-close" class="text-xs bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded">閉じる</button>
-            </div>
-        </div>
-        <div id="debug-content" class="debug-content"></div>
     </div>
 
     <!-- APIキー設定モーダル -->
@@ -283,10 +213,10 @@
             <p class="text-sm text-gray-300 mb-4">AI機能 (Gemini) を使用するにはAPIキーが必要です。キーはブラウザに保存されます。</p>
             <input type="password" id="api-key-input" placeholder="Gemini API Key" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white mb-4">
             <div class="flex gap-2">
-                <button data-action="save-api-key" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">保存</button>
-                <button data-action="clear-api-key" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">クリア</button>
+                <button id="save-api-key-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">保存</button>
+                <button id="clear-api-key-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">クリア</button>
             </div>
-             <button data-action="close-api-modal" class="w-full mt-3 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+             <button id="close-api-modal-btn" class="w-full mt-3 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
                 閉じる
             </button>
         </div>
@@ -298,13 +228,10 @@
             <h2 class="text-2xl font-bold">アルバム</h2>
             <div class="flex items-center gap-3">
                 <span id="album-photo-count" class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full">0枚</span>
-                <button data-action="download-all" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm">
-                    📦 ZIP一括
+                <button id="download-all-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm">
+                    📥 一括ダウンロード
                 </button>
-                <button data-action="download-individually" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm">
-                    📄 個別DL
-                </button>
-                <button data-action="close-album" class="text-3xl font-bold text-white">&times;</button>
+                <button id="close-album-btn" class="text-3xl font-bold text-white">&times;</button>
             </div>
         </div>
         <div id="album-grid" class="flex-grow overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
@@ -333,12 +260,12 @@
                     <h4 class="text-xl font-semibold border-t border-gray-600 pt-4">報告書（案）</h4>
                     <div id="report-content" class="mt-2 p-4 bg-gray-900 rounded-lg min-h-[150px] whitespace-pre-wrap"></div>
                     <div class="text-right mt-2">
-                         <button data-action="copy-report" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">文章をコピー</button>
+                         <button id="copy-report-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">文章をコピー</button>
                     </div>
                 </div>
             </div>
             <div class="mt-6 text-right flex-shrink-0">
-                <button data-action="close-gemini-modal" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg">閉じる</button>
+                <button id="close-gemini-modal-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg">閉じる</button>
             </div>
         </div>
     </div>
@@ -347,138 +274,22 @@
     <canvas id="capture-canvas" class="hidden"></canvas>
 
     <script>
-    // 構造物点検カメラアプリ（モバイル最適化版）
+    // 構造物点検カメラアプリ（シンプル安定版）
     const App = {
-        elements: {},
-        pdfDoc: null, currentPageNum: 1, pageIsRendering: false, pageNumIsPending: null,
-        isCompareMode: false, selectionState: 'idle', p1: { x: 0, y: 0 },
+        pdfDoc: null, 
+        currentPageNum: 1, 
+        pageIsRendering: false, 
+        pageNumIsPending: null,
+        isCompareMode: false, 
+        selectionState: 'idle', 
+        p1: { x: 0, y: 0 },
         targetImageDataUrl: null, 
         sensorData: { latitude: null, longitude: null, heading: null },
-        photoDatabase: [], // {id, fileName, dataUrl, timestamp, gps}
+        photoDatabase: [],
         apiKey: '',
         zoomLevel: 1.0,
         maxZoom: 3.0,
         minZoom: 0.5,
-        debugMode: false,
-        debugMessages: [],
-
-        // デバッグログ機能（改善版）
-        debugLog(message, type = 'info') {
-            const timestamp = new Date().toLocaleTimeString();
-            const logMessage = `[${timestamp}] ${message}`;
-            this.debugMessages.push(logMessage);
-            
-            // 最新50件のみ保持
-            if (this.debugMessages.length > 50) {
-                this.debugMessages = this.debugMessages.slice(-50);
-            }
-            
-            console.log(logMessage);
-            
-            if (this.debugMode && this.elements['debug-content']) {
-                this.elements['debug-content'].innerHTML = this.debugMessages.join('<br>');
-                this.elements['debug-content'].scrollTop = this.elements['debug-content'].scrollHeight;
-            }
-        },
-
-        toggleDebugMode() {
-            this.debugMode = !this.debugMode;
-            const debugElement = this.elements['debug-info'];
-            
-            if (this.debugMode) {
-                debugElement.classList.remove('hidden');
-                debugElement.classList.remove('minimized');
-                this.debugLog('🐛 デバッグモード開始');
-                this.setupDebugControls();
-            } else {
-                debugElement.classList.add('hidden');
-                this.debugLog('🐛 デバッグモード終了');
-            }
-        },
-
-        setupDebugControls() {
-            // 最小化ボタン
-            const minimizeBtn = document.getElementById('debug-minimize');
-            const closeBtn = document.getElementById('debug-close');
-            const clearBtn = document.getElementById('debug-clear');
-            const debugElement = this.elements['debug-info'];
-            
-            if (minimizeBtn) {
-                minimizeBtn.onclick = () => {
-                    debugElement.classList.toggle('minimized');
-                    minimizeBtn.textContent = debugElement.classList.contains('minimized') ? '最大化' : '最小化';
-                    this.debugLog('🔽 デバッグ表示を' + (debugElement.classList.contains('minimized') ? '最小化' : '最大化'));
-                };
-            }
-            
-            // 閉じるボタン
-            if (closeBtn) {
-                closeBtn.onclick = () => {
-                    this.debugMode = false;
-                    debugElement.classList.add('hidden');
-                    this.debugLog('🐛 デバッグモード終了');
-                };
-            }
-            
-            // クリアボタン
-            if (clearBtn) {
-                clearBtn.onclick = () => {
-                    this.debugMessages = [];
-                    this.elements['debug-content'].innerHTML = '';
-                    this.debugLog('🧹 デバッグログをクリア');
-                };
-            }
-        },
-
-        minimizeDebugInfo() {
-            const debugElement = this.elements['debug-info'];
-            if (debugElement && this.debugMode) {
-                debugElement.classList.add('minimized');
-                const minimizeBtn = document.getElementById('debug-minimize');
-                if (minimizeBtn) {
-                    minimizeBtn.textContent = '最大化';
-                }
-                this.debugLog('🔽 デバッグ表示を自動最小化');
-            }
-        },
-
-        // デバイス情報の取得
-        getDeviceInfo() {
-            const info = {
-                userAgent: navigator.userAgent,
-                platform: navigator.platform,
-                isIOS: /iPad|iPhone|iPod/.test(navigator.userAgent),
-                isSafari: /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent),
-                screenSize: `${screen.width}x${screen.height}`,
-                windowSize: `${window.innerWidth}x${window.innerHeight}`,
-                devicePixelRatio: window.devicePixelRatio,
-                isSecureContext: window.isSecureContext,
-                hasTouch: 'ontouchstart' in window,
-                memoryEstimate: navigator.deviceMemory || 'unknown'
-            };
-            
-            this.debugLog(`📱 デバイス情報: iOS=${info.isIOS}, Safari=${info.isSafari}, Touch=${info.hasTouch}, Memory=${info.memoryEstimate}GB`);
-            this.debugLog(`📏 画面サイズ: ${info.screenSize}, ウィンドウ: ${info.windowSize}, DPR: ${info.devicePixelRatio}`);
-            
-            return info;
-        },
-
-        // セキュリティチェック
-        checkSecureContext() {
-            if (!window.isSecureContext) {
-                document.body.innerHTML = `
-                <div class="fixed inset-0 bg-red-900 text-white flex items-center justify-center p-4">
-                    <div class="bg-red-600 p-6 rounded-lg shadow-lg max-w-md text-center">
-                        <div class="text-4xl mb-4">🔒</div>
-                        <h2 class="font-bold text-xl mb-4">セキュリティエラー</h2>
-                        <p class="text-sm">このアプリはカメラ・GPS等の機能を使用するため、<strong>HTTPS接続</strong>が必須です。</p>
-                        <p class="text-xs mt-4 text-red-200">現在のURL: ${location.href}</p>
-                    </div>
-                </div>`;
-                return false;
-            }
-            return true;
-        },
 
         // 汎用通知
         showNotification(message, type = 'info') {
@@ -499,43 +310,40 @@
             notification.innerHTML = `<div class="text-xl">${icon[type]}</div><div class="text-sm">${message}</div>`;
             document.body.appendChild(notification);
             setTimeout(() => notification.remove(), 4000);
-            
-            this.debugLog(`📢 通知: ${message} (${type})`);
         },
 
         // API設定
-        openApiKeyModal() {
-            this.elements['api-key-input'].value = this.apiKey || '';
-            this.elements['api-key-modal'].classList.remove('hidden');
-        },
-
         loadApiKey() {
             try {
                 const savedKey = localStorage.getItem('geminiApiKey');
                 if (savedKey) {
                     this.apiKey = savedKey;
-                    this.debugLog('🔑 保存されたAPIキーを読み込み');
                     return true;
                 }
             } catch (e) {
-                this.debugLog(`❌ localStorage読み込みエラー: ${e.message}`);
+                console.error("localStorage読み込みエラー:", e);
             }
             return false;
         },
 
+        openApiKeyModal() {
+            document.getElementById('api-key-input').value = this.apiKey || '';
+            document.getElementById('api-key-modal').classList.remove('hidden');
+        },
+
         saveApiKey() {
             try {
-                const key = this.elements['api-key-input'].value.trim();
+                const key = document.getElementById('api-key-input').value.trim();
                 if (key) {
                     this.apiKey = key;
                     localStorage.setItem('geminiApiKey', key);
-                    this.elements['api-key-modal'].classList.add('hidden');
+                    document.getElementById('api-key-modal').classList.add('hidden');
                     this.showNotification('APIキーを保存しました。', 'success');
                 } else {
                     this.showNotification('有効なAPIキーを入力してください。', 'warning');
                 }
             } catch (e) {
-                this.debugLog(`❌ APIキー保存エラー: ${e.message}`);
+                console.error("APIキー保存エラー:", e);
                 this.showNotification('APIキーの保存に失敗しました。', 'error');
             }
         },
@@ -544,117 +352,162 @@
              try {
                 this.apiKey = '';
                 localStorage.removeItem('geminiApiKey');
-                this.elements['api-key-input'].value = '';
+                document.getElementById('api-key-input').value = '';
                 this.showNotification('保存されたAPIキーを削除しました。', 'info');
             } catch (e) {
-                this.debugLog(`❌ APIキー削除エラー: ${e.message}`);
+                console.error("APIキー削除エラー:", e);
                 this.showNotification('APIキーの削除に失敗しました。', 'error');
             }
         },
 
-        // PDF関連（モバイル最適化版）
-        renderPage(num) {
-            this.debugLog(`🖼️ ページ描画開始: ${num}`);
+        // PDF選択（iOS Safari対応版）
+        selectPdf() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.pdf,application/pdf';
+            input.style.position = 'absolute';
+            input.style.left = '-9999px';
+            input.style.opacity = '0';
             
-            if (this.pageIsRendering || !this.pdfDoc) {
-                this.debugLog('❌ 描画条件不適合');
+            input.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    this.processSelectedFile(file);
+                }
+                try {
+                    document.body.removeChild(input);
+                } catch (e) {
+                    // 削除エラーは無視
+                }
+            });
+            
+            document.body.appendChild(input);
+            input.click();
+        },
+
+        // PDF処理
+        processSelectedFile(file) {
+            const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+            if (!isPDF) {
+                this.showNotification('PDFファイルを選択してください。', 'warning');
                 return;
             }
             
-            this.pageIsRendering = true;
-
-            this.pdfDoc.getPage(num).then(page => {
-                this.debugLog('📄 ページオブジェクト取得成功');
-                
-                const container = this.elements['pdf-viewer-wrapper'];
-                const containerWidth = container.clientWidth - 10; // padding考慮
-                
-                this.debugLog(`📏 コンテナ幅: ${containerWidth}px`);
-                
-                // モバイル向けの低解像度描画（メモリ節約）
-                const deviceInfo = this.getDeviceInfo();
-                let baseScale = 0.8; // デフォルトスケール
-                
-                if (deviceInfo.isIOS) {
-                    baseScale = 0.6; // iOSはさらに小さく
-                    this.debugLog('📱 iOS検出: 低解像度モード');
-                }
-                
-                if (deviceInfo.memoryEstimate && deviceInfo.memoryEstimate <= 4) {
-                    baseScale *= 0.8; // 低メモリデバイスはさらに縮小
-                    this.debugLog('💾 低メモリデバイス検出: スケール削減');
-                }
-
-                const viewport = page.getViewport({ scale: 1.0 });
-                const scale = Math.min((containerWidth / viewport.width) * baseScale, 1.5); // 最大1.5倍
-                const scaledViewport = page.getViewport({ scale: scale });
-                
-                this.debugLog(`📐 描画スケール: ${scale.toFixed(2)}, サイズ: ${scaledViewport.width}x${scaledViewport.height}`);
-
-                // 既存のcanvasを削除
-                const existingCanvas = this.elements['pdf-viewer'].querySelector('canvas');
-                if (existingCanvas) {
-                    this.debugLog('🗑️ 既存canvas削除');
-                    existingCanvas.remove();
-                }
-
-                // 新しいcanvasを作成
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
-                
-                if (!context) {
-                    this.debugLog('❌ 2Dコンテキスト取得失敗');
-                    this.pageIsRendering = false;
-                    this.showNotification('Canvas描画エラー', 'error');
+            this.showNotification('PDFファイルを読み込み中...', 'info');
+            
+            if (typeof pdfjsLib === 'undefined') {
+                this.showNotification('PDF.jsライブラリの読み込みに失敗しました。', 'error');
+                return;
+            }
+            
+            // Worker設定
+            try {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+            } catch (workerError) {
+                console.error("Worker設定エラー:", workerError);
+            }
+            
+            const fileReader = new FileReader();
+            
+            fileReader.onload = () => {
+                if (!fileReader.result || fileReader.result.byteLength === 0) {
+                    this.showNotification('ファイルの読み込みに失敗しました。', 'error');
                     return;
                 }
                 
+                try {
+                    const typedarray = new Uint8Array(fileReader.result);
+                    
+                    const loadingTask = pdfjsLib.getDocument({
+                        data: typedarray,
+                        useWorkerFetch: false,
+                        isEvalSupported: false,
+                        useSystemFonts: true
+                    });
+                    
+                    loadingTask.promise.then(pdf => {
+                        this.pdfDoc = pdf;
+                        document.getElementById('page-count').textContent = pdf.numPages;
+                        this.currentPageNum = 1;
+                        this.renderPage(1);
+                        document.getElementById('pdf-controls').classList.remove('hidden');
+                        this.showNotification('PDFが正常に読み込まれました。', 'success');
+                        
+                    }).catch(error => {
+                        console.error("PDF読み込みエラー:", error);
+                        this.showNotification('PDFファイルの読み込みに失敗しました。', 'error');
+                    });
+                    
+                } catch (error) {
+                    console.error("PDF処理エラー:", error);
+                    this.showNotification('PDFファイルの処理中にエラーが発生しました。', 'error');
+                }
+            };
+            
+            fileReader.onerror = () => {
+                this.showNotification('ファイルの読み取りに失敗しました。', 'error');
+            };
+            
+            fileReader.readAsArrayBuffer(file);
+        },
+
+        // PDF描画
+        renderPage(num) {
+            if (this.pageIsRendering || !this.pdfDoc) return;
+            this.pageIsRendering = true;
+
+            this.pdfDoc.getPage(num).then(page => {
+                const container = document.getElementById('pdf-viewer-wrapper');
+                const containerWidth = container.clientWidth - 10;
+                
+                // モバイル向けの低解像度描画
+                let baseScale = 0.8;
+                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                if (isIOS) {
+                    baseScale = 0.6;
+                }
+
+                const viewport = page.getViewport({ scale: 1.0 });
+                const scale = Math.min((containerWidth / viewport.width) * baseScale, 1.5);
+                const scaledViewport = page.getViewport({ scale: scale });
+
+                // 既存のcanvasを削除
+                const existingCanvas = document.getElementById('pdf-viewer').querySelector('canvas');
+                if (existingCanvas) {
+                    existingCanvas.remove();
+                }
+
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
                 canvas.height = scaledViewport.height;
                 canvas.width = scaledViewport.width;
                 
-                this.debugLog(`✅ Canvas作成: ${canvas.width}x${canvas.height}`);
-                
-                // メモリ使用量の概算
-                const memoryMB = (canvas.width * canvas.height * 4) / (1024 * 1024);
-                this.debugLog(`💾 予想メモリ使用量: ${memoryMB.toFixed(1)}MB`);
-                
-                // canvasをDOMに追加
-                this.elements['pdf-viewer'].appendChild(canvas);
+                document.getElementById('pdf-viewer').appendChild(canvas);
 
-                // PDFをcanvasに描画
                 const renderContext = {
                     canvasContext: context,
                     viewport: scaledViewport
                 };
                 
-                this.debugLog('🎨 PDF描画開始...');
-                const renderTask = page.render(renderContext);
-                
-                renderTask.promise.then(() => {
-                    this.debugLog(`🎉 ページ ${num} 描画完了`);
+                page.render(renderContext).promise.then(() => {
                     this.pageIsRendering = false;
-                    
-                    // プレースホルダーを非表示
-                    this.elements['pdf-placeholder'].classList.add('hidden');
+                    document.getElementById('pdf-placeholder').classList.add('hidden');
                     
                     if (this.pageNumIsPending !== null) {
-                        this.debugLog(`📋 待機ページあり: ${this.pageNumIsPending}`);
                         this.renderPage(this.pageNumIsPending);
                         this.pageNumIsPending = null;
                     }
                 }).catch(error => {
-                    this.debugLog(`❌ PDF描画エラー: ${error.message}`);
+                    console.error('PDF描画エラー:', error);
                     this.pageIsRendering = false;
-                    this.showNotification('PDFの描画に失敗しました。', 'error');
                 });
                 
             }).catch(error => {
-                this.debugLog(`❌ ページ取得エラー: ${error.message}`);
+                console.error('PDFページ取得エラー:', error);
                 this.pageIsRendering = false;
-                this.showNotification('PDFページの取得に失敗しました。', 'error');
             });
             
-            this.elements['page-num'].textContent = num;
+            document.getElementById('page-num').textContent = num;
         },
 
         queueRenderPage(num) {
@@ -665,51 +518,44 @@
             }
         },
 
-        // センサー関連
+        // センサー初期化
         async initSensors() {
-            this.debugLog('🧭 センサー初期化開始');
-            
             // GPS
             if ('geolocation' in navigator) {
                 const handleGPS = (position) => {
                     this.sensorData.latitude = position.coords.latitude;
                     this.sensorData.longitude = position.coords.longitude;
                     this.updateSensorStatus('gps', true);
-                    this.debugLog(`📍 GPS取得: ${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`);
                 };
                 const handleGPSError = (error) => {
-                    this.debugLog(`❌ GPSエラー: ${error.message} (code: ${error.code})`);
+                    console.warn(`GPSエラー: ${error.message}`);
                     this.updateSensorStatus('gps', false);
-                    if(error.code === 1) this.showNotification('GPSの許可が必要です。サイト設定をご確認ください。', 'warning');
+                    if(error.code === 1) this.showNotification('GPSの許可が必要です。', 'warning');
                 };
                 navigator.geolocation.watchPosition(handleGPS, handleGPSError, { enableHighAccuracy: true });
             }
 
             // 方位
             const handleOrientation = (event) => {
-                if (event.webkitCompassHeading) { // iOS
+                if (event.webkitCompassHeading) {
                     this.sensorData.heading = event.webkitCompassHeading;
-                } else if (event.absolute && event.alpha !== null) { // Android
+                } else if (event.absolute && event.alpha !== null) {
                     this.sensorData.heading = 360 - event.alpha;
                 }
-                if(this.sensorData.heading !== null) {
-                    this.updateSensorStatus('compass', true);
-                    this.debugLog(`🧭 方位取得: ${this.sensorData.heading.toFixed(1)}°`);
-                }
+                if(this.sensorData.heading !== null) this.updateSensorStatus('compass', true);
             };
 
             if (typeof(DeviceOrientationEvent) !== "undefined" && typeof(DeviceOrientationEvent.requestPermission) === "function") {
-                 try {
+                try {
                     const permission = await DeviceOrientationEvent.requestPermission();
                     if (permission === 'granted') {
                         window.addEventListener('deviceorientation', handleOrientation, true);
-                        this.debugLog('✅ 方位センサー許可取得');
                     } else {
-                         this.updateSensorStatus('compass', false);
-                         this.showNotification('方位センサーの許可が必要です。', 'warning');
+                        this.updateSensorStatus('compass', false);
+                        this.showNotification('方位センサーの許可が必要です。', 'warning');
                     }
                 } catch(e) {
-                    this.debugLog(`❌ 方位センサー許可エラー: ${e.message}`);
+                    console.error("方位センサー許可エラー", e);
                     this.updateSensorStatus('compass', false);
                 }
             } else {
@@ -718,30 +564,30 @@
         },
 
         updateSensorStatus(sensor, isOk) {
-            const dot = this.elements[`${sensor}-status-dot`];
+            const dot = document.getElementById(`${sensor}-status-dot`);
             const className = isOk ? 'bg-green-500' : 'bg-red-500';
             const oldClassName = isOk ? 'bg-red-500' : 'bg-green-500';
             if(dot) dot.classList.replace(oldClassName, className);
         },
 
-        // カメラ関連
+        // カメラ初期化
         async initCamera() {
-            this.debugLog('📷 カメラ初期化開始');
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, 
                     audio: false 
                 });
-                this.elements['camera-stream'].srcObject = stream;
-                this.debugLog('✅ カメラ初期化成功');
+                document.getElementById('camera-stream').srcObject = stream;
+                console.log('カメラ初期化成功');
             } catch (err) {
-                this.debugLog(`❌ カメラアクセスエラー: ${err.message}`);
+                console.error("カメラアクセスエラー:", err);
                 this.showNotification('カメラにアクセスできません。設定を確認してください。', 'error');
             }
         },
 
+        // 写真撮影
         async takePicture() {
-            const video = this.elements['camera-stream'];
+            const video = document.getElementById('camera-stream');
             if (!video || !video.srcObject) {
                 this.showNotification('カメラが準備できていません。', 'error');
                 return;
@@ -751,7 +597,7 @@
             captureBtn.classList.add('ping-animation');
             setTimeout(() => captureBtn.classList.remove('ping-animation'), 500);
 
-            const canvas = this.elements['capture-canvas'];
+            const canvas = document.getElementById('capture-canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             const context = canvas.getContext('2d');
@@ -764,364 +610,13 @@
 
             const imageDataUrl = canvas.toDataURL('image/jpeg', 0.9);
             this.addPhotoToDatabase(imageDataUrl);
-            this.debugLog(`📸 写真撮影: ${this.photoDatabase.length}枚目`);
         },
 
         // ズーム機能
         updateZoom(level) {
             this.zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, level));
-            this.elements['camera-stream'].style.transform = `scale(${this.zoomLevel})`;
-            this.elements['zoom-level-display'].textContent = `${this.zoomLevel.toFixed(1)}x`;
-        },
-
-        // フォールバック：ファイル情報のみ表示
-        showFileInfoOnly(file) {
-            this.debugLog('📋 フォールバックモード：ファイル情報表示');
-            
-            // プレースホルダーを置き換え
-            this.elements['pdf-placeholder'].innerHTML = `
-                <div class="text-center p-4">
-                    <div class="text-4xl mb-4">📄</div>
-                    <h3 class="text-lg font-bold mb-2">ファイル情報</h3>
-                    <div class="text-sm text-gray-300">
-                        <p><strong>名前:</strong> ${file.name}</p>
-                        <p><strong>サイズ:</strong> ${(file.size/1024/1024).toFixed(2)} MB</p>
-                        <p><strong>タイプ:</strong> ${file.type}</p>
-                        <p class="mt-4 text-yellow-400">
-                            PDFの表示に失敗しましたが、<br>
-                            ファイルは正常に選択されています。
-                        </p>
-                        <button onclick="location.reload()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">
-                            ページを再読み込み
-                        </button>
-                    </div>
-                </div>
-            `;
-            this.elements['pdf-placeholder'].classList.remove('hidden');
-            
-            // コントロールを表示（ダミーとして）
-            this.elements['pdf-controls'].classList.remove('hidden');
-            this.elements['page-num'].textContent = '?';
-            this.elements['page-count'].textContent = '?';
-            
-            this.showNotification('ファイルは選択されましたが、PDFの表示に失敗しました。', 'warning');
-        },
-
-        // PDF選択（iOS Safari対応版）
-        selectPdf() {
-            this.debugLog('📁 PDF選択開始（iOS Safari対応版）');
-            
-            // デバイス情報を取得
-            const deviceInfo = this.getDeviceInfo();
-            this.debugLog(`📱 デバイス: iOS=${deviceInfo.isIOS}, Safari=${deviceInfo.isSafari}`);
-            
-            // より互換性の高いファイル選択を作成
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.pdf,application/pdf';
-            input.style.position = 'absolute';
-            input.style.left = '-9999px';
-            input.style.top = '-9999px';
-            input.style.opacity = '0';
-            input.style.pointerEvents = 'none';
-            
-            // イベントハンドラー設定
-            input.addEventListener('change', (e) => {
-                this.debugLog('🔥 代替PDF選択: changeイベント発火');
-                
-                if (e.target.files && e.target.files.length > 0) {
-                    const file = e.target.files[0];
-                    this.debugLog(`📄 ファイル取得成功: ${file.name}`);
-                    this.processSelectedFile(file);
-                } else {
-                    this.debugLog('❌ ファイルが選択されませんでした');
-                    this.showNotification('ファイルが選択されませんでした。', 'info');
-                }
-                
-                // 要素を削除
-                try {
-                    document.body.removeChild(input);
-                    this.debugLog('✅ 一時input要素を削除');
-                } catch (e) {
-                    this.debugLog('⚠️ input要素削除でエラー:', e.message);
-                }
-            });
-            
-            // エラーハンドラー
-            input.addEventListener('error', (e) => {
-                this.debugLog('❌ input要素エラー:', e);
-                this.showNotification('ファイル選択でエラーが発生しました。', 'error');
-            });
-            
-            // キャンセルハンドラー（iOS Safari用）
-            input.addEventListener('cancel', () => {
-                this.debugLog('🚫 ファイル選択がキャンセルされました');
-                try {
-                    document.body.removeChild(input);
-                } catch (e) {
-                    // 既に削除済みの場合があるため、エラーは無視
-                }
-            });
-            
-            // DOMに追加
-            document.body.appendChild(input);
-            this.debugLog('✅ 一時input要素をDOM追加');
-            
-            // ファイル選択ダイアログを開く
-            try {
-                input.click();
-                this.debugLog('✅ ファイル選択ダイアログ表示');
-                this.showNotification('ファイル選択ダイアログを開いています...', 'info');
-            } catch (error) {
-                this.debugLog(`❌ ファイル選択ダイアログ表示エラー: ${error.message}`);
-                this.showNotification('ファイル選択ダイアログの表示に失敗しました。', 'error');
-                
-                // エラー時は要素を削除
-                try {
-                    document.body.removeChild(input);
-                } catch (e) {
-                    // 削除エラーは無視
-                }
-            }
-            
-            // タイムアウト設定（30秒後に自動削除）
-            setTimeout(() => {
-                try {
-                    if (document.body.contains(input)) {
-                        document.body.removeChild(input);
-                        this.debugLog('⏰ タイムアウトによりinput要素を削除');
-                    }
-                } catch (e) {
-                    // 削除エラーは無視
-                }
-            }, 30000);
-        },
-
-        // ファイル処理の分離
-        processSelectedFile(file) {
-            this.debugLog('🔄 ファイル処理開始');
-            
-            // デバッグモードが有効な場合のみログ出力を詳細化
-            if (this.debugMode) {
-                this.debugLog(`📄 処理対象ファイル:`);
-                this.debugLog(`  名前: ${file.name}`);
-                this.debugLog(`  サイズ: ${(file.size/1024/1024).toFixed(2)}MB`);
-                this.debugLog(`  タイプ: ${file.type}`);
-                this.debugLog(`  最終更新: ${file.lastModified ? new Date(file.lastModified).toLocaleString() : '不明'}`);
-            } else {
-                this.debugLog(`📄 PDF処理開始: ${file.name} (${(file.size/1024/1024).toFixed(1)}MB)`);
-            }
-            
-            // ここから既存のPDF処理ロジックを実行
-            // ファイルタイプチェック（より柔軟に）
-            const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-            if (!isPDF) {
-                this.debugLog(`❌ 非PDFファイル: ${file.type}`);
-                this.showNotification('PDFファイルを選択してください。', 'warning');
-                return;
-            }
-            
-            this.debugLog('✅ PDFファイル確認済み');
-            this.showNotification('PDFファイルを読み込み中...', 'info');
-            
-            // PDF.jsライブラリの詳細チェック
-            if (this.debugMode) {
-                this.debugLog(`📚 PDF.jsライブラリチェック:`);
-                this.debugLog(`  pdfjsLib存在: ${typeof pdfjsLib !== 'undefined'}`);
-                this.debugLog(`  window.pdfjsLib存在: ${typeof window.pdfjsLib !== 'undefined'}`);
-            }
-            
-            if (typeof pdfjsLib === 'undefined') {
-                this.debugLog('❌ PDF.jsライブラリ未読み込み');
-                this.showNotification('PDF.jsライブラリの読み込みに失敗しました。', 'error');
-                
-                // フォールバック：ファイル情報のみ表示
-                this.debugLog('🔄 フォールバックモード：ファイル情報表示のみ');
-                this.showFileInfoOnly(file);
-                return;
-            }
-            
-            if (this.debugMode) {
-                this.debugLog(`  version: ${pdfjsLib.version || '不明'}`);
-                this.debugLog(`  getDocument存在: ${typeof pdfjsLib.getDocument === 'function'}`);
-            }
-            
-            // Worker設定
-            try {
-                const workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-                pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
-                if (this.debugMode) {
-                    this.debugLog(`✅ Worker設定: ${workerSrc}`);
-                }
-            } catch (workerError) {
-                this.debugLog(`❌ Worker設定エラー: ${workerError.message}`);
-            }
-            
-            // FileReader作成
-            const fileReader = new FileReader();
-            this.debugLog('📖 FileReader作成完了');
-            
-            // FileReaderのイベントハンドラを設定
-            this.setupFileReaderHandlers(fileReader, file);
-            
-            // FileReader開始
-            try {
-                this.debugLog('📖 ArrayBuffer読み込み開始');
-                fileReader.readAsArrayBuffer(file);
-            } catch (readerError) {
-                this.debugLog(`❌ FileReader.readAsArrayBuffer エラー: ${readerError.message}`);
-                this.showNotification('ファイル読み込みの開始に失敗しました。', 'error');
-            }
-        },
-
-        // FileReaderハンドラの設定
-        setupFileReaderHandlers(fileReader, file) {
-            // エラーハンドラを先に設定
-            fileReader.onerror = (error) => {
-                this.debugLog(`❌ FileReader エラー:`, error);
-                this.debugLog(`  FileReader.error:`, fileReader.error);
-                this.debugLog(`  FileReader.readyState:`, fileReader.readyState);
-                this.showNotification('ファイルの読み取りに失敗しました。', 'error');
-            };
-            
-            fileReader.onabort = () => {
-                this.debugLog('⚠️ FileReader読み込み中断');
-            };
-            
-            fileReader.onloadstart = () => {
-                this.debugLog('📖 FileReader読み込み開始');
-            };
-            
-            fileReader.onprogress = (e) => {
-                if (e.lengthComputable) {
-                    const percent = Math.round((e.loaded / e.total) * 100);
-                    this.debugLog(`📊 FileReader進行: ${percent}% (${e.loaded}/${e.total})`);
-                }
-            };
-            
-            fileReader.onload = () => {
-                this.debugLog('📖 FileReader onload 発火');
-                this.debugLog(`  readyState: ${fileReader.readyState}`);
-                this.debugLog(`  result存在: ${!!fileReader.result}`);
-                this.debugLog(`  result type: ${typeof fileReader.result}`);
-                
-                if (!fileReader.result) {
-                    this.debugLog('❌ 読み込み結果がnull');
-                    this.showNotification('ファイルの読み込み結果が空です。', 'error');
-                    return;
-                }
-                
-                const byteLength = fileReader.result.byteLength || 0;
-                this.debugLog(`  result byteLength: ${byteLength}`);
-                
-                if (byteLength === 0) {
-                    this.debugLog('❌ 読み込み結果のサイズが0');
-                    this.showNotification('ファイルの読み込みに失敗しました。', 'error');
-                    return;
-                }
-                
-                try {
-                    this.debugLog('🔄 TypedArray作成開始');
-                    const typedarray = new Uint8Array(fileReader.result);
-                    this.debugLog(`✅ TypedArray作成完了: ${typedarray.length} bytes`);
-                    
-                    // PDF.jsでの処理を試行
-                    this.processPdfWithPdfJs(typedarray, file);
-                    
-                } catch (error) {
-                    this.debugLog(`❌ PDF処理での例外:`);
-                    this.debugLog(`  name: ${error.name}`);
-                    this.debugLog(`  message: ${error.message}`);
-                    this.debugLog(`  stack:`, error.stack);
-                    this.showNotification('PDFファイルの処理中にエラーが発生しました。', 'error');
-                    
-                    // フォールバック：ファイル情報のみ表示
-                    this.showFileInfoOnly(file);
-                }
-            };
-        },
-
-        // PDF.js処理の分離
-        processPdfWithPdfJs(typedarray, file) {
-            this.debugLog('📋 PDF.js処理開始');
-            
-            // タイムアウト設定付きでPDF読み込み
-            const timeoutId = setTimeout(() => {
-                this.debugLog('⏰ PDF読み込みタイムアウト (10秒)');
-                this.showNotification('PDF読み込みがタイムアウトしました。', 'error');
-            }, 10000);
-            
-            // モバイル向け設定
-            const pdfConfig = {
-                data: typedarray,
-                useWorkerFetch: false,
-                isEvalSupported: false,
-                useSystemFonts: true,
-                cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/cmaps/',
-                cMapPacked: true
-            };
-            
-            this.debugLog('📐 PDF読み込み設定:', JSON.stringify(pdfConfig, null, 2));
-            
-            const loadingTask = pdfjsLib.getDocument(pdfConfig);
-            this.debugLog('✅ LoadingTask作成完了');
-            
-            // 進行状況監視
-            loadingTask.onProgress = (progress) => {
-                if (progress.total > 0) {
-                    const percent = Math.round((progress.loaded / progress.total) * 100);
-                    this.debugLog(`📊 PDF読み込み進行: ${percent}%`);
-                }
-            };
-            
-            loadingTask.promise.then(pdf => {
-                clearTimeout(timeoutId);
-                this.debugLog(`🎉 PDF読み込み成功!`);
-                this.debugLog(`  ページ数: ${pdf.numPages}`);
-                if (this.debugMode) {
-                    this.debugLog(`  PDF info:`, pdf._pdfInfo);
-                }
-                
-                this.pdfDoc = pdf;
-                this.elements['page-count'].textContent = pdf.numPages;
-                this.currentPageNum = 1;
-                
-                this.debugLog('🖼️ 最初のページ描画開始');
-                this.renderPage(1);
-                this.elements['pdf-controls'].classList.remove('hidden');
-                this.showNotification('PDFが正常に読み込まれました。', 'success');
-                
-                // PDF読み込み成功時にデバッグ表示を最小化
-                if (this.debugMode) {
-                    setTimeout(() => {
-                        this.minimizeDebugInfo();
-                    }, 2000); // 2秒後に最小化
-                }
-                
-            }).catch(error => {
-                clearTimeout(timeoutId);
-                this.debugLog(`❌ PDF読み込みエラー:`);
-                this.debugLog(`  name: ${error.name}`);
-                this.debugLog(`  message: ${error.message}`);
-                this.debugLog(`  stack:`, error.stack);
-                
-                let userMessage = 'PDFファイルの読み込みに失敗しました。';
-                if (error.name === 'InvalidPDFException') {
-                    userMessage += ' ファイルが破損しているか、有効なPDFではありません。';
-                } else if (error.name === 'MissingPDFException') {
-                    userMessage += ' PDFデータが見つかりません。';
-                } else if (error.message.includes('memory') || error.message.includes('Memory')) {
-                    userMessage += ' メモリ不足です。より小さなPDFファイルをお試しください。';
-                } else if (error.message.includes('Worker')) {
-                    userMessage += ' PDF.js Workerでエラーが発生しました。';
-                }
-                
-                this.showNotification(userMessage, 'error');
-                
-                // フォールバック：ファイル情報のみ表示
-                this.debugLog('🔄 フォールバック：ファイル情報表示');
-                this.showFileInfoOnly(file);
-            });
+            document.getElementById('camera-stream').style.transform = `scale(${this.zoomLevel})`;
+            document.getElementById('zoom-level-display').textContent = `${this.zoomLevel.toFixed(1)}x`;
         },
 
         // 写真管理
@@ -1140,7 +635,7 @@
         },
 
         updateAlbum(photoData) {
-            this.elements['album-placeholder'].classList.add('hidden');
+            document.getElementById('album-placeholder').classList.add('hidden');
             const albumItem = document.createElement('div');
             albumItem.className = 'relative w-full aspect-4/3 group cursor-pointer bg-gray-800 rounded-lg overflow-hidden';
             albumItem.dataset.photoId = photoData.id;
@@ -1150,17 +645,17 @@
                     <div>${photoData.id.toString().padStart(4, '0')}</div>
                 </div>
                 <div class="absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity p-2 gap-2">
-                    <button data-action="ai-analyze" class="text-white bg-purple-600 hover:bg-purple-700 font-bold py-2 px-3 rounded-lg text-xs w-full">✨ AI分析</button>
-                    <button data-action="download-single" class="text-white bg-blue-600 hover:bg-blue-700 font-bold py-2 px-3 rounded-lg text-xs w-full">📥 ダウンロード</button>
+                    <button onclick="App.analyzeImageWithGemini(${photoData.id})" class="text-white bg-purple-600 hover:bg-purple-700 font-bold py-2 px-3 rounded-lg text-xs w-full">✨ AI分析</button>
+                    <button onclick="App.downloadSinglePhoto(${photoData.id})" class="text-white bg-blue-600 hover:bg-blue-700 font-bold py-2 px-3 rounded-lg text-xs w-full">📥 ダウンロード</button>
                 </div>
             `;
-            this.elements['album-grid'].appendChild(albumItem);
+            document.getElementById('album-grid').appendChild(albumItem);
         },
 
         updatePhotoCounts() {
             const count = this.photoDatabase.length;
-            this.elements['photo-count'].textContent = `${count}枚`;
-            this.elements['album-photo-count'].textContent = `${count}枚`;
+            document.getElementById('photo-count').textContent = `${count}枚`;
+            document.getElementById('album-photo-count').textContent = `${count}枚`;
         },
 
         // ダウンロード機能
@@ -1181,275 +676,69 @@
                 this.showNotification('ダウンロードする写真がありません。', 'warning');
                 return;
             }
-            
             if (typeof JSZip === 'undefined') {
-                this.showNotification('ZIP機能の読み込みに失敗しました。ページを再読み込みしてください。', 'error');
+                this.showNotification('ZIP機能の読み込みに失敗しました。', 'error');
                 return;
             }
             
-            this.debugLog(`📦 一括ダウンロード開始: ${this.photoDatabase.length}枚`);
-            
-            const progressContainer = this.elements['download-progress'];
-            const progressBar = this.elements['download-progress-bar'];
-            const progressCounter = this.elements['download-counter'];
-            const progressMessage = this.elements['download-message'];
+            const progressContainer = document.getElementById('download-progress');
+            const progressBar = document.getElementById('download-progress-bar');
+            const progressCounter = document.getElementById('download-counter');
+            const progressMessage = document.getElementById('download-message');
 
-            // プログレス表示を開始
             progressContainer.classList.remove('hidden');
-            progressBar.style.width = '0%';
-            progressMessage.textContent = 'ダウンロード準備中...';
-            progressCounter.textContent = `0/${this.photoDatabase.length}`;
             
             try {
                 const zip = new JSZip();
                 const total = this.photoDatabase.length;
-                this.debugLog(`📁 ZIP作成開始`);
 
-                // 写真をZIPに追加
                 for (let i = 0; i < total; i++) {
                     const photo = this.photoDatabase[i];
-                    const percentage = Math.round(((i + 1) / total) * 80); // 80%まで写真処理
+                    const percentage = Math.round(((i + 1) / total) * 100);
                     
-                    progressMessage.textContent = `写真を追加中: ${photo.fileName}`;
+                    progressMessage.textContent = `処理中: ${photo.fileName}`;
                     progressCounter.textContent = `${i + 1}/${total}`;
                     progressBar.style.width = `${percentage}%`;
 
-                    try {
-                        // Base64データを取得
-                        const base64Data = photo.dataUrl.split(',')[1];
-                        if (!base64Data) {
-                            this.debugLog(`⚠️ Base64データが無効: ${photo.fileName}`);
-                            continue;
-                        }
-                        
-                        // ZIPに追加
-                        zip.file(photo.fileName, base64Data, { base64: true });
-                        this.debugLog(`✅ ZIP追加: ${photo.fileName}`);
-                        
-                    } catch (photoError) {
-                        this.debugLog(`❌ 写真処理エラー: ${photo.fileName} - ${photoError.message}`);
-                        this.showNotification(`写真処理エラー: ${photo.fileName}`, 'warning');
-                    }
+                    const base64Data = photo.dataUrl.split(',')[1];
+                    zip.file(photo.fileName, base64Data, { base64: true });
                     
-                    // UIを更新するための小休憩
-                    if (i % 3 === 0) {
+                    if (i % 5 === 0) {
                         await new Promise(resolve => setTimeout(resolve, 10));
                     }
                 }
 
-                // 情報ファイルを追加
-                progressMessage.textContent = '撮影情報ファイルを作成中...';
-                progressBar.style.width = '85%';
-                
-                try {
-                    const infoText = this.createInfoText();
-                    zip.file('撮影情報.txt', infoText);
-                    this.debugLog('✅ 撮影情報.txt追加完了');
-                } catch (infoError) {
-                    this.debugLog(`❌ 情報ファイル作成エラー: ${infoError.message}`);
-                }
+                progressMessage.textContent = '情報ファイルを作成中...';
+                zip.file('撮影情報.txt', this.createInfoText());
 
-                // ZIPファイルを生成
                 progressMessage.textContent = 'ZIPファイルを生成中...';
-                progressBar.style.width = '90%';
+                const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
                 
-                this.debugLog('🔄 ZIP生成開始');
-                const zipBlob = await zip.generateAsync({ 
-                    type: 'blob', 
-                    compression: 'DEFLATE', 
-                    compressionOptions: { level: 6 }, // 圧縮レベルを適度に設定
-                    streamFiles: true // 大きなファイル対応
-                });
-                
-                this.debugLog(`✅ ZIP生成完了: ${(zipBlob.size / 1024 / 1024).toFixed(2)}MB`);
-
-                // ZIPファイルを検証
-                progressMessage.textContent = 'ZIPファイルを検証中...';
-                progressBar.style.width = '92%';
-                
-                const validation = await this.validateZipFile(zipBlob);
-                if (!validation.valid) {
-                    throw new Error(`ZIPファイル検証失敗: ${validation.error}`);
-                }
-                
-                this.debugLog(`✅ ZIP検証成功: ${validation.fileCount}個のファイルを確認`);
-
-                // ファイル名を生成
                 const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '');
                 const zipFileName = `InspectionPhotos_${timestamp}.zip`;
 
-                // ダウンロード開始
-                progressMessage.textContent = 'ダウンロード開始中...';
-                progressBar.style.width = '95%';
-
-                try {
-                    // ダウンロード用のリンクを作成
-                    const downloadUrl = URL.createObjectURL(zipBlob);
-                    const a = document.createElement('a');
-                    a.href = downloadUrl;
-                    a.download = zipFileName;
-                    a.style.display = 'none';
-                    
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    
-                    // URLを解放（メモリリーク防止）
-                    setTimeout(() => {
-                        URL.revokeObjectURL(downloadUrl);
-                        this.debugLog('🗑️ ダウンロードURL解放');
-                    }, 1000);
-                    
-                    this.debugLog(`✅ ダウンロード開始: ${zipFileName}`);
-                    
-                    // 完了表示
-                    progressMessage.textContent = 'ダウンロード完了！';
-                    progressBar.style.width = '100%';
-                    progressCounter.textContent = `${total}/${total}`;
-                    
-                    // 成功通知
-                    this.showNotification(`✅ ${total}枚の写真をZIPファイルでダウンロード完了！`, 'success');
-                    
-                    // ダウンロード情報をログに記録
-                    this.debugLog(`🎉 ダウンロード完了統計:`);
-                    this.debugLog(`  ファイル名: ${zipFileName}`);
-                    this.debugLog(`  写真枚数: ${total}枚`);
-                    this.debugLog(`  ZIPサイズ: ${(zipBlob.size / 1024 / 1024).toFixed(2)}MB`);
-                    this.debugLog(`  完了時刻: ${new Date().toLocaleString()}`);
-
-                } catch (downloadError) {
-                    throw new Error(`ダウンロード処理エラー: ${downloadError.message}`);
-                }
-
-            } catch (error) {
-                this.debugLog(`❌ 一括ダウンロードエラー: ${error.message}`);
-                this.debugLog(`  エラー詳細:`, error);
-                
-                // エラー表示
-                progressMessage.textContent = 'ダウンロードでエラーが発生しました';
-                progressBar.style.width = '0%';
-                
-                this.showNotification('一括ダウンロード中にエラーが発生しました。', 'error');
-                
-                // デバッグモードでない場合は自動で開始
-                if (!this.debugMode) {
-                    this.showNotification('詳細なエラー情報はDEBUGボタンで確認できます。', 'info');
-                }
-                
-            } finally {
-                // 5秒後にプログレス表示を隠す
-                setTimeout(() => {
-                    progressContainer.classList.add('hidden');
-                    progressBar.style.width = '0%';
-                    progressMessage.textContent = '';
-                    progressCounter.textContent = '';
-                }, 5000);
-            }
-        },
-
-        // ZIPファイルの検証
-        async validateZipFile(zipBlob) {
-            try {
-                this.debugLog('🔍 ZIPファイル検証開始');
-                
-                // ZIPファイルを再度読み込んで検証
-                const testZip = new JSZip();
-                const zipData = await testZip.loadAsync(zipBlob);
-                
-                const fileNames = Object.keys(zipData.files);
-                this.debugLog(`📋 ZIP内ファイル数: ${fileNames.length}`);
-                
-                let validFiles = 0;
-                for (const fileName of fileNames) {
-                    const file = zipData.files[fileName];
-                    if (!file.dir) { // ディレクトリではない場合
-                        validFiles++;
-                        this.debugLog(`✅ 検証OK: ${fileName}`);
-                    }
-                }
-                
-                this.debugLog(`✅ ZIP検証完了: ${validFiles}個のファイルが有効`);
-                return { valid: true, fileCount: validFiles };
-                
-            } catch (error) {
-                this.debugLog(`❌ ZIP検証エラー: ${error.message}`);
-                return { valid: false, error: error.message };
-            }
-        },
-
-        // 個別ダウンロード（代替方法）
-        async downloadPhotosIndividually() {
-            if (this.photoDatabase.length === 0) {
-                this.showNotification('ダウンロードする写真がありません。', 'warning');
-                return;
-            }
-            
-            this.debugLog(`📦 個別ダウンロード開始: ${this.photoDatabase.length}枚`);
-            
-            const confirmed = confirm(`${this.photoDatabase.length}枚の写真を個別にダウンロードします。続行しますか？\n\n※写真が多い場合は時間がかかります。`);
-            if (!confirmed) {
-                this.debugLog('❌ 個別ダウンロードがキャンセルされました');
-                return;
-            }
-            
-            let successCount = 0;
-            let errorCount = 0;
-            
-            for (let i = 0; i < this.photoDatabase.length; i++) {
-                const photo = this.photoDatabase[i];
-                
-                try {
-                    // 進行状況を表示
-                    this.showNotification(`ダウンロード中: ${i + 1}/${this.photoDatabase.length} - ${photo.fileName}`, 'info');
-                    
-                    const a = document.createElement('a');
-                    a.href = photo.dataUrl;
-                    a.download = photo.fileName;
-                    a.style.display = 'none';
-                    
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    
-                    successCount++;
-                    this.debugLog(`✅ 個別ダウンロード成功: ${photo.fileName}`);
-                    
-                    // ダウンロード間隔を空ける（ブラウザ制限対策）
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
-                } catch (error) {
-                    errorCount++;
-                    this.debugLog(`❌ 個別ダウンロードエラー: ${photo.fileName} - ${error.message}`);
-                }
-            }
-            
-            // 情報ファイルもダウンロード
-            try {
-                const infoText = this.createInfoText();
-                const infoBlob = new Blob([infoText], { type: 'text/plain' });
-                const infoUrl = URL.createObjectURL(infoBlob);
-                
                 const a = document.createElement('a');
-                a.href = infoUrl;
-                a.download = '撮影情報.txt';
-                a.style.display = 'none';
-                
+                a.href = URL.createObjectURL(zipBlob);
+                a.download = zipFileName;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                
-                URL.revokeObjectURL(infoUrl);
-                this.debugLog('✅ 撮影情報.txt ダウンロード完了');
-                
-            } catch (infoError) {
-                this.debugLog(`❌ 撮影情報.txt ダウンロードエラー: ${infoError.message}`);
+                URL.revokeObjectURL(a.href);
+
+                this.showNotification('✅ ZIPファイルのダウンロードが完了しました！', 'success');
+
+            } catch (error) {
+                console.error('一括ダウンロードエラー:', error);
+                this.showNotification('一括ダウンロード中にエラーが発生しました。', 'error');
+            } finally {
+                setTimeout(() => {
+                    progressContainer.classList.add('hidden');
+                    progressBar.style.width = '0%';
+                }, 3000);
             }
-            
-            // 結果報告
-            const resultMessage = `個別ダウンロード完了\n成功: ${successCount}枚\n失敗: ${errorCount}枚`;
-            this.showNotification(resultMessage, errorCount > 0 ? 'warning' : 'success');
-            this.debugLog(`🎉 個別ダウンロード完了: 成功${successCount}枚, 失敗${errorCount}枚`);
         },
+
+        createInfoText() {
             let info = `構造物点検写真一覧\n`;
             info += `生成日時: ${new Date().toLocaleString('ja-JP')}\n`;
             info += `写真枚数: ${this.photoDatabase.length}枚\n\n`;
@@ -1463,7 +752,93 @@
             return info;
         },
 
-        // AI関連
+        // 比較撮影モード
+        toggleCompareMode() {
+            if (!this.pdfDoc) {
+                this.showNotification('先にPDFを選択してください。', 'warning');
+                return;
+            }
+            this.isCompareMode = true;
+            this.selectionState = 'waiting_for_p1';
+            const btn = document.getElementById('toggle-compare-btn');
+            btn.textContent = '🖼️ 終了';
+            btn.classList.replace('bg-teal-600', 'bg-red-600');
+            document.getElementById('pdf-viewer').style.cursor = 'crosshair';
+            this.showInstruction('比較範囲の左上をタップ');
+        },
+
+        resetCompareMode() {
+            this.isCompareMode = false;
+            this.selectionState = 'idle';
+            const btn = document.getElementById('toggle-compare-btn');
+            btn.textContent = '🖼️ 比較撮影開始';
+            btn.classList.replace('bg-red-600', 'bg-teal-600');
+            document.getElementById('pdf-viewer').style.cursor = 'default';
+            document.getElementById('selection-marker').classList.add('hidden');
+            document.getElementById('selection-instruction').classList.add('hidden');
+            this.showMainView();
+        },
+
+        handlePdfTap(event) {
+            if (!this.isCompareMode || this.selectionState === 'completed') return;
+            event.preventDefault();
+            const rect = document.getElementById('pdf-viewer').getBoundingClientRect();
+            const x = (event.touches ? event.touches[0].clientX : event.clientX) - rect.left;
+            const y = (event.touches ? event.touches[0].clientY : event.clientY) - rect.top;
+
+            if (this.selectionState === 'waiting_for_p1') {
+                this.p1 = { x, y };
+                document.getElementById('selection-marker').style.left = `${x}px`;
+                document.getElementById('selection-marker').style.top = `${y}px`;
+                document.getElementById('selection-marker').classList.remove('hidden');
+                this.showInstruction('右下をタップしてください');
+                this.selectionState = 'waiting_for_p2';
+            } else if (this.selectionState === 'waiting_for_p2') {
+                const p2 = { x, y };
+                const selRect = { 
+                    x: Math.min(this.p1.x, p2.x), 
+                    y: Math.min(this.p1.y, p2.y), 
+                    width: Math.abs(this.p1.x - p2.x), 
+                    height: Math.abs(this.p1.y - p2.y) 
+                };
+                if (selRect.width < 10 || selRect.height < 10) { this.resetCompareMode(); return; }
+                this.cropAndSetTarget(selRect);
+            }
+        },
+
+        showInstruction(text) {
+            const el = document.getElementById('selection-instruction');
+            el.textContent = text;
+            el.classList.remove('hidden');
+        },
+
+        cropAndSetTarget(rect) {
+            const pdfCanvas = document.getElementById('pdf-viewer').querySelector('canvas');
+            if (!pdfCanvas) return;
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = rect.width; tempCanvas.height = rect.height;
+            tempCanvas.getContext('2d').drawImage(pdfCanvas, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height);
+            this.targetImageDataUrl = tempCanvas.toDataURL('image/png');
+            
+            document.getElementById('target-image').src = this.targetImageDataUrl;
+            document.getElementById('target-image-wrapper').classList.remove('hidden');
+            this.selectionState = 'completed';
+            document.getElementById('selection-marker').classList.add('hidden');
+            document.getElementById('selection-instruction').classList.add('hidden');
+            this.showCameraView();
+        },
+
+        showMainView() {
+            document.getElementById('main-view').classList.remove('hidden');
+            document.getElementById('camera-view').classList.add('hidden');
+        },
+        
+        showCameraView() {
+            document.getElementById('main-view').classList.add('hidden');
+            document.getElementById('camera-view').classList.remove('hidden');
+        },
+
+        // AI関連（簡素化）
         async callGeminiApi(prompt, imageDataUrl = null) {
             if (!this.apiKey) {
                 this.openApiKeyModal();
@@ -1483,13 +858,7 @@
             });
             
             if (!response.ok) {
-                const errorBody = await response.json();
-                const errorMessage = errorBody.error?.message || response.statusText;
-                if (errorMessage.includes('API_KEY_INVALID')) {
-                    this.clearApiKey();
-                    throw new Error('APIキーが無効です。キーを削除しました。');
-                }
-                throw new Error(`APIエラー: ${errorMessage}`);
+                throw new Error(`APIエラー: ${response.statusText}`);
             }
             
             const result = await response.json();
@@ -1504,281 +873,90 @@
                 this.openGeminiModal('✨ AIによる損傷分析', `<div class="flex justify-center items-center py-8"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>`);
                 const prompt = "あなたは土木技術者です。この構造物点検写真から、コンクリートのひび割れ、剥離、鉄筋露出、漏水、錆などの損傷の可能性を分析し、発見事項を箇条書きで簡潔に説明してください。損傷が見られない場合は「特筆すべき損傷は見当たりません。」と回答してください。日本語で回答してください。";
                 const analysisText = await this.callGeminiApi(prompt, photoData.dataUrl);
-                const contentHtml = `<h4 class="text-xl font-semibold">分析結果</h4><div class="mt-2 p-4 bg-gray-900 rounded-lg">${analysisText.replace(/\n/g, '<br>')}</div>
-                    <button data-action="generate-report" class="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">📄 報告書(案)を作成</button>`;
-                this.elements['gemini-modal-content'].innerHTML = contentHtml;
-            } catch (error) { this.handleGeminiError(error); }
-        },
-
-        async generateReportFromAnalysis(analysisText) {
-            this.elements['report-generation-area'].classList.remove('hidden');
-            this.elements['report-content'].innerHTML = `<p>報告書を作成中...</p>`;
-            try {
-                const prompt = `あなたは土木技術の専門家です。以下の写真分析結果に基づき、所見、評価、推奨される次のステップを含む、専門的な点検報告書の文章を作成してください。\n\n### 分析結果\n${analysisText}\n\n### 報告書（案）\n`;
-                const reportText = await this.callGeminiApi(prompt);
-                this.elements['report-content'].textContent = reportText;
-            } catch (error) { this.handleGeminiError(error, 'report-content'); }
-        },
-        
-        async getAiShootingAssistant() {
-            if (!this.targetImageDataUrl) {
-                this.showNotification('比較画像が選択されていません。', 'warning');
-                return;
+                document.getElementById('gemini-modal-content').innerHTML = `<h4 class="text-xl font-semibold">分析結果</h4><div class="mt-2 p-4 bg-gray-900 rounded-lg">${analysisText.replace(/\n/g, '<br>')}</div>`;
+            } catch (error) {
+                console.error("Gemini Error:", error);
+                document.getElementById('gemini-modal-content').innerHTML = `<p class="text-red-400">エラーが発生しました：${error.message}</p>`;
             }
-            try {
-                this.openGeminiModal('✨ AI撮影アシスタント', `<div class="flex justify-center items-center py-8"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>`);
-                const prompt = `あなたは経験豊富な土木技術者です。この写真は過去の点検で撮影されたものです。\n1. この写真に写っている構造物や部材が何か、専門用語を使いつつ簡潔に説明してください。\n2. 新人技術者が同じ写真を再現撮影するための、具体的で分かりやすいアドバイスをしてください。\n\n現在地情報（緯度: ${this.sensorData.latitude || '不明'}, 経度: ${this.sensorData.longitude || '不明'}）も参考にしてください。`;
-                const assistantText = await this.callGeminiApi(prompt, this.targetImageDataUrl);
-                this.elements['gemini-modal-content'].innerHTML = `<div class="prose prose-invert max-w-none">${assistantText.replace(/\n/g, '<br>')}</div>`;
-            } catch (error) { this.handleGeminiError(error); }
         },
 
-        handleGeminiError(error, elementId = 'gemini-modal-content') {
-            this.debugLog(`❌ Gemini API エラー: ${error.message}`);
-            const errorMessage = `<p class="text-red-400">エラーが発生しました：</p><p class="text-sm text-gray-300 mt-2">${error.message}</p>
-                <button data-action="reconfigure-api-key-from-error" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">APIキー再設定</button>`;
-            this.elements[elementId].innerHTML = errorMessage;
-        },
-        
         openGeminiModal(title, content) {
-            this.elements['modal-title'].innerHTML = title;
-            this.elements['gemini-modal-content'].innerHTML = content;
-            this.elements['report-generation-area'].classList.add('hidden');
-            this.elements['gemini-modal'].classList.remove('hidden');
+            document.getElementById('modal-title').innerHTML = title;
+            document.getElementById('gemini-modal-content').innerHTML = content;
+            document.getElementById('gemini-modal').classList.remove('hidden');
         },
 
-        // 比較撮影モード
-        toggleCompareMode() {
-            if (!this.pdfDoc) {
-                this.showNotification('先にPDFを選択してください。', 'warning');
-                return;
-            }
-            this.isCompareMode = true;
-            this.selectionState = 'waiting_for_p1';
-            const btn = document.getElementById('toggle-compare-btn');
-            btn.textContent = '🖼️ 終了';
-            btn.classList.replace('bg-teal-600', 'bg-red-600');
-            this.elements['pdf-viewer'].style.cursor = 'crosshair';
-            this.showInstruction('比較範囲の左上をタップ');
-        },
-
-        resetCompareMode() {
-            this.isCompareMode = false;
-            this.selectionState = 'idle';
-            const btn = document.getElementById('toggle-compare-btn');
-            btn.textContent = '🖼️ 比較撮影開始';
-            btn.classList.replace('bg-red-600', 'bg-teal-600');
-            this.elements['pdf-viewer'].style.cursor = 'default';
-            this.elements['selection-marker'].classList.add('hidden');
-            this.elements['selection-instruction'].classList.add('hidden');
-            this.showMainView();
-        },
-
-        handlePdfTap(event) {
-            if (!this.isCompareMode || this.selectionState === 'completed') return;
-            event.preventDefault();
-            const rect = this.elements['pdf-viewer'].getBoundingClientRect();
-            const x = (event.touches ? event.touches[0].clientX : event.clientX) - rect.left;
-            const y = (event.touches ? event.touches[0].clientY : event.clientY) - rect.top;
-
-            if (this.selectionState === 'waiting_for_p1') {
-                this.p1 = { x, y };
-                this.elements['selection-marker'].style.left = `${x}px`;
-                this.elements['selection-marker'].style.top = `${y}px`;
-                this.elements['selection-marker'].classList.remove('hidden');
-                this.showInstruction('右下をタップしてください');
-                this.selectionState = 'waiting_for_p2';
-            } else if (this.selectionState === 'waiting_for_p2') {
-                const p2 = { x, y };
-                const selRect = { 
-                    x: Math.min(this.p1.x, p2.x), 
-                    y: Math.min(this.p1.y, p2.y), 
-                    width: Math.abs(this.p1.x - p2.x), 
-                    height: Math.abs(this.p1.y - p2.y) 
-                };
-                if (selRect.width < 10 || selRect.height < 10) { this.resetCompareMode(); return; }
-                this.cropAndSetTarget(selRect);
-            }
-        },
-
-        showInstruction(text) {
-            const el = this.elements['selection-instruction'];
-            el.textContent = text;
-            el.classList.remove('hidden');
-        },
-
-        cropAndSetTarget(rect) {
-            const pdfCanvas = this.elements['pdf-viewer'].querySelector('canvas');
-            if (!pdfCanvas) return;
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = rect.width; tempCanvas.height = rect.height;
-            tempCanvas.getContext('2d').drawImage(pdfCanvas, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height);
-            this.targetImageDataUrl = tempCanvas.toDataURL('image/png');
-            
-            this.elements['target-image'].src = this.targetImageDataUrl;
-            this.elements['target-image-wrapper'].classList.remove('hidden');
-            this.selectionState = 'completed';
-            this.elements['selection-marker'].classList.add('hidden');
-            this.elements['selection-instruction'].classList.add('hidden');
-            this.showCameraView();
-        },
-
-        showMainView() {
-            this.elements['main-view'].classList.remove('hidden');
-            this.elements['camera-view'].classList.add('hidden');
-        },
-        
-        showCameraView() {
-            this.elements['main-view'].classList.add('hidden');
-            this.elements['camera-view'].classList.remove('hidden');
-        },
-
-        // 初期化とイベントリスナー
-        setupEventListeners() {
-            this.debugLog('🔗 イベントリスナー設定開始');
-            
-            document.body.addEventListener('click', (e) => {
-                const target = e.target.closest('button, label');
-                if (!target) return;
-        
-                let action = target.dataset.action || target.id;
-        
-                const photoItem = target.closest('[data-photo-id]');
-                const photoId = photoItem ? parseInt(photoItem.dataset.photoId, 10) : null;
-        
-                const functions = {
-                    'select-pdf': () => this.selectPdf(),
-                    'open-api-modal': () => this.openApiKeyModal(),
-                    'save-api-key': () => this.saveApiKey(),
-                    'clear-api-key': () => this.clearApiKey(),
-                    'close-api-modal': () => this.elements['api-key-modal'].classList.add('hidden'),
-                    'reconfigure-api-key-btn': () => this.openApiKeyModal(),
-                    'prev-page': () => { if (this.pdfDoc && this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum); },
-                    'next-page': () => { if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum); },
-                    'take-picture': () => this.takePicture(),
-                    'capture-btn': () => this.takePicture(),
-                    'toggle-compare': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
-                    'toggle-compare-btn': () => { if (this.isCompareMode) this.resetCompareMode(); else this.toggleCompareMode(); },
-                    'reset-compare-mode': () => this.resetCompareMode(),
-                    'ai-assistant': () => this.getAiShootingAssistant(),
-                    'open-album': () => this.elements['album-modal'].classList.remove('hidden'),
-                    'close-album': () => this.elements['album-modal'].classList.add('hidden'),
-                    'zoom-in': () => this.updateZoom(this.zoomLevel + 0.2),
-                    'zoom-out': () => this.updateZoom(this.zoomLevel - 0.2),
-                    'zoom-reset': () => this.updateZoom(1.0),
-                    'download-all': () => this.downloadAllPhotos(),
-                    'download-individually': () => this.downloadPhotosIndividually(),
-                    'ai-analyze': () => { if (photoId) this.analyzeImageWithGemini(photoId); },
-                    'download-single': () => { if (photoId) this.downloadSinglePhoto(photoId); },
-                    'close-gemini-modal': () => this.elements['gemini-modal'].classList.add('hidden'),
-                    'toggle-debug': () => this.toggleDebugMode(),
-                    'alternative-file-selection': () => this.selectPdf(), // ALTボタンも同じ機能に
-                    'copy-report': () => {
-                        navigator.clipboard.writeText(this.elements['report-content'].textContent)
-                            .then(() => this.showNotification('報告書をコピーしました', 'success'))
-                            .catch(() => this.showNotification('コピーに失敗しました', 'error'));
-                    },
-                    'generate-report': () => {
-                        const analysisText = this.elements['gemini-modal-content'].querySelector('div').innerHTML.replace(/<br>/g, '\n');
-                        this.generateReportFromAnalysis(analysisText);
-                    },
-                    'reconfigure-api-key-from-error': () => this.openApiKeyModal()
-                };
-        
-                const func = functions[action];
-                 if (func) {
-                    e.preventDefault();
-                    func();
-                }
-            });
-        
-            // PDF viewer イベントリスナー設定
-            this.debugLog('🖱️ PDF viewer イベントリスナー設定');
-            const pdfViewer = document.getElementById('pdf-viewer');
-            if (pdfViewer) {
-                pdfViewer.addEventListener('click', e => this.handlePdfTap(e));
-                pdfViewer.addEventListener('touchstart', e => this.handlePdfTap(e), { passive: false });
-                this.debugLog('✅ PDF viewer タップイベント設定完了');
-            } else {
-                this.debugLog('❌ pdf-viewer要素が見つかりません');
-            }
-            
-            this.debugLog('✅ 全イベントリスナー設定完了');
-        },
-        
+        // 初期化
         init() {
-            if (!this.checkSecureContext()) return;
+            console.log('アプリ初期化開始');
             
-            this.debugLog('🚀 アプリ初期化開始');
-            
-            // デバイス情報取得
-            this.getDeviceInfo();
-            
-            // PDF.jsライブラリチェック
-            this.debugLog(`📚 PDF.js存在確認: ${typeof pdfjsLib !== 'undefined'}`);
-            if (typeof pdfjsLib !== 'undefined') {
-                this.debugLog(`📖 PDF.js version: ${pdfjsLib.version || 'unknown'}`);
+            try {
+                // ボタンイベントの設定
+                document.getElementById('select-pdf-btn').addEventListener('click', () => this.selectPdf());
+                document.getElementById('toggle-compare-btn').addEventListener('click', () => {
+                    if (this.isCompareMode) this.resetCompareMode();
+                    else this.toggleCompareMode();
+                });
+                document.getElementById('open-album-btn').addEventListener('click', () => {
+                    document.getElementById('album-modal').classList.remove('hidden');
+                });
+                document.getElementById('open-api-modal-btn').addEventListener('click', () => this.openApiKeyModal());
                 
-                // Worker事前設定
-                try {
-                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-                    this.debugLog('✅ PDF.js Worker事前設定完了');
-                } catch (workerError) {
-                    this.debugLog(`❌ Worker事前設定エラー: ${workerError.message}`);
-                }
+                // PDF コントロール
+                document.getElementById('prev-page-btn').addEventListener('click', () => {
+                    if (this.pdfDoc && this.currentPageNum > 1) this.queueRenderPage(--this.currentPageNum);
+                });
+                document.getElementById('next-page-btn').addEventListener('click', () => {
+                    if (this.pdfDoc && this.currentPageNum < this.pdfDoc.numPages) this.queueRenderPage(++this.currentPageNum);
+                });
+                
+                // カメラコントロール
+                document.getElementById('capture-btn').addEventListener('click', () => this.takePicture());
+                document.getElementById('reset-compare-btn').addEventListener('click', () => this.resetCompareMode());
+                document.getElementById('zoom-in-btn').addEventListener('click', () => this.updateZoom(this.zoomLevel + 0.2));
+                document.getElementById('zoom-out-btn').addEventListener('click', () => this.updateZoom(this.zoomLevel - 0.2));
+                document.getElementById('zoom-reset-btn').addEventListener('click', () => this.updateZoom(1.0));
+                
+                // モーダル関連
+                document.getElementById('save-api-key-btn').addEventListener('click', () => this.saveApiKey());
+                document.getElementById('clear-api-key-btn').addEventListener('click', () => this.clearApiKey());
+                document.getElementById('close-api-modal-btn').addEventListener('click', () => {
+                    document.getElementById('api-key-modal').classList.add('hidden');
+                });
+                document.getElementById('close-album-btn').addEventListener('click', () => {
+                    document.getElementById('album-modal').classList.add('hidden');
+                });
+                document.getElementById('download-all-btn').addEventListener('click', () => this.downloadAllPhotos());
+                document.getElementById('close-gemini-modal-btn').addEventListener('click', () => {
+                    document.getElementById('gemini-modal').classList.add('hidden');
+                });
+                
+                // PDF viewer タップイベント
+                document.getElementById('pdf-viewer').addEventListener('click', e => this.handlePdfTap(e));
+                document.getElementById('pdf-viewer').addEventListener('touchstart', e => this.handlePdfTap(e), { passive: false });
+                
+                console.log('イベントリスナー設定完了');
+                
+                this.loadApiKey();
+                this.initCamera();
+                this.initSensors();
+                this.showMainView();
+                
+                console.log('アプリ初期化完了');
+                this.showNotification('アプリが正常に起動しました', 'success');
+                
+            } catch (error) {
+                console.error('初期化エラー:', error);
+                this.showNotification('アプリの初期化でエラーが発生しました', 'error');
             }
-            
-            const ids = [
-                'main-view', 'camera-view', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls', 'prev-page', 'next-page',
-                'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'debug-info', 'debug-content',
-                'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'clear-api-key-btn', 
-                'close-api-key-modal-btn', 'reconfigure-api-key-btn', 'toggle-compare-btn',
-                'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 
-                'fullscreen-gps-status-dot', 'fullscreen-compass-status-dot',
-                'target-image-wrapper', 'target-image', 'photo-count', 'zoom-level-display', 
-                'fullscreen-capture-btn', 'close-fullscreen-camera-btn',
-                'ai-assistant-btn', 'fullscreen-show-album-btn', 'zoom-in-btn', 'zoom-out-btn', 'zoom-reset-btn',
-                 'album-modal', 'album-grid', 'album-placeholder', 'album-photo-count', 'close-album-btn', 'download-all-btn',
-                 'download-progress', 'download-progress-bar', 'download-counter', 'download-message',
-                'gemini-modal', 'modal-title', 'gemini-modal-content-wrapper', 'gemini-modal-content', 'report-generation-area',
-                'report-content', 'copy-report-btn', 'close-modal-btn'
-            ];
-            
-            let missingElements = 0;
-            ids.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) {
-                    this.elements[id] = el;
-                } else {
-                    this.debugLog(`⚠️ 要素未発見: ${id}`);
-                    missingElements++;
-                }
-            });
-            
-            this.debugLog(`🔍 DOM要素チェック完了: ${ids.length - missingElements}/${ids.length}`);
-            
-            this.loadApiKey();
-            this.setupEventListeners();
-            
-            // テスト用にPDFコントロールを最初から表示（デバッグ時のみ）
-            if (this.debugMode) {
-                this.elements['pdf-controls'].classList.remove('hidden');
-                this.elements['page-num'].textContent = '-';
-                this.elements['page-count'].textContent = '-';
-                this.debugLog('🔧 テスト用コントロール表示');
-            }
-            
-            this.debugLog('📷 カメラ初期化');
-            this.initCamera();
-            this.debugLog('🧭 センサー初期化');
-            this.initSensors();
-            this.showMainView();
-            
-            this.debugLog('✅ 初期化完了');
         }
     };
 
-    window.addEventListener('DOMContentLoaded', () => App.init());
+    // アプリ開始
+    window.addEventListener('DOMContentLoaded', () => {
+        console.log('DOM読み込み完了、アプリ初期化開始');
+        App.init();
+    });
     </script>
 </body>
 </html>
