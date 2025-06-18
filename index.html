@@ -150,12 +150,12 @@
         <div id="main-view" class="view-section p-2">
             <div class="flex-shrink-0">
                  <div class="flex flex-wrap gap-2 mb-2">
-                    <label for="pdf-upload" class="flex-grow text-center cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm">PDF選択</label>
+                    <button data-action="select-pdf" class="flex-grow text-center cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm">PDF選択</button>
                     <button data-action="toggle-compare" id="toggle-compare-btn" class="flex-grow text-center bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🖼️ 比較撮影開始</button>
                     <button data-action="open-album" class="flex-grow text-center bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm">📁 アルバム</button>
                     <button data-action="open-api-modal" class="flex-grow text-center bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-sm">🔑 API設定</button>
                 </div>
-                 <input type="file" id="pdf-upload" class="hidden" accept=".pdf">
+                 <!-- 隠しinput要素は削除 -->
             </div>
             <div id="pdf-viewer-wrapper" class="flex-grow overflow-auto bg-gray-700 rounded-lg relative mt-1">
                 <div id="pdf-viewer" class="w-full relative"></div>
@@ -169,8 +169,7 @@
                 <span id="page-num" class="bg-gray-800 py-1 px-2 text-sm"></span>/<span id="page-count" class="bg-gray-800 py-1 px-2 text-sm"></span>
                 <button data-action="next-page" class="bg-gray-600 hover:bg-gray-500 font-bold py-1 px-3 rounded-r-lg">▶</button>
                 <button data-action="toggle-debug" class="bg-purple-600 hover:bg-purple-500 font-bold py-1 px-2 rounded-lg ml-2 text-xs">DEBUG</button>
-                <button data-action="test-file-selection" class="bg-orange-600 hover:bg-orange-500 font-bold py-1 px-2 rounded-lg ml-1 text-xs">TEST</button>
-                <button data-action="alternative-file-selection" class="bg-red-600 hover:bg-red-500 font-bold py-1 px-2 rounded-lg ml-1 text-xs">ALT</button>
+                <button data-action="alternative-file-selection" class="bg-green-600 hover:bg-green-500 font-bold py-1 px-2 rounded-lg ml-1 text-xs">再選択</button>
             </div>
         </div>
 
@@ -313,7 +312,6 @@
         minZoom: 0.5,
         debugMode: false,
         debugMessages: [],
-        pdfChangeHandler: null,
 
         // デバッグログ機能（モバイル用）
         debugLog(message, type = 'info') {
@@ -709,125 +707,94 @@
             this.showNotification('ファイルは選択されましたが、PDFの表示に失敗しました。', 'warning');
         },
 
-        // ファイル選択テスト（詳細診断版）
-        testFileSelection() {
-            this.debugLog('🧪 ファイル選択詳細診断開始');
+        // PDF選択（iOS Safari対応版）
+        selectPdf() {
+            this.debugLog('📁 PDF選択開始（iOS Safari対応版）');
             
-            // input要素の詳細確認
-            const fileInput = document.getElementById('pdf-upload');
-            this.debugLog(`📋 ファイルinput要素存在: ${!!fileInput}`);
-            
-            if (!fileInput) {
-                this.debugLog('❌ ファイルinput要素が見つかりません');
-                this.showNotification('ファイル選択要素が見つかりません', 'error');
-                return;
-            }
-            
-            // input要素の詳細情報
-            this.debugLog('📋 input要素の詳細情報:');
-            this.debugLog(`  id: ${fileInput.id}`);
-            this.debugLog(`  name: ${fileInput.name}`);
-            this.debugLog(`  type: ${fileInput.type}`);
-            this.debugLog(`  accept: ${fileInput.accept}`);
-            this.debugLog(`  multiple: ${fileInput.multiple}`);
-            this.debugLog(`  disabled: ${fileInput.disabled}`);
-            this.debugLog(`  hidden: ${fileInput.hidden}`);
-            this.debugLog(`  style.display: ${getComputedStyle(fileInput).display}`);
-            this.debugLog(`  style.visibility: ${getComputedStyle(fileInput).visibility}`);
-            this.debugLog(`  files.length: ${fileInput.files ? fileInput.files.length : 'undefined'}`);
-            
-            // label要素の確認
-            const labelElement = document.querySelector('label[for="pdf-upload"]');
-            this.debugLog(`📋 label要素存在: ${!!labelElement}`);
-            if (labelElement) {
-                this.debugLog(`  label textContent: ${labelElement.textContent}`);
-                this.debugLog(`  label clickable: ${getComputedStyle(labelElement).pointerEvents !== 'none'}`);
-            }
-            
-            // イベントリスナーのテスト
-            let changeEventFired = false;
-            let focusEventFired = false;
-            let clickEventFired = false;
-            
-            const testChangeHandler = (e) => {
-                changeEventFired = true;
-                this.debugLog('🔥 テスト: changeイベント発火！');
-                this.debugLog(`  files: ${e.target.files.length}個`);
-                for (let i = 0; i < e.target.files.length; i++) {
-                    this.debugLog(`    file${i}: ${e.target.files[i].name} (${e.target.files[i].size} bytes)`);
-                }
-            };
-            
-            const testFocusHandler = () => {
-                focusEventFired = true;
-                this.debugLog('🔥 テスト: focusイベント発火');
-            };
-            
-            const testClickHandler = () => {
-                clickEventFired = true;
-                this.debugLog('🔥 テスト: clickイベント発火');
-            };
-            
-            // テスト用イベントリスナーを追加
-            fileInput.addEventListener('change', testChangeHandler);
-            fileInput.addEventListener('focus', testFocusHandler);
-            fileInput.addEventListener('click', testClickHandler);
-            
-            this.debugLog('✅ テスト用イベントリスナー追加完了');
-            this.debugLog('📱 次に「PDF選択」ボタンをタップしてください');
-            
-            // 5秒後にテスト結果を表示
-            setTimeout(() => {
-                this.debugLog('📊 テスト結果:');
-                this.debugLog(`  clickイベント: ${clickEventFired ? '✅発火' : '❌未発火'}`);
-                this.debugLog(`  focusイベント: ${focusEventFired ? '✅発火' : '❌未発火'}`);
-                this.debugLog(`  changeイベント: ${changeEventFired ? '✅発火' : '❌未発火'}`);
-                
-                // テスト用イベントリスナーを削除
-                fileInput.removeEventListener('change', testChangeHandler);
-                fileInput.removeEventListener('focus', testFocusHandler);
-                fileInput.removeEventListener('click', testClickHandler);
-                
-                if (!changeEventFired && clickEventFired) {
-                    this.debugLog('⚠️ ファイル選択ダイアログは開いたが、ファイルが選択されていない可能性');
-                    this.showNotification('ファイル選択ダイアログでファイルを選択してください', 'warning');
-                } else if (!clickEventFired) {
-                    this.debugLog('❌ PDF選択ボタンのクリックが検出されませんでした');
-                    this.showNotification('PDF選択ボタンをタップしてください', 'warning');
-                }
-            }, 5000);
-        },
-
-        // 代替ファイル選択方法
-        alternativeFileSelection() {
-            this.debugLog('🔄 代替ファイル選択方法を試行');
+            // デバイス情報を取得
+            const deviceInfo = this.getDeviceInfo();
+            this.debugLog(`📱 デバイス: iOS=${deviceInfo.isIOS}, Safari=${deviceInfo.isSafari}`);
             
             // より互換性の高いファイル選択を作成
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = '.pdf,application/pdf';
-            input.style.display = 'none';
+            input.style.position = 'absolute';
+            input.style.left = '-9999px';
+            input.style.top = '-9999px';
+            input.style.opacity = '0';
+            input.style.pointerEvents = 'none';
             
+            // イベントハンドラー設定
             input.addEventListener('change', (e) => {
-                this.debugLog('🔥 代替方法: changeイベント発火');
+                this.debugLog('🔥 代替PDF選択: changeイベント発火');
+                
                 if (e.target.files && e.target.files.length > 0) {
                     const file = e.target.files[0];
-                    this.debugLog(`📄 代替方法でファイル取得: ${file.name}`);
-                    
-                    // 手動でファイル処理を実行
+                    this.debugLog(`📄 ファイル取得成功: ${file.name}`);
                     this.processSelectedFile(file);
                 } else {
-                    this.debugLog('❌ 代替方法でもファイルが選択されませんでした');
+                    this.debugLog('❌ ファイルが選択されませんでした');
+                    this.showNotification('ファイルが選択されませんでした。', 'info');
                 }
                 
                 // 要素を削除
-                document.body.removeChild(input);
+                try {
+                    document.body.removeChild(input);
+                    this.debugLog('✅ 一時input要素を削除');
+                } catch (e) {
+                    this.debugLog('⚠️ input要素削除でエラー:', e.message);
+                }
             });
             
-            document.body.appendChild(input);
-            input.click();
+            // エラーハンドラー
+            input.addEventListener('error', (e) => {
+                this.debugLog('❌ input要素エラー:', e);
+                this.showNotification('ファイル選択でエラーが発生しました。', 'error');
+            });
             
-            this.debugLog('✅ 代替ファイル選択ダイアログを表示');
+            // キャンセルハンドラー（iOS Safari用）
+            input.addEventListener('cancel', () => {
+                this.debugLog('🚫 ファイル選択がキャンセルされました');
+                try {
+                    document.body.removeChild(input);
+                } catch (e) {
+                    // 既に削除済みの場合があるため、エラーは無視
+                }
+            });
+            
+            // DOMに追加
+            document.body.appendChild(input);
+            this.debugLog('✅ 一時input要素をDOM追加');
+            
+            // ファイル選択ダイアログを開く
+            try {
+                input.click();
+                this.debugLog('✅ ファイル選択ダイアログ表示');
+                this.showNotification('ファイル選択ダイアログを開いています...', 'info');
+            } catch (error) {
+                this.debugLog(`❌ ファイル選択ダイアログ表示エラー: ${error.message}`);
+                this.showNotification('ファイル選択ダイアログの表示に失敗しました。', 'error');
+                
+                // エラー時は要素を削除
+                try {
+                    document.body.removeChild(input);
+                } catch (e) {
+                    // 削除エラーは無視
+                }
+            }
+            
+            // タイムアウト設定（30秒後に自動削除）
+            setTimeout(() => {
+                try {
+                    if (document.body.contains(input)) {
+                        document.body.removeChild(input);
+                        this.debugLog('⏰ タイムアウトによりinput要素を削除');
+                    }
+                } catch (e) {
+                    // 削除エラーは無視
+                }
+            }, 30000);
         },
 
         // ファイル処理の分離
@@ -1350,29 +1317,17 @@
         setupEventListeners() {
             this.debugLog('🔗 イベントリスナー設定開始');
             
-            // ファイル入力要素の確認
-            const fileInput = document.getElementById('pdf-upload');
-            this.debugLog(`📋 PDF upload input確認: ${!!fileInput}`);
-            if (!fileInput) {
-                this.debugLog('❌ pdf-upload要素が見つかりません');
-                return;
-            }
-            
             document.body.addEventListener('click', (e) => {
                 const target = e.target.closest('button, label');
                 if (!target) return;
         
                 let action = target.dataset.action || target.id;
         
-                 if (!action && target.getAttribute('for') === 'pdf-upload') {
-                    document.getElementById('pdf-upload').click();
-                    return;
-                }
-        
                 const photoItem = target.closest('[data-photo-id]');
                 const photoId = photoItem ? parseInt(photoItem.dataset.photoId, 10) : null;
         
                 const functions = {
+                    'select-pdf': () => this.selectPdf(),
                     'open-api-modal': () => this.openApiKeyModal(),
                     'save-api-key': () => this.saveApiKey(),
                     'clear-api-key': () => this.clearApiKey(),
@@ -1396,8 +1351,7 @@
                     'download-single': () => { if (photoId) this.downloadSinglePhoto(photoId); },
                     'close-gemini-modal': () => this.elements['gemini-modal'].classList.add('hidden'),
                     'toggle-debug': () => this.toggleDebugMode(),
-                    'test-file-selection': () => this.testFileSelection(),
-                    'alternative-file-selection': () => this.alternativeFileSelection(),
+                    'alternative-file-selection': () => this.selectPdf(), // ALTボタンも同じ機能に
                     'copy-report': () => {
                         navigator.clipboard.writeText(this.elements['report-content'].textContent)
                             .then(() => this.showNotification('報告書をコピーしました', 'success'))
@@ -1417,39 +1371,7 @@
                 }
             });
         
-            // PDFアップロード処理イベントリスナー設定
-            this.debugLog('📁 ファイル選択イベントリスナー設定開始');
-            const pdfUploadInput = document.getElementById('pdf-upload');
-            
-            if (!pdfUploadInput) {
-                this.debugLog('❌ pdf-upload要素が見つかりません');
-                return;
-            }
-            
-            this.debugLog('✅ pdf-upload要素確認完了');
-            
-            // 既存のイベントリスナーをクリア（重複防止）
-            pdfUploadInput.removeEventListener('change', this.pdfChangeHandler);
-            
-            // イベントハンドラを定義
-            this.pdfChangeHandler = (e) => {
-                this.debugLog('🎯 change イベント発火');
-                
-                const file = e.target.files[0];
-                if (file) {
-                    this.debugLog(`📁 ファイル取得: ${file.name}`);
-                    this.processSelectedFile(file);
-                } else {
-                    this.debugLog('❌ changeイベントは発火したが、ファイルが取得できませんでした');
-                    this.showNotification('ファイルの取得に失敗しました。', 'error');
-                }
-            };
-            
-            // イベントリスナーを設定
-            pdfUploadInput.addEventListener('change', this.pdfChangeHandler);
-            this.debugLog('✅ PDFファイル選択イベントリスナー設定完了');
-        
-            // その他のイベントリスナー
+            // PDF viewer イベントリスナー設定
             this.debugLog('🖱️ PDF viewer イベントリスナー設定');
             const pdfViewer = document.getElementById('pdf-viewer');
             if (pdfViewer) {
