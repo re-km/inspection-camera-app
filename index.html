@@ -299,7 +299,10 @@
             <div class="flex items-center gap-3">
                 <span id="album-photo-count" class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full">0枚</span>
                 <button data-action="download-all" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm">
-                    📥 一括ダウンロード
+                    📦 ZIP一括
+                </button>
+                <button data-action="download-individually" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm">
+                    📄 個別DL
                 </button>
                 <button data-action="close-album" class="text-3xl font-bold text-white">&times;</button>
             </div>
@@ -1178,69 +1181,275 @@
                 this.showNotification('ダウンロードする写真がありません。', 'warning');
                 return;
             }
+            
             if (typeof JSZip === 'undefined') {
-                this.showNotification('ZIP機能の読み込みに失敗しました。', 'error');
+                this.showNotification('ZIP機能の読み込みに失敗しました。ページを再読み込みしてください。', 'error');
                 return;
             }
+            
+            this.debugLog(`📦 一括ダウンロード開始: ${this.photoDatabase.length}枚`);
             
             const progressContainer = this.elements['download-progress'];
             const progressBar = this.elements['download-progress-bar'];
             const progressCounter = this.elements['download-counter'];
             const progressMessage = this.elements['download-message'];
 
+            // プログレス表示を開始
             progressContainer.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            progressMessage.textContent = 'ダウンロード準備中...';
+            progressCounter.textContent = `0/${this.photoDatabase.length}`;
             
             try {
                 const zip = new JSZip();
                 const total = this.photoDatabase.length;
+                this.debugLog(`📁 ZIP作成開始`);
 
+                // 写真をZIPに追加
                 for (let i = 0; i < total; i++) {
                     const photo = this.photoDatabase[i];
-                    const percentage = Math.round(((i + 1) / total) * 100);
+                    const percentage = Math.round(((i + 1) / total) * 80); // 80%まで写真処理
                     
-                    progressMessage.textContent = `処理中: ${photo.fileName}`;
+                    progressMessage.textContent = `写真を追加中: ${photo.fileName}`;
                     progressCounter.textContent = `${i + 1}/${total}`;
                     progressBar.style.width = `${percentage}%`;
 
-                    const base64Data = photo.dataUrl.split(',')[1];
-                    zip.file(photo.fileName, base64Data, { base64: true });
+                    try {
+                        // Base64データを取得
+                        const base64Data = photo.dataUrl.split(',')[1];
+                        if (!base64Data) {
+                            this.debugLog(`⚠️ Base64データが無効: ${photo.fileName}`);
+                            continue;
+                        }
+                        
+                        // ZIPに追加
+                        zip.file(photo.fileName, base64Data, { base64: true });
+                        this.debugLog(`✅ ZIP追加: ${photo.fileName}`);
+                        
+                    } catch (photoError) {
+                        this.debugLog(`❌ 写真処理エラー: ${photo.fileName} - ${photoError.message}`);
+                        this.showNotification(`写真処理エラー: ${photo.fileName}`, 'warning');
+                    }
                     
-                    if (i % 5 === 0) {
+                    // UIを更新するための小休憩
+                    if (i % 3 === 0) {
                         await new Promise(resolve => setTimeout(resolve, 10));
                     }
                 }
 
-                progressMessage.textContent = '情報ファイルを作成中...';
-                zip.file('撮影情報.txt', this.createInfoText());
-
-                progressMessage.textContent = 'ZIPファイルを生成中...';
-                const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 3 } });
+                // 情報ファイルを追加
+                progressMessage.textContent = '撮影情報ファイルを作成中...';
+                progressBar.style.width = '85%';
                 
+                try {
+                    const infoText = this.createInfoText();
+                    zip.file('撮影情報.txt', infoText);
+                    this.debugLog('✅ 撮影情報.txt追加完了');
+                } catch (infoError) {
+                    this.debugLog(`❌ 情報ファイル作成エラー: ${infoError.message}`);
+                }
+
+                // ZIPファイルを生成
+                progressMessage.textContent = 'ZIPファイルを生成中...';
+                progressBar.style.width = '90%';
+                
+                this.debugLog('🔄 ZIP生成開始');
+                const zipBlob = await zip.generateAsync({ 
+                    type: 'blob', 
+                    compression: 'DEFLATE', 
+                    compressionOptions: { level: 6 }, // 圧縮レベルを適度に設定
+                    streamFiles: true // 大きなファイル対応
+                });
+                
+                this.debugLog(`✅ ZIP生成完了: ${(zipBlob.size / 1024 / 1024).toFixed(2)}MB`);
+
+                // ZIPファイルを検証
+                progressMessage.textContent = 'ZIPファイルを検証中...';
+                progressBar.style.width = '92%';
+                
+                const validation = await this.validateZipFile(zipBlob);
+                if (!validation.valid) {
+                    throw new Error(`ZIPファイル検証失敗: ${validation.error}`);
+                }
+                
+                this.debugLog(`✅ ZIP検証成功: ${validation.fileCount}個のファイルを確認`);
+
+                // ファイル名を生成
                 const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '');
                 const zipFileName = `InspectionPhotos_${timestamp}.zip`;
 
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(zipBlob);
-                a.download = zipFileName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(a.href);
+                // ダウンロード開始
+                progressMessage.textContent = 'ダウンロード開始中...';
+                progressBar.style.width = '95%';
 
-                this.showNotification('ZIPファイルのダウンロードを開始しました。', 'success');
+                try {
+                    // ダウンロード用のリンクを作成
+                    const downloadUrl = URL.createObjectURL(zipBlob);
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = zipFileName;
+                    a.style.display = 'none';
+                    
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    // URLを解放（メモリリーク防止）
+                    setTimeout(() => {
+                        URL.revokeObjectURL(downloadUrl);
+                        this.debugLog('🗑️ ダウンロードURL解放');
+                    }, 1000);
+                    
+                    this.debugLog(`✅ ダウンロード開始: ${zipFileName}`);
+                    
+                    // 完了表示
+                    progressMessage.textContent = 'ダウンロード完了！';
+                    progressBar.style.width = '100%';
+                    progressCounter.textContent = `${total}/${total}`;
+                    
+                    // 成功通知
+                    this.showNotification(`✅ ${total}枚の写真をZIPファイルでダウンロード完了！`, 'success');
+                    
+                    // ダウンロード情報をログに記録
+                    this.debugLog(`🎉 ダウンロード完了統計:`);
+                    this.debugLog(`  ファイル名: ${zipFileName}`);
+                    this.debugLog(`  写真枚数: ${total}枚`);
+                    this.debugLog(`  ZIPサイズ: ${(zipBlob.size / 1024 / 1024).toFixed(2)}MB`);
+                    this.debugLog(`  完了時刻: ${new Date().toLocaleString()}`);
+
+                } catch (downloadError) {
+                    throw new Error(`ダウンロード処理エラー: ${downloadError.message}`);
+                }
 
             } catch (error) {
                 this.debugLog(`❌ 一括ダウンロードエラー: ${error.message}`);
+                this.debugLog(`  エラー詳細:`, error);
+                
+                // エラー表示
+                progressMessage.textContent = 'ダウンロードでエラーが発生しました';
+                progressBar.style.width = '0%';
+                
                 this.showNotification('一括ダウンロード中にエラーが発生しました。', 'error');
+                
+                // デバッグモードでない場合は自動で開始
+                if (!this.debugMode) {
+                    this.showNotification('詳細なエラー情報はDEBUGボタンで確認できます。', 'info');
+                }
+                
             } finally {
+                // 5秒後にプログレス表示を隠す
                 setTimeout(() => {
                     progressContainer.classList.add('hidden');
                     progressBar.style.width = '0%';
-                }, 2000);
+                    progressMessage.textContent = '';
+                    progressCounter.textContent = '';
+                }, 5000);
             }
         },
 
-        createInfoText() {
+        // ZIPファイルの検証
+        async validateZipFile(zipBlob) {
+            try {
+                this.debugLog('🔍 ZIPファイル検証開始');
+                
+                // ZIPファイルを再度読み込んで検証
+                const testZip = new JSZip();
+                const zipData = await testZip.loadAsync(zipBlob);
+                
+                const fileNames = Object.keys(zipData.files);
+                this.debugLog(`📋 ZIP内ファイル数: ${fileNames.length}`);
+                
+                let validFiles = 0;
+                for (const fileName of fileNames) {
+                    const file = zipData.files[fileName];
+                    if (!file.dir) { // ディレクトリではない場合
+                        validFiles++;
+                        this.debugLog(`✅ 検証OK: ${fileName}`);
+                    }
+                }
+                
+                this.debugLog(`✅ ZIP検証完了: ${validFiles}個のファイルが有効`);
+                return { valid: true, fileCount: validFiles };
+                
+            } catch (error) {
+                this.debugLog(`❌ ZIP検証エラー: ${error.message}`);
+                return { valid: false, error: error.message };
+            }
+        },
+
+        // 個別ダウンロード（代替方法）
+        async downloadPhotosIndividually() {
+            if (this.photoDatabase.length === 0) {
+                this.showNotification('ダウンロードする写真がありません。', 'warning');
+                return;
+            }
+            
+            this.debugLog(`📦 個別ダウンロード開始: ${this.photoDatabase.length}枚`);
+            
+            const confirmed = confirm(`${this.photoDatabase.length}枚の写真を個別にダウンロードします。続行しますか？\n\n※写真が多い場合は時間がかかります。`);
+            if (!confirmed) {
+                this.debugLog('❌ 個別ダウンロードがキャンセルされました');
+                return;
+            }
+            
+            let successCount = 0;
+            let errorCount = 0;
+            
+            for (let i = 0; i < this.photoDatabase.length; i++) {
+                const photo = this.photoDatabase[i];
+                
+                try {
+                    // 進行状況を表示
+                    this.showNotification(`ダウンロード中: ${i + 1}/${this.photoDatabase.length} - ${photo.fileName}`, 'info');
+                    
+                    const a = document.createElement('a');
+                    a.href = photo.dataUrl;
+                    a.download = photo.fileName;
+                    a.style.display = 'none';
+                    
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    successCount++;
+                    this.debugLog(`✅ 個別ダウンロード成功: ${photo.fileName}`);
+                    
+                    // ダウンロード間隔を空ける（ブラウザ制限対策）
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                } catch (error) {
+                    errorCount++;
+                    this.debugLog(`❌ 個別ダウンロードエラー: ${photo.fileName} - ${error.message}`);
+                }
+            }
+            
+            // 情報ファイルもダウンロード
+            try {
+                const infoText = this.createInfoText();
+                const infoBlob = new Blob([infoText], { type: 'text/plain' });
+                const infoUrl = URL.createObjectURL(infoBlob);
+                
+                const a = document.createElement('a');
+                a.href = infoUrl;
+                a.download = '撮影情報.txt';
+                a.style.display = 'none';
+                
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                URL.revokeObjectURL(infoUrl);
+                this.debugLog('✅ 撮影情報.txt ダウンロード完了');
+                
+            } catch (infoError) {
+                this.debugLog(`❌ 撮影情報.txt ダウンロードエラー: ${infoError.message}`);
+            }
+            
+            // 結果報告
+            const resultMessage = `個別ダウンロード完了\n成功: ${successCount}枚\n失敗: ${errorCount}枚`;
+            this.showNotification(resultMessage, errorCount > 0 ? 'warning' : 'success');
+            this.debugLog(`🎉 個別ダウンロード完了: 成功${successCount}枚, 失敗${errorCount}枚`);
+        },
             let info = `構造物点検写真一覧\n`;
             info += `生成日時: ${new Date().toLocaleString('ja-JP')}\n`;
             info += `写真枚数: ${this.photoDatabase.length}枚\n\n`;
@@ -1458,6 +1667,7 @@
                     'zoom-out': () => this.updateZoom(this.zoomLevel - 0.2),
                     'zoom-reset': () => this.updateZoom(1.0),
                     'download-all': () => this.downloadAllPhotos(),
+                    'download-individually': () => this.downloadPhotosIndividually(),
                     'ai-analyze': () => { if (photoId) this.analyzeImageWithGemini(photoId); },
                     'download-single': () => { if (photoId) this.downloadSinglePhoto(photoId); },
                     'close-gemini-modal': () => this.elements['gemini-modal'].classList.add('hidden'),
