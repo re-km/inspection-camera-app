@@ -274,7 +274,7 @@
     <canvas id="capture-canvas" class="hidden"></canvas>
 
     <script>
-    // 構造物点検カメラアプリ（シンプル安定版）
+    // 構造物点検カメラアプリ（iOS Safari対応版）
     const App = {
         pdfDoc: null, 
         currentPageNum: 1, 
@@ -658,6 +658,78 @@
             document.getElementById('album-photo-count').textContent = `${count}枚`;
         },
 
+        // iOS Safari判定メソッド
+        isIOSSafari() {
+            const userAgent = navigator.userAgent;
+            const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+            const isSafari = /Safari/.test(userAgent) && !/Chrome|CriOS|FxiOS/.test(userAgent);
+            return isIOS && isSafari;
+        },
+
+        // iOS Safari用のダウンロード方法
+        downloadForIOSSafari(blob, fileName) {
+            try {
+                // Web Share API を使用（iOS 14以降で利用可能）
+                if (navigator.share && navigator.canShare) {
+                    const file = new File([blob], fileName, { type: 'application/zip' });
+                    if (navigator.canShare({ files: [file] })) {
+                        navigator.share({
+                            title: '構造物点検写真',
+                            text: '撮影した写真をダウンロードします',
+                            files: [file]
+                        }).then(() => {
+                            this.showNotification('共有が完了しました。「ファイル」アプリを確認してください。', 'success');
+                        }).catch(error => {
+                            console.error('共有エラー:', error);
+                            this.fallbackDownload(blob, fileName);
+                        });
+                        return;
+                    }
+                }
+                
+                // フォールバック：URLを生成してSafariで開く
+                this.fallbackDownload(blob, fileName);
+                
+            } catch (error) {
+                console.error('iOS Safari ダウンロードエラー:', error);
+                this.fallbackDownload(blob, fileName);
+            }
+        },
+
+        // フォールバック ダウンロード方法
+        fallbackDownload(blob, fileName) {
+            const url = URL.createObjectURL(blob);
+            
+            // 新しいタブで開く
+            const newWindow = window.open(url, '_blank');
+            
+            if (!newWindow) {
+                // ポップアップがブロックされた場合の対処
+                this.showNotification(
+                    'ポップアップがブロックされました。設定からポップアップを許可してください。', 
+                    'warning'
+                );
+                
+                // 現在のタブで開く
+                window.location.href = url;
+            } else {
+                // 少し遅延してからURLを解放
+                setTimeout(() => {
+                    try {
+                        newWindow.close();
+                    } catch (e) {
+                        // エラーは無視
+                    }
+                    URL.revokeObjectURL(url);
+                }, 3000);
+            }
+            
+            this.showNotification(
+                '新しいタブでファイルが開かれました。「ダウンロード」をタップしてください。', 
+                'info'
+            );
+        },
+
         // ダウンロード機能
         downloadSinglePhoto(photoId) {
             const photoData = this.photoDatabase.find(p => p.id === photoId);
@@ -665,6 +737,7 @@
                 const a = document.createElement('a');
                 a.href = photoData.dataUrl;
                 a.download = photoData.fileName;
+                a.type = 'image/jpeg';
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -712,20 +785,32 @@
                 zip.file('撮影情報.txt', this.createInfoText());
 
                 progressMessage.textContent = 'ZIPファイルを生成中...';
-                const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+                const zipBlob = await zip.generateAsync({ 
+                    type: 'blob', 
+                    compression: 'DEFLATE', 
+                    compressionOptions: { level: 6 } 
+                });
                 
                 const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '');
                 const zipFileName = `InspectionPhotos_${timestamp}.zip`;
 
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(zipBlob);
-                a.download = zipFileName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(a.href);
-
-                this.showNotification('✅ ZIPファイルのダウンロードが完了しました！', 'success');
+                // iOS Safari対応の修正
+                if (this.isIOSSafari()) {
+                    // iOS Safariの場合、別の方法でダウンロードを試行
+                    this.downloadForIOSSafari(zipBlob, zipFileName);
+                } else {
+                    // 通常のダウンロード方法
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(zipBlob);
+                    a.download = zipFileName;
+                    a.type = 'application/zip'; // MIMEタイプを明示的に設定
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(a.href);
+                    
+                    this.showNotification('✅ ZIPファイルのダウンロードが完了しました！', 'success');
+                }
 
             } catch (error) {
                 console.error('一括ダウンロードエラー:', error);
