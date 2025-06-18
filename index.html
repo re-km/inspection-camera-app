@@ -66,20 +66,56 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
         
-        /* デバッグ情報表示エリア */
+        /* デバッグ情報表示エリア（改善版） */
         #debug-info {
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.9);
             color: white;
             font-size: 10px;
-            padding: 4px;
-            max-height: 100px;
+            padding: 8px;
+            max-height: 150px; /* 高さ制限 */
             overflow-y: auto;
             font-family: monospace;
             z-index: 1000;
+            border-top: 2px solid #4f46e5;
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        #debug-info.minimized {
+            transform: translateY(calc(100% - 30px)); /* ほとんど隠す */
+        }
+        
+        #debug-info .debug-header {
+            position: sticky;
+            top: 0;
+            background: rgba(0,0,0,0.95);
+            padding: 4px 0;
+            border-bottom: 1px solid #666;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            font-weight: bold;
+        }
+        
+        #debug-info .debug-content {
+            padding-bottom: 8px;
+        }
+        
+        #debug-info::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        #debug-info::-webkit-scrollbar-track {
+            background: #333;
+        }
+        
+        #debug-info::-webkit-scrollbar-thumb {
+            background: #666;
+            border-radius: 2px;
         }
         
         .fullscreen-control-panel {
@@ -227,8 +263,18 @@
         </div>
     </div>
 
-    <!-- デバッグ情報（モバイル用） -->
-    <div id="debug-info" class="hidden"></div>
+    <!-- デバッグ情報（改善版） -->
+    <div id="debug-info" class="hidden">
+        <div class="debug-header">
+            <span>🐛 Debug Log</span>
+            <div class="flex gap-2 ml-auto">
+                <button id="debug-minimize" class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded">最小化</button>
+                <button id="debug-clear" class="text-xs bg-red-600 hover:bg-red-700 px-2 py-1 rounded">クリア</button>
+                <button id="debug-close" class="text-xs bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded">閉じる</button>
+            </div>
+        </div>
+        <div id="debug-content" class="debug-content"></div>
+    </div>
 
     <!-- APIキー設定モーダル -->
     <div id="api-key-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[70] p-4">
@@ -313,7 +359,7 @@
         debugMode: false,
         debugMessages: [],
 
-        // デバッグログ機能（モバイル用）
+        // デバッグログ機能（改善版）
         debugLog(message, type = 'info') {
             const timestamp = new Date().toLocaleTimeString();
             const logMessage = `[${timestamp}] ${message}`;
@@ -326,19 +372,70 @@
             
             console.log(logMessage);
             
-            if (this.debugMode && this.elements['debug-info']) {
-                this.elements['debug-info'].innerHTML = this.debugMessages.join('<br>');
-                this.elements['debug-info'].scrollTop = this.elements['debug-info'].scrollHeight;
+            if (this.debugMode && this.elements['debug-content']) {
+                this.elements['debug-content'].innerHTML = this.debugMessages.join('<br>');
+                this.elements['debug-content'].scrollTop = this.elements['debug-content'].scrollHeight;
             }
         },
 
         toggleDebugMode() {
             this.debugMode = !this.debugMode;
+            const debugElement = this.elements['debug-info'];
+            
             if (this.debugMode) {
-                this.elements['debug-info'].classList.remove('hidden');
+                debugElement.classList.remove('hidden');
+                debugElement.classList.remove('minimized');
                 this.debugLog('🐛 デバッグモード開始');
+                this.setupDebugControls();
             } else {
-                this.elements['debug-info'].classList.add('hidden');
+                debugElement.classList.add('hidden');
+                this.debugLog('🐛 デバッグモード終了');
+            }
+        },
+
+        setupDebugControls() {
+            // 最小化ボタン
+            const minimizeBtn = document.getElementById('debug-minimize');
+            const closeBtn = document.getElementById('debug-close');
+            const clearBtn = document.getElementById('debug-clear');
+            const debugElement = this.elements['debug-info'];
+            
+            if (minimizeBtn) {
+                minimizeBtn.onclick = () => {
+                    debugElement.classList.toggle('minimized');
+                    minimizeBtn.textContent = debugElement.classList.contains('minimized') ? '最大化' : '最小化';
+                    this.debugLog('🔽 デバッグ表示を' + (debugElement.classList.contains('minimized') ? '最小化' : '最大化'));
+                };
+            }
+            
+            // 閉じるボタン
+            if (closeBtn) {
+                closeBtn.onclick = () => {
+                    this.debugMode = false;
+                    debugElement.classList.add('hidden');
+                    this.debugLog('🐛 デバッグモード終了');
+                };
+            }
+            
+            // クリアボタン
+            if (clearBtn) {
+                clearBtn.onclick = () => {
+                    this.debugMessages = [];
+                    this.elements['debug-content'].innerHTML = '';
+                    this.debugLog('🧹 デバッグログをクリア');
+                };
+            }
+        },
+
+        minimizeDebugInfo() {
+            const debugElement = this.elements['debug-info'];
+            if (debugElement && this.debugMode) {
+                debugElement.classList.add('minimized');
+                const minimizeBtn = document.getElementById('debug-minimize');
+                if (minimizeBtn) {
+                    minimizeBtn.textContent = '最大化';
+                }
+                this.debugLog('🔽 デバッグ表示を自動最小化');
             }
         },
 
@@ -801,17 +898,16 @@
         processSelectedFile(file) {
             this.debugLog('🔄 ファイル処理開始');
             
-            // デバッグモードを自動でONにする
-            if (!this.debugMode) {
-                this.toggleDebugMode();
-                this.debugLog('🐛 デバッグモード自動開始');
+            // デバッグモードが有効な場合のみログ出力を詳細化
+            if (this.debugMode) {
+                this.debugLog(`📄 処理対象ファイル:`);
+                this.debugLog(`  名前: ${file.name}`);
+                this.debugLog(`  サイズ: ${(file.size/1024/1024).toFixed(2)}MB`);
+                this.debugLog(`  タイプ: ${file.type}`);
+                this.debugLog(`  最終更新: ${file.lastModified ? new Date(file.lastModified).toLocaleString() : '不明'}`);
+            } else {
+                this.debugLog(`📄 PDF処理開始: ${file.name} (${(file.size/1024/1024).toFixed(1)}MB)`);
             }
-            
-            this.debugLog(`📄 処理対象ファイル:`);
-            this.debugLog(`  名前: ${file.name}`);
-            this.debugLog(`  サイズ: ${(file.size/1024/1024).toFixed(2)}MB`);
-            this.debugLog(`  タイプ: ${file.type}`);
-            this.debugLog(`  最終更新: ${file.lastModified ? new Date(file.lastModified).toLocaleString() : '不明'}`);
             
             // ここから既存のPDF処理ロジックを実行
             // ファイルタイプチェック（より柔軟に）
@@ -826,9 +922,11 @@
             this.showNotification('PDFファイルを読み込み中...', 'info');
             
             // PDF.jsライブラリの詳細チェック
-            this.debugLog(`📚 PDF.jsライブラリチェック:`);
-            this.debugLog(`  pdfjsLib存在: ${typeof pdfjsLib !== 'undefined'}`);
-            this.debugLog(`  window.pdfjsLib存在: ${typeof window.pdfjsLib !== 'undefined'}`);
+            if (this.debugMode) {
+                this.debugLog(`📚 PDF.jsライブラリチェック:`);
+                this.debugLog(`  pdfjsLib存在: ${typeof pdfjsLib !== 'undefined'}`);
+                this.debugLog(`  window.pdfjsLib存在: ${typeof window.pdfjsLib !== 'undefined'}`);
+            }
             
             if (typeof pdfjsLib === 'undefined') {
                 this.debugLog('❌ PDF.jsライブラリ未読み込み');
@@ -840,14 +938,18 @@
                 return;
             }
             
-            this.debugLog(`  version: ${pdfjsLib.version || '不明'}`);
-            this.debugLog(`  getDocument存在: ${typeof pdfjsLib.getDocument === 'function'}`);
+            if (this.debugMode) {
+                this.debugLog(`  version: ${pdfjsLib.version || '不明'}`);
+                this.debugLog(`  getDocument存在: ${typeof pdfjsLib.getDocument === 'function'}`);
+            }
             
             // Worker設定
             try {
                 const workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
                 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
-                this.debugLog(`✅ Worker設定: ${workerSrc}`);
+                if (this.debugMode) {
+                    this.debugLog(`✅ Worker設定: ${workerSrc}`);
+                }
             } catch (workerError) {
                 this.debugLog(`❌ Worker設定エラー: ${workerError.message}`);
             }
@@ -973,7 +1075,9 @@
                 clearTimeout(timeoutId);
                 this.debugLog(`🎉 PDF読み込み成功!`);
                 this.debugLog(`  ページ数: ${pdf.numPages}`);
-                this.debugLog(`  PDF info:`, pdf._pdfInfo);
+                if (this.debugMode) {
+                    this.debugLog(`  PDF info:`, pdf._pdfInfo);
+                }
                 
                 this.pdfDoc = pdf;
                 this.elements['page-count'].textContent = pdf.numPages;
@@ -983,6 +1087,13 @@
                 this.renderPage(1);
                 this.elements['pdf-controls'].classList.remove('hidden');
                 this.showNotification('PDFが正常に読み込まれました。', 'success');
+                
+                // PDF読み込み成功時にデバッグ表示を最小化
+                if (this.debugMode) {
+                    setTimeout(() => {
+                        this.minimizeDebugInfo();
+                    }, 2000); // 2秒後に最小化
+                }
                 
             }).catch(error => {
                 clearTimeout(timeoutId);
@@ -1408,8 +1519,8 @@
             }
             
             const ids = [
-                'main-view', 'camera-view', 'pdf-upload', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls', 'prev-page', 'next-page',
-                'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'debug-info',
+                'main-view', 'camera-view', 'pdf-viewer', 'pdf-placeholder', 'page-num', 'page-count', 'pdf-controls', 'prev-page', 'next-page',
+                'pdf-viewer-wrapper', 'camera-stream', 'capture-btn', 'capture-canvas', 'debug-info', 'debug-content',
                 'photo-count-badge', 'open-album-btn', 'api-key-modal', 'api-key-input', 'save-api-key-btn', 'clear-api-key-btn', 
                 'close-api-key-modal-btn', 'reconfigure-api-key-btn', 'toggle-compare-btn',
                 'gps-status-dot', 'compass-status-dot', 'selection-marker', 'selection-instruction', 
@@ -1439,11 +1550,13 @@
             this.loadApiKey();
             this.setupEventListeners();
             
-            // テスト用にPDFコントロールを最初から表示
-            this.elements['pdf-controls'].classList.remove('hidden');
-            this.elements['page-num'].textContent = '-';
-            this.elements['page-count'].textContent = '-';
-            this.debugLog('🔧 テスト用コントロール表示');
+            // テスト用にPDFコントロールを最初から表示（デバッグ時のみ）
+            if (this.debugMode) {
+                this.elements['pdf-controls'].classList.remove('hidden');
+                this.elements['page-num'].textContent = '-';
+                this.elements['page-count'].textContent = '-';
+                this.debugLog('🔧 テスト用コントロール表示');
+            }
             
             this.debugLog('📷 カメラ初期化');
             this.initCamera();
