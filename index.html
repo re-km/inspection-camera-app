@@ -288,6 +288,7 @@
         cameraStream: null,
         pdfCanvas: null,
         pdfScale: 1.0,
+        jpegQuality: 0.95, // デフォルト品質
 
         // 汎用通知
         showNotification(message, type = 'info') {
@@ -574,32 +575,115 @@
             if(dot) dot.classList.replace(oldClassName, className);
         },
 
-        // カメラ初期化（スマートフォン専用）
+        // デバイス判定
+        isHighEndDevice() {
+            const userAgent = navigator.userAgent;
+            // iPhone 14 Pro以上、iPad Pro、Android高性能機種を判定
+            const isHighEndiPhone = /iPhone1[5-9]|iPhone[2-9][0-9]/.test(userAgent) || 
+                                   (/iPhone14/.test(userAgent) && /Pro/.test(userAgent));
+            const isHighEndiPad = /iPad.*Pro/.test(userAgent);
+            const hasHighRAM = navigator.deviceMemory && navigator.deviceMemory >= 6;
+            const hasHighCores = navigator.hardwareConcurrency && navigator.hardwareConcurrency >= 6;
+            
+            return isHighEndiPhone || isHighEndiPad || hasHighRAM || hasHighCores;
+        },
+
+        // カメラ初期化（デバイス性能別最適化）
         async initCamera() {
             try {
-                // スマートフォンでの最適な解像度
-                const constraints = {
-                    video: { 
-                        facingMode: 'environment',
-                        width: { ideal: 3840, min: 1920 },
-                        height: { ideal: 2160, min: 1080 },
-                        frameRate: { ideal: 30, min: 15 }
-                    }, 
-                    audio: false 
-                };
+                const isHighEnd = this.isHighEndDevice();
+                let constraints;
+
+                if (isHighEnd) {
+                    // iPhone 14 Pro以上・高性能デバイス用設定
+                    constraints = {
+                        video: { 
+                            facingMode: 'environment',
+                            width: { ideal: 4096, min: 3840 },      // より高解像度
+                            height: { ideal: 3072, min: 2160 },     // 4:3比率で最大画質
+                            frameRate: { ideal: 60, min: 30 },      // 高フレームレート
+                            aspectRatio: { ideal: 4/3 },            // カメラ本来の比率
+                            resizeMode: 'none',                     // リサイズ無効
+                            advanced: [
+                                { torch: false },                   // フラッシュ設定準備
+                                { focusMode: 'continuous' },        // 連続オートフォーカス
+                                { exposureMode: 'continuous' },     // 連続露出調整
+                                { whiteBalanceMode: 'continuous' }  // 連続ホワイトバランス
+                            ]
+                        }, 
+                        audio: false 
+                    };
+                    this.jpegQuality = 0.98; // 最高品質
+                    console.log('高性能デバイス検出: 最高画質モード');
+                } else {
+                    // 標準デバイス用設定
+                    constraints = {
+                        video: { 
+                            facingMode: 'environment',
+                            width: { ideal: 3840, min: 1920 },
+                            height: { ideal: 2160, min: 1080 },
+                            frameRate: { ideal: 30, min: 15 }
+                        }, 
+                        audio: false 
+                    };
+                    this.jpegQuality = 0.95; // 高品質
+                    console.log('標準デバイス: 高品質モード');
+                }
                 
                 this.cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
                 const video = document.getElementById('camera-stream');
                 video.srcObject = this.cameraStream;
                 
                 video.addEventListener('loadedmetadata', () => {
-                    console.log(`カメラ解像度: ${video.videoWidth}x${video.videoHeight}`);
-                    this.showNotification(`カメラ初期化成功 (${video.videoWidth}x${video.videoHeight})`, 'success');
+                    const deviceType = isHighEnd ? '最高画質' : '高画質';
+                    console.log(`カメラ解像度: ${video.videoWidth}x${video.videoHeight} (${deviceType})`);
+                    this.showNotification(`📸 ${deviceType}モード (${video.videoWidth}x${video.videoHeight})`, 'success');
+                    
+                    // 実際の解像度をUIに表示
+                    this.updateCameraInfo(video.videoWidth, video.videoHeight, isHighEnd);
                 });
                 
             } catch (err) {
                 console.error("カメラアクセスエラー:", err);
-                this.showNotification('カメラにアクセスできません。設定を確認してください。', 'error');
+                // 高解像度が失敗した場合のフォールバック
+                if (this.isHighEndDevice()) {
+                    console.log('高解像度撮影に失敗、標準解像度にフォールバック');
+                    try {
+                        const fallbackConstraints = {
+                            video: { 
+                                facingMode: 'environment',
+                                width: { ideal: 1920 },
+                                height: { ideal: 1080 }
+                            }, 
+                            audio: false 
+                        };
+                        this.cameraStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+                        document.getElementById('camera-stream').srcObject = this.cameraStream;
+                        this.jpegQuality = 0.95;
+                        this.showNotification('📸 標準画質モードで起動しました', 'info');
+                    } catch (fallbackErr) {
+                        this.showNotification('カメラにアクセスできません。設定を確認してください。', 'error');
+                    }
+                } else {
+                    this.showNotification('カメラにアクセスできません。設定を確認してください。', 'error');
+                }
+            }
+        },
+
+        // カメラ情報表示の更新
+        updateCameraInfo(width, height, isHighEnd) {
+            // 解像度情報をUIに追加表示
+            const infoElement = document.querySelector('.bg-black.bg-opacity-70.p-2.rounded-lg.text-xs.text-white');
+            if (infoElement && !infoElement.querySelector('.camera-info')) {
+                const cameraInfo = document.createElement('div');
+                cameraInfo.className = 'camera-info flex items-center gap-2 mt-1 pt-1 border-t border-gray-600';
+                const qualityIcon = isHighEnd ? '📸✨' : '📸';
+                const megapixels = ((width * height) / 1000000).toFixed(1);
+                cameraInfo.innerHTML = `
+                    <span>${qualityIcon}</span>
+                    <span>${width}×${height} (${megapixels}MP)</span>
+                `;
+                infoElement.appendChild(cameraInfo);
             }
         },
 
@@ -670,7 +754,7 @@
             }
         },
 
-        // 写真撮影
+        // 写真撮影（デバイス性能別最適化）
         async takePicture() {
             const video = document.getElementById('camera-stream');
             if (!video || !video.srcObject) {
@@ -687,27 +771,52 @@
             // 実際のビデオ解像度を使用
             const actualWidth = video.videoWidth;
             const actualHeight = video.videoHeight;
+            const isHighEnd = this.isHighEndDevice();
             
-            canvas.width = actualWidth;
-            canvas.height = actualHeight;
+            // 高性能デバイスの場合、さらに高解像度処理
+            let finalWidth = actualWidth;
+            let finalHeight = actualHeight;
+            
+            if (isHighEnd && actualWidth >= 3840) {
+                // iPhone 14 Pro以上で4K以上の場合、超高解像度処理
+                const upscaleFactor = 1.2; // 20%アップスケール
+                finalWidth = Math.round(actualWidth * upscaleFactor);
+                finalHeight = Math.round(actualHeight * upscaleFactor);
+                console.log(`超高解像度処理: ${actualWidth}x${actualHeight} → ${finalWidth}x${finalHeight}`);
+            }
+            
+            canvas.width = finalWidth;
+            canvas.height = finalHeight;
             
             const context = canvas.getContext('2d');
+            
+            // 高品質描画設定
+            context.imageSmoothingEnabled = true;
+            context.imageSmoothingQuality = 'high';
             
             // 高解像度でキャプチャ
             context.save();
             context.translate(canvas.width / 2, canvas.height / 2);
             context.scale(this.zoomLevel, this.zoomLevel);
-            context.drawImage(video, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
+            
+            // 高性能デバイスの場合、アップスケールで描画
+            if (isHighEnd && finalWidth > actualWidth) {
+                context.drawImage(video, -finalWidth / 2, -finalHeight / 2, finalWidth, finalHeight);
+            } else {
+                context.drawImage(video, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
+            }
+            
             context.restore();
 
-            // 高品質でJPEGに変換
-            const imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+            // デバイス性能に応じた品質でJPEGに変換
+            const quality = this.jpegQuality || 0.95;
+            const imageDataUrl = canvas.toDataURL('image/jpeg', quality);
             
             // EXIF情報を追加
             const timestamp = new Date();
             const imageWithExif = this.addExifData(imageDataUrl, this.sensorData, timestamp);
             
-            this.addPhotoToDatabase(imageWithExif, actualWidth, actualHeight);
+            this.addPhotoToDatabase(imageWithExif, finalWidth, finalHeight, isHighEnd);
         },
 
         // ズーム機能
@@ -717,8 +826,8 @@
             document.getElementById('zoom-level-display').textContent = `${this.zoomLevel.toFixed(1)}x`;
         },
 
-        // 写真管理
-        addPhotoToDatabase(dataUrl, width = 0, height = 0) {
+        // 写真管理（デバイス情報付き）
+        addPhotoToDatabase(dataUrl, width = 0, height = 0, isHighEnd = false) {
             const photoNumber = this.photoDatabase.length + 1;
             const photoData = {
                 id: photoNumber,
@@ -726,14 +835,18 @@
                 dataUrl: dataUrl,
                 timestamp: new Date(),
                 gps: { ...this.sensorData },
-                resolution: { width, height }
+                resolution: { width, height },
+                isHighEnd: isHighEnd,
+                quality: this.jpegQuality || 0.95
             };
             this.photoDatabase.push(photoData);
             this.updateAlbum(photoData);
             this.updatePhotoCounts();
             
             if (width > 0 && height > 0) {
-                this.showNotification(`写真撮影完了 (${width}x${height})`, 'success');
+                const qualityText = isHighEnd ? '最高画質' : '高画質';
+                const megapixels = ((width * height) / 1000000).toFixed(1);
+                this.showNotification(`📸 ${qualityText}撮影完了 (${width}x${height} - ${megapixels}MP)`, 'success');
             }
         },
 
@@ -743,8 +856,17 @@
             albumItem.className = 'relative w-full aspect-4/3 cursor-pointer bg-gray-800 rounded-lg overflow-hidden';
             albumItem.dataset.photoId = photoData.id;
             
-            const resInfo = photoData.resolution && photoData.resolution.width > 0 ? 
-                `<div class="text-xs text-gray-300">${photoData.resolution.width}x${photoData.resolution.height}</div>` : '';
+            // 詳細な解像度・品質情報を表示
+            let resInfo = '';
+            if (photoData.resolution && photoData.resolution.width > 0) {
+                const megapixels = ((photoData.resolution.width * photoData.resolution.height) / 1000000).toFixed(1);
+                const qualityIcon = photoData.isHighEnd ? '✨' : '';
+                const qualityPercent = Math.round((photoData.quality || 0.95) * 100);
+                resInfo = `
+                    <div class="text-xs text-gray-300">${photoData.resolution.width}×${photoData.resolution.height}</div>
+                    <div class="text-xs text-yellow-300">${qualityIcon}${megapixels}MP (${qualityPercent}%)</div>
+                `;
+            }
             
             albumItem.innerHTML = `
                 <img src="${photoData.dataUrl}" class="w-full h-full object-cover">
@@ -926,15 +1048,30 @@
         createInfoText() {
             let info = `構造物点検写真一覧\n`;
             info += `生成日時: ${new Date().toLocaleString('ja-JP')}\n`;
-            info += `写真枚数: ${this.photoDatabase.length}枚\n\n`;
-            info += `${'No.'.padEnd(5)} ${'ファイル名'.padEnd(15)} ${'解像度'.padEnd(12)} ${'撮影日時'.padEnd(20)} ${'GPS座標'.padEnd(25)} ${'方位'.padEnd(8)}\n`;
-            info += `${'-'.repeat(90)}\n`;
+            info += `写真枚数: ${this.photoDatabase.length}枚\n`;
+            
+            // デバイス情報を追加
+            const isHighEnd = this.isHighEndDevice();
+            const deviceType = isHighEnd ? '高性能デバイス (最高画質モード)' : '標準デバイス (高画質モード)';
+            info += `撮影デバイス: ${deviceType}\n\n`;
+            
+            info += `${'No.'.padEnd(5)} ${'ファイル名'.padEnd(15)} ${'解像度'.padEnd(12)} ${'画質'.padEnd(8)} ${'撮影日時'.padEnd(20)} ${'GPS座標'.padEnd(25)} ${'方位'.padEnd(8)}\n`;
+            info += `${'-'.repeat(100)}\n`;
             this.photoDatabase.forEach((p, i) => {
                 const gps = p.gps.latitude ? `${p.gps.latitude.toFixed(6)}, ${p.gps.longitude.toFixed(6)}` : '情報なし';
                 const heading = p.gps.heading ? `${p.gps.heading.toFixed(1)}°` : '不明';
                 const resolution = p.resolution && p.resolution.width > 0 ? `${p.resolution.width}x${p.resolution.height}` : 'N/A';
-                info += `${(i + 1).toString().padEnd(5)} ${p.fileName.padEnd(15)} ${resolution.padEnd(12)} ${p.timestamp.toLocaleString('ja-JP').padEnd(20)} ${gps.padEnd(25)} ${heading.padEnd(8)}\n`;
+                const quality = p.quality ? `${Math.round(p.quality * 100)}%` : '95%';
+                const qualityIcon = p.isHighEnd ? '✨' : '';
+                info += `${(i + 1).toString().padEnd(5)} ${p.fileName.padEnd(15)} ${resolution.padEnd(12)} ${(qualityIcon + quality).padEnd(8)} ${p.timestamp.toLocaleString('ja-JP').padEnd(20)} ${gps.padEnd(25)} ${heading.padEnd(8)}\n`;
             });
+            
+            // 高性能デバイスの場合、追加情報
+            if (isHighEnd) {
+                info += `\n※ 高性能デバイスで撮影された写真は最高画質設定（98%品質）で保存されています。\n`;
+                info += `※ iPhone 14 Pro以上では4K+アップスケール処理により、さらに高解像度での撮影が可能です。\n`;
+            }
+            
             return info;
         },
 
